@@ -1,0 +1,9 @@
+wheel
+yfinance
+PyAlgoTrade
+websocket
+pyyaml
+https://raw.githubusercontent.com/Shoonya-Dev/ShoonyaApi-py/master/dist/NorenRestApiPy-0.0.22-py2.py3-none-any.whl
+pyotp
+websocket_client
+six
