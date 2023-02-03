@@ -5,6 +5,7 @@
 import datetime
 import logging
 import six
+import queue
 
 from pyalgotrade import bar
 from pyalgotrade import barfeed
@@ -90,16 +91,15 @@ class LiveTradeFeed(barfeed.BaseBarFeed):
 
     QUEUE_TIMEOUT = 0.01
 
-    def __init__(self, api, instruments, timeout=10, maxLen=None):
+    def __init__(self, api, tokenMappings, timeout=10, maxLen=None):
         super(LiveTradeFeed, self).__init__(bar.Frequency.TRADE, maxLen)
-        self.__tradeBars = {}
-        self.__channels = []
+        self.__tradeBars = queue.Queue()
+        self.__channels = tokenMappings
         self.__api = api
         self.__timeout = timeout
 
-        for instrument in instruments:
-            self.__channels.append(instrument)
-            self.registerDataSeries(instrument)
+        for key, value in tokenMappings.items():
+            self.registerDataSeries(value)
 
         self.__thread = None
         self.__enableReconnection = True
@@ -169,27 +169,17 @@ class LiveTradeFeed(barfeed.BaseBarFeed):
         return ret
 
     def __onTrade(self, trade):
-        dateTime = trade.getDateTime()
-        if dateTime not in self.__tradeBars:
-            self.__tradeBars[dateTime] = []
-
-        self.__tradeBars[trade.getDateTime()].append(
+        self.__tradeBars.put(
             {trade.getExtraColumns().get("instrument"): trade})
 
     def barsHaveAdjClose(self):
         return False
 
     def getNextBars(self):
-        ret = None
-        if len(self.__tradeBars):
-            self.__tradeBars = dict(sorted(self.__tradeBars.items()))
-            dateTime = next(iter(self.__tradeBars))
-            tradeBar = self.__tradeBars[dateTime].pop(0)
-            if (len(self.__tradeBars[dateTime]) == 0):
-                self.__tradeBars.pop(dateTime)
+        if self.__tradeBars.qsize() > 0:
+            return bar.Bars(self.__tradeBars.get())
 
-            ret = bar.Bars(tradeBar)
-        return ret
+        return None
 
     def peekDateTime(self):
         # Return None since this is a realtime subject.

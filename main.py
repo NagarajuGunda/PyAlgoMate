@@ -11,6 +11,25 @@ from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
 logging.basicConfig(level=logging.INFO)
 
 
+def getTokenMappings(api, exchangeSymbols):
+    tokenMappings = {}
+
+    for exchangeSymbol in exchangeSymbols:
+        splitStrings = exchangeSymbol.split('|')
+        exchange = splitStrings[0]
+        symbol = splitStrings[1]
+        ret = api.searchscrip(exchange=exchange, searchtext=symbol)
+
+        if ret != None:
+            for value in ret['values']:
+                if value['cname'] == symbol:
+                    tokenMappings["{0}|{1}".format(
+                        value['exch'], value['token'])] = exchangeSymbol
+                    break
+
+    return tokenMappings
+
+
 def main():
     with open('cred.yml') as f:
         cred = yaml.load(f, Loader=yaml.FullLoader)
@@ -22,7 +41,8 @@ def main():
                     vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
 
     if ret != None:
-        barFeed = LiveTradeFeed(api, ['NSE|26009', 'NSE|26000'])
+        barFeed = LiveTradeFeed(api, getTokenMappings(
+            api, ["NSE|NIFTY BANK", "NSE|NIFTY INDEX"]))
         broker = PaperTradingBroker(200000, barFeed)
         strat = Strategy(barFeed, broker)
 

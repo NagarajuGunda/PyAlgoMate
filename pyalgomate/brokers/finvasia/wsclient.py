@@ -49,6 +49,10 @@ class SubscribeEvent(object):
         return self.__eventDict["tk"]
 
     @property
+    def tradingSymbol(self):
+        return self.__eventDict["ts"]
+
+    @property
     def dateTime(self):
         return datetime.datetime.now()
         now = datetime.datetime.now()
@@ -66,7 +70,7 @@ class SubscribeEvent(object):
     def seq(self): return int(self.dateTime())
 
     @property
-    def instrument(self): return f"{self.exchange}|{self.scriptToken}"
+    def instrument(self): return f"{self.exchange}|{self.tradingSymbol}"
 
     def TradeBar(self):
         open = high = low = close = self.price
@@ -85,11 +89,12 @@ class WebSocketClient:
         TRADE = 2
         ORDER_BOOK_UPDATE = 3
 
-    def __init__(self, queue, api, subscriptions):
-        assert len(subscriptions), "Missing subscriptions"
+    def __init__(self, queue, api, tokenMappings):
+        assert len(tokenMappings), "Missing subscriptions"
         self.__queue = queue
         self.__api = api
-        self.__pending_subscriptions = subscriptions
+        self.__tokenMappings = tokenMappings
+        self.__pending_subscriptions = list(tokenMappings.keys())
         self.__connected = False
         self.__initialized = threading.Event()
 
@@ -136,13 +141,15 @@ class WebSocketClient:
         logger.warning("Unknown event: %s." % event)
 
     def onTrade(self, trade):
-        self.__queue.put((WebSocketClient.Event.TRADE, trade))
+        if trade.getPrice() > 0:
+            self.__queue.put((WebSocketClient.Event.TRADE, trade))
 
     def onQuoteUpdate(self, message):
         logger.debug(message)
 
-        field = message.get("t")
+        message["ts"] = self.__tokenMappings[f"{message['e']}|{message['tk']}"].split('|')[1]
 
+        field = message.get("t")
         # t='tk' is sent once on subscription for each instrument.
         # this will have all the fields with the most recent value thereon t='tf' is sent for fields that have changed.
         if field == "tf":
@@ -160,11 +167,9 @@ class WebSocketClient:
         #     (WebSocketClient.Event.ORDER_BOOK_UPDATE, orderBookUpdate))
 
     def __onSubscriptionSucceeded(self, event):
-        instrument = f"{event.exchange}|{event.scriptToken}"
+        logger.info(f"Subscription succeeded for <{event.exchange}|{event.tradingSymbol}>")
 
-        logger.info(f"Subscription succeeded for <{instrument}>")
-
-        self.__pending_subscriptions.remove(instrument)
+        self.__pending_subscriptions.remove(f"{event.exchange}|{event.scriptToken}")
 
         if not self.__pending_subscriptions:
             self.setInitialized()
@@ -211,6 +216,6 @@ class WebSocketClientThread(WebSocketClientThreadBase):
     This thread class is responsible for running a WebSocketClient.
     """
 
-    def __init__(self, api, channels):
+    def __init__(self, api, tokenMappings):
         super(WebSocketClientThread, self).__init__(
-            WebSocketClient, api, channels)
+            WebSocketClient, api, tokenMappings)
