@@ -9,10 +9,9 @@ from pyalgomate.backtesting import CustomCSVFeed
 logging.basicConfig(level=logging.INFO)
 
 
-def main():
+def main(dataFile):
     feed = CustomCSVFeed.CustomCSVFeed()
-    feed.addBarsFromCSV(
-        "pyalgomate/backtesting/data/august-2022-monthly.csv", skipMalformedBars=True)
+    feed.addBarsFromCSV(dataFile, skipMalformedBars=True)
     broker = PaperTradingBroker(200000, feed)
     strat = OptionsStrangleIntraday(feed, broker)
 
@@ -81,4 +80,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main("pyalgomate/backtesting/data/january-2022-monthly.csv")
