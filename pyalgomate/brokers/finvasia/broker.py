@@ -18,6 +18,9 @@ logger = logging.getLogger(__file__)
 # It is guaranteed to process BarFeed events before the strategy because it connects to BarFeed events before the
 # strategy.
 
+class QuantityTraits(broker.InstrumentTraits):
+    def roundQuantity(self, quantity):
+        return round(quantity, 2)
 
 class BacktestingBroker(backtesting.Broker):
     """A Finvasia backtesting broker.
@@ -41,7 +44,8 @@ class BacktestingBroker(backtesting.Broker):
         super(BacktestingBroker, self).__init__(cash, barFeed, commission)
 
     def getInstrumentTraits(self, instrument):
-        return self.getInstrumentTraits()
+        return QuantityTraits()
+
 
     def submitOrder(self, order):
         if order.isInitial():
@@ -50,14 +54,23 @@ class BacktestingBroker(backtesting.Broker):
             order.setGoodTillCanceled(True)
         return super(BacktestingBroker, self).submitOrder(order)
 
+    def _remapAction(self, action):
+        action = {
+            broker.Order.Action.BUY_TO_COVER: broker.Order.Action.BUY,
+            broker.Order.Action.BUY:          broker.Order.Action.BUY,
+            broker.Order.Action.SELL_SHORT:   broker.Order.Action.SELL,
+            broker.Order.Action.SELL:         broker.Order.Action.SELL
+        }.get(action, None)
+        if action is None:
+            raise Exception("Only BUY/SELL orders are supported")
+        return action
+
     def createMarketOrder(self, action, instrument, quantity, onClose=False):
-        raise Exception("Market orders are not supported")
+       action = self._remapAction(action)
+       return super(BacktestingBroker, self).createMarketOrder(action, instrument, quantity, onClose)
 
     def createLimitOrder(self, action, instrument, limitPrice, quantity):
-        if action == broker.Order.Action.BUY_TO_COVER:
-            action = broker.Order.Action.BUY
-        elif action == broker.Order.Action.SELL_SHORT:
-            action = broker.Order.Action.SELL
+        action = self._remapAction(action)
 
         if action == broker.Order.Action.BUY:
             # Check that there is enough cash.
