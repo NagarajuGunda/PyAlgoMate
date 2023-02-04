@@ -1,17 +1,26 @@
 import logging
+import glob
+import datetime
 
 from pyalgomate.brokers.finvasia.broker import PaperTradingBroker
 from pyalgomate.strategies.OptionsStrangleIntraday import OptionsStrangleIntraday
-from pyalgotrade import plotter
 from pyalgotrade.stratanalyzer import returns as stratReturns, drawdown, trades
 from pyalgomate.backtesting import CustomCSVFeed
 
 logging.basicConfig(level=logging.INFO)
 
 
-def main(dataFile):
+def main(dataFiles):
+    start = datetime.datetime.now()
     feed = CustomCSVFeed.CustomCSVFeed()
-    feed.addBarsFromCSV(dataFile, skipMalformedBars=True)
+    for files in dataFiles:
+        for file in glob.glob(files):
+            feed.addBarsFromCSV(file, skipMalformedBars=True)
+
+    print("")
+    print(f"Time took in loading data <{datetime.datetime.now()-start}>")
+    start = datetime.datetime.now()
+
     broker = PaperTradingBroker(200000, feed)
     strat = OptionsStrangleIntraday(feed, broker)
 
@@ -23,12 +32,14 @@ def main(dataFile):
     strat.attachAnalyzer(drawDownAnalyzer)
     strat.attachAnalyzer(tradesAnalyzer)
 
-    plt = plotter.StrategyPlotter(strat)
-
     strat.run()
 
-    plt.plot()
+    print("")
+    print(
+        f"Time took in running the strategy <{datetime.datetime.now()-start}>")
+    start = datetime.datetime.now()
 
+    print("")
     print("Final portfolio value: ₹ %.2f" % strat.getResult())
     print("Cumulative returns: %.2f %%" %
           (returnsAnalyzer.getCumulativeReturns()[-1] * 100))
@@ -78,6 +89,9 @@ def main(dataFile):
         print("Max. return: %2.f %%" % (returns.max() * 100))
         print("Min. return: %2.f %%" % (returns.min() * 100))
 
+    print("")
+    print(f"Time took in analyzing <{datetime.datetime.now()-start}>")
+
 
 if __name__ == "__main__":
-    main("pyalgomate/backtesting/data/january-2022-monthly.csv")
+    main(["pyalgomate/backtesting/data/2022-*.csv"])
