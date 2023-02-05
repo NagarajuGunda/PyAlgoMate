@@ -1,4 +1,10 @@
+import logging
 from pyalgotrade import strategy
+from pyalgotrade import bar
+
+logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger(__file__)
 
 
 def findOTMStrikes(ltp, strikeDifference, nStrikesAway):
@@ -46,10 +52,16 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
         self.ceReEntry = 1
         self.peReEntry = 1
 
-    def __init__(self, feed, broker):
+    def __init__(self, feed, broker, resampleFrequency=None):
         super(OptionsStrangleIntraday, self).__init__(feed, broker)
         self.__reset__()
         self.currentDate = None
+        if resampleFrequency:
+            self.resampleBarFeed(resampleFrequency, self.resampledOnBars)
+
+    def resampledOnBars(self, bars):
+        logger.info("Resampled {0} {1}".format(bars.getDateTime(),
+                                               bars[self.underlyingInstrument].getClose()))
 
     def onBars(self, bars):
         bar = bars.getBar(self.underlyingInstrument)
@@ -115,14 +127,14 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
                 self.pePosition = self.pePosition.exitMarket()
                 self.pnl += ((self.peEnteredPrice - peLTP) * self.quantity)
 
-            # self.info(f"===== PnL for {dateTime} is {self.pnl} =====")
+            # logger.info(f"===== PnL for {dateTime} is {self.pnl} =====")
 
     def onEnterOk(self, position):
         execInfo = position.getEntryOrder().getExecutionInfo()
-        # self.info(
+        # logger.info(
         #     f"===== Entered {position.getEntryOrder().getInstrument()} at {execInfo.getPrice()} {execInfo.getQuantity()} =====")
 
     def onExitOk(self, position):
         execInfo = position.getExitOrder().getExecutionInfo()
-        # self.info(
+        # logger.info(
         #     f"===== Exited {position.getEntryOrder().getInstrument()} at {execInfo.getPrice()} =====")
