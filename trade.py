@@ -4,7 +4,6 @@ import logging
 
 from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
 from pyalgomate.brokers.finvasia.broker import PaperTradingBroker
-from pyalgomate.strategies.Strategy import Strategy
 from pyalgomate.strategies.OptionsStrangleIntraday import OptionsStrangleIntraday
 
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
@@ -49,7 +48,7 @@ def main():
         barFeed = LiveTradeFeed(api, getTokenMappings(
             api, ["NSE|NIFTY INDEX", "NSE|NIFTY BANK", "NFO|NIFTY23FEB23C41600", "NFO|BANKNIFTY23FEB23P41600"]))
         broker = PaperTradingBroker(200000, barFeed)
-        strat = Strategy(barFeed, broker, 'NSE|NIFTY BANK')
+        strat = OptionsStrangleIntraday(barFeed, broker, 'NSE|NIFTY BANK')
 
     strat.run()
 

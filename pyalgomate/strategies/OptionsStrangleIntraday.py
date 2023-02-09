@@ -16,7 +16,20 @@ def findOTMStrikes(ltp, strikeDifference, nStrikesAway):
 
     return ceStrike, peStrike
 
+
 class OptionsStrangleIntraday(strategy.BaseStrategy):
+
+    def __init__(self, feed, broker, underlyingInstrument, resampleFrequency=None):
+        super(OptionsStrangleIntraday, self).__init__(feed, broker)
+        self.__reset__()
+        self.currentDate = None
+        self.bars = {}
+        self.maxLen = 255
+        self.broker = broker
+        self.underlyingInstrument = underlyingInstrument
+        if resampleFrequency:
+            self.resampleBarFeed(resampleFrequency, self.resampledOnBars)
+
     def __reset__(self):
         self.entryHour = 9
         self.entryMinute = 17
@@ -44,17 +57,6 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
         self.peEnteredPrice = None
         self.ceReEntry = 1
         self.peReEntry = 1
-
-    def __init__(self, feed, broker, underlyingInstrument, resampleFrequency=None):
-        super(OptionsStrangleIntraday, self).__init__(feed, broker)
-        self.__reset__()
-        self.currentDate = None
-        self.bars = {}
-        self.maxLen = 255
-        self.broker = broker
-        self.underlyingInstrument = underlyingInstrument
-        if resampleFrequency:
-            self.resampleBarFeed(resampleFrequency, self.resampledOnBars)
 
     def resampledOnBars(self, bars):
         logger.info("Resampled {0} {1}".format(bars.getDateTime(),
