@@ -46,7 +46,7 @@ def main():
 
     if ret != None:
         barFeed = LiveTradeFeed(api, getTokenMappings(
-            api, ["NSE|NIFTY INDEX", "NSE|NIFTY BANK", "NFO|NIFTY23FEB23C41600", "NFO|BANKNIFTY23FEB23P41600"]))
+            api, ["NSE|NIFTY INDEX", "NSE|NIFTY BANK", "NFO|BANKNIFTY09FEB23C41900", "NFO|BANKNIFTY09FEB23P41300"]))
         broker = PaperTradingBroker(200000, barFeed)
         strat = OptionsStrangleIntraday(barFeed, broker, 'NSE|NIFTY BANK')
 

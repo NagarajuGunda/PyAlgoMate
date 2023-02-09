@@ -19,9 +19,11 @@ logger = logging.getLogger(__file__)
 # It is guaranteed to process BarFeed events before the strategy because it connects to BarFeed events before the
 # strategy.
 
+
 class QuantityTraits(broker.InstrumentTraits):
     def roundQuantity(self, quantity):
         return round(quantity, 2)
+
 
 class BacktestingBroker(backtesting.Broker):
     """A Finvasia backtesting broker.
@@ -49,7 +51,6 @@ class BacktestingBroker(backtesting.Broker):
 
     def getInstrumentTraits(self, instrument):
         return QuantityTraits()
-
 
     def submitOrder(self, order):
         if order.isInitial():
@@ -109,9 +110,9 @@ class PaperTradingBroker(BacktestingBroker):
 
         offset = (expiry.weekday() - calendar.THURSDAY) % 7
         day = expiry.day + offset
-        yearMonthDay = str(expiry.year % 100) + \
-            calendar.month_abbr[expiry.month].upper() + f"{day:02d}"
-        return symbol + yearMonthDay + "C" + str(ceStrikePrice), symbol + yearMonthDay + "P" + str(peStrikePrice)
+        dayMonthYear = f"{day:02d}" + \
+            calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
+        return symbol + dayMonthYear + "C" + str(ceStrikePrice), symbol + dayMonthYear + "P" + str(peStrikePrice)
 
     pass
 
@@ -220,9 +221,9 @@ class LiveBroker(broker.Broker):
 
         offset = (expiry.weekday() - calendar.THURSDAY) % 7
         day = expiry.day + offset
-        yearMonthDay = str(expiry.year % 100) + \
-            calendar.month_abbr[expiry.month].upper() + f"{day:02d}"
-        return symbol + yearMonthDay + "C" + str(ceStrikePrice), symbol + yearMonthDay + "P" + str(peStrikePrice)
+        dayMonthYear = f"{day:02d}" + \
+            calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
+        return symbol + dayMonthYear + "C" + str(ceStrikePrice), symbol + dayMonthYear + "P" + str(peStrikePrice)
 
     def __init__(self, api):
         super(LiveBroker, self).__init__()
