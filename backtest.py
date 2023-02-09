@@ -2,7 +2,7 @@ import logging
 import glob
 import datetime
 
-from pyalgomate.brokers.finvasia.broker import PaperTradingBroker
+from pyalgomate.brokers.finvasia.broker import BacktestingBroker
 from pyalgomate.strategies.OptionsStrangleIntraday import OptionsStrangleIntraday
 from pyalgotrade.stratanalyzer import returns as stratReturns, drawdown, trades
 from pyalgomate.backtesting import CustomCSVFeed
@@ -21,8 +21,8 @@ def main(dataFiles):
     print(f"Time took in loading data <{datetime.datetime.now()-start}>")
     start = datetime.datetime.now()
 
-    broker = PaperTradingBroker(200000, feed)
-    strat = OptionsStrangleIntraday(feed, broker)
+    broker = BacktestingBroker(200000, feed)
+    strat = OptionsStrangleIntraday(feed, broker, 'BANKNIFTY')
 
     returnsAnalyzer = stratReturns.Returns()
     tradesAnalyzer = trades.Trades()

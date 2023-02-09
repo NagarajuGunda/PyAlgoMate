@@ -9,7 +9,7 @@ from pyalgomate.strategies.OptionsStrangleIntraday import OptionsStrangleIntrada
 
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 
 def getTokenMappings(api, exchangeSymbols):
@@ -23,7 +23,11 @@ def getTokenMappings(api, exchangeSymbols):
 
         if ret != None:
             for value in ret['values']:
-                if value['cname'] == symbol:
+                if value['instname'] == 'OPTIDX' and value['tsym'] == symbol:
+                    tokenMappings["{0}|{1}".format(
+                        value['exch'], value['token'])] = exchangeSymbol
+                    break
+                if value['instname'] == 'UNDIND' and value['cname'] == symbol:
                     tokenMappings["{0}|{1}".format(
                         value['exch'], value['token'])] = exchangeSymbol
                     break
@@ -43,9 +47,9 @@ def main():
 
     if ret != None:
         barFeed = LiveTradeFeed(api, getTokenMappings(
-            api, ["NSE|NIFTY BANK", "NSE|NIFTY INDEX"]))
+            api, ["NSE|NIFTY INDEX", "NSE|NIFTY BANK", "NFO|NIFTY23FEB23C41600", "NFO|BANKNIFTY23FEB23P41600"]))
         broker = PaperTradingBroker(200000, barFeed)
-        strat = Strategy(barFeed, broker)
+        strat = Strategy(barFeed, broker, 'NSE|NIFTY BANK')
 
     strat.run()
 

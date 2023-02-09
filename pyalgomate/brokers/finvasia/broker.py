@@ -7,6 +7,7 @@ import time
 import logging
 import datetime
 import six
+import calendar
 
 from pyalgotrade import broker
 from pyalgotrade.broker import backtesting
@@ -38,6 +39,9 @@ class BacktestingBroker(backtesting.Broker):
         * BUY_TO_COVER orders are mapped to BUY orders.
         * SELL_SHORT orders are mapped to SELL orders.
     """
+
+    def findOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
+        return underlyingInstrument + str(ceStrikePrice) + "CE", underlyingInstrument + str(peStrikePrice) + "PE"
 
     def __init__(self, cash, barFeed, fee=0.0025):
         commission = backtesting.TradePercentage(fee)
@@ -96,20 +100,18 @@ class BacktestingBroker(backtesting.Broker):
 
 class PaperTradingBroker(BacktestingBroker):
     """A Finvasia paper trading broker.
-
-    :param cash: The initial amount of cash.
-    :type cash: int/float.
-    :param barFeed: The bar feed that will provide the bars.
-    :type barFeed: :class:`pyalgotrade.barfeed.BarFeed`
-    :param fee: The fee percentage for each order. Defaults to 0.5%.
-    :type fee: float.
-
-    .. note::
-        * Only limit orders are supported.
-        * Orders are automatically set as **goodTillCanceled=True** and  **allOrNone=False**.
-        * BUY_TO_COVER orders are mapped to BUY orders.
-        * SELL_SHORT orders are mapped to SELL orders.
     """
+
+    def findOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
+        symbol = 'NFO|NIFTY'
+        if 'NIFTY BANK' in underlyingInstrument:
+            symbol = 'NFO|BANKNIFTY'
+
+        offset = (expiry.weekday() - calendar.THURSDAY) % 7
+        day = expiry.day + offset
+        yearMonthDay = str(expiry.year % 100) + \
+            calendar.month_abbr[expiry.month].upper() + f"{day:02d}"
+        return symbol + yearMonthDay + "C" + str(ceStrikePrice), symbol + yearMonthDay + "P" + str(peStrikePrice)
 
     pass
 
@@ -210,6 +212,17 @@ class LiveBroker(broker.Broker):
     """
 
     QUEUE_TIMEOUT = 0.01
+
+    def findOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
+        symbol = 'NFO|NIFTY'
+        if 'NIFTY BANK' in underlyingInstrument:
+            symbol = 'NFO|BANKNIFTY'
+
+        offset = (expiry.weekday() - calendar.THURSDAY) % 7
+        day = expiry.day + offset
+        yearMonthDay = str(expiry.year % 100) + \
+            calendar.month_abbr[expiry.month].upper() + f"{day:02d}"
+        return symbol + yearMonthDay + "C" + str(ceStrikePrice), symbol + yearMonthDay + "P" + str(peStrikePrice)
 
     def __init__(self, api):
         super(LiveBroker, self).__init__()

@@ -16,14 +16,6 @@ def findOTMStrikes(ltp, strikeDifference, nStrikesAway):
 
     return ceStrike, peStrike
 
-
-def findOptionSymbols(underlyingInstrument, ceStrikePrice, peStrikePrice):
-    return underlyingInstrument + str(ceStrikePrice) + "CE", underlyingInstrument + str(peStrikePrice) + "PE"
-    expiry = "23"+"FEB"+"23"
-
-    return "NFO|" + "BANKNIFTY" + expiry + "C"+str(ceStrikePrice), "NFO" + "BANKNIFTY" + expiry+"P"+str(peStrikePrice)
-
-
 class OptionsStrangleIntraday(strategy.BaseStrategy):
     def __reset__(self):
         self.entryHour = 9
@@ -33,7 +25,6 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
         self.exitMinute = 15
         self.exitSecond = 0
 
-        self.underlyingInstrument = 'BANKNIFTY'
         self.strikeDifference = 100
         self.nStrikesAway = 3
         self.quantity = 25
@@ -54,12 +45,14 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
         self.ceReEntry = 1
         self.peReEntry = 1
 
-    def __init__(self, feed, broker, resampleFrequency=None):
+    def __init__(self, feed, broker, underlyingInstrument, resampleFrequency=None):
         super(OptionsStrangleIntraday, self).__init__(feed, broker)
         self.__reset__()
         self.currentDate = None
         self.bars = {}
         self.maxLen = 255
+        self.broker = broker
+        self.underlyingInstrument = underlyingInstrument
         if resampleFrequency:
             self.resampleBarFeed(resampleFrequency, self.resampledOnBars)
 
@@ -97,8 +90,8 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
             ceStrike, peStrike = findOTMStrikes(
                 bar.getClose(), self.strikeDifference, self.nStrikesAway)
 
-            self.ceSymbol, self.peSymbol = findOptionSymbols(
-                self.underlyingInstrument, ceStrike, peStrike)
+            self.ceSymbol, self.peSymbol = self.broker.findOptionSymbols(
+                self.underlyingInstrument, dateTime, ceStrike, peStrike)
 
         if (not self.bars.get(self.ceSymbol, None)) or (not self.bars.get(self.peSymbol, None)):
             return
