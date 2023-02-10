@@ -11,18 +11,19 @@ logging.basicConfig(level=logging.INFO)
 
 
 def main(dataFiles):
+    underlyingInstrument = 'BANKNIFTY'
     start = datetime.datetime.now()
     feed = CustomCSVFeed.CustomCSVFeed()
     for files in dataFiles:
         for file in glob.glob(files):
-            feed.addBarsFromParquet(file)
+            feed.addBarsFromParquet(path=file, ticker=underlyingInstrument)
 
     print("")
     print(f"Time took in loading data <{datetime.datetime.now()-start}>")
     start = datetime.datetime.now()
 
     broker = BacktestingBroker(200000, feed)
-    strat = OptionsStrangleIntraday(feed, broker, 'BANKNIFTY')
+    strat = OptionsStrangleIntraday(feed, broker, underlyingInstrument)
 
     returnsAnalyzer = stratReturns.Returns()
     tradesAnalyzer = trades.Trades()
