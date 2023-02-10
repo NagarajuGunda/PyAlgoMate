@@ -8,3 +8,4 @@ pyotp
 websocket_client
 six
 fastparquet
+pendulum
