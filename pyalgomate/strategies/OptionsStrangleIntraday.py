@@ -2,7 +2,7 @@ import logging
 from collections import deque
 
 from pyalgotrade import strategy
-from pyalgotrade import bar
+import pyalgomate.utils as utils
 
 logging.basicConfig(level=logging.INFO)
 
@@ -93,7 +93,7 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
                 bar.getClose(), self.strikeDifference, self.nStrikesAway)
 
             self.ceSymbol, self.peSymbol = self.broker.findOptionSymbols(
-                self.underlyingInstrument, dateTime, ceStrike, peStrike)
+                self.underlyingInstrument, utils.getNearestWeeklyExpiryDate(dateTime.date()), ceStrike, peStrike)
 
         if (not self.bars.get(self.ceSymbol, None)) or (not self.bars.get(self.peSymbol, None)):
             return

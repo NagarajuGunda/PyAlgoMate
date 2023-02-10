@@ -99,20 +99,22 @@ class BacktestingBroker(backtesting.Broker):
         raise Exception("Stop limit orders are not supported")
 
 
+def findOptionSymbols(underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
+    symbol = 'NFO|NIFTY'
+    if 'NIFTY BANK' in underlyingInstrument:
+        symbol = 'NFO|BANKNIFTY'
+
+    dayMonthYear = f"{expiry.day:02d}" + \
+        calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
+    return symbol + dayMonthYear + "C" + str(ceStrikePrice), symbol + dayMonthYear + "P" + str(peStrikePrice)
+
+
 class PaperTradingBroker(BacktestingBroker):
     """A Finvasia paper trading broker.
     """
 
     def findOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
-        symbol = 'NFO|NIFTY'
-        if 'NIFTY BANK' in underlyingInstrument:
-            symbol = 'NFO|BANKNIFTY'
-
-        offset = (expiry.weekday() - calendar.THURSDAY) % 7
-        day = expiry.day + offset
-        dayMonthYear = f"{day:02d}" + \
-            calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
-        return symbol + dayMonthYear + "C" + str(ceStrikePrice), symbol + dayMonthYear + "P" + str(peStrikePrice)
+        return findOptionSymbols(underlyingInstrument, expiry, ceStrikePrice, peStrikePrice)
 
     pass
 
@@ -215,15 +217,7 @@ class LiveBroker(broker.Broker):
     QUEUE_TIMEOUT = 0.01
 
     def findOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
-        symbol = 'NFO|NIFTY'
-        if 'NIFTY BANK' in underlyingInstrument:
-            symbol = 'NFO|BANKNIFTY'
-
-        offset = (expiry.weekday() - calendar.THURSDAY) % 7
-        day = expiry.day + offset
-        dayMonthYear = f"{day:02d}" + \
-            calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
-        return symbol + dayMonthYear + "C" + str(ceStrikePrice), symbol + dayMonthYear + "P" + str(peStrikePrice)
+        return findOptionSymbols(underlyingInstrument, expiry, ceStrikePrice, peStrikePrice)
 
     def __init__(self, api):
         super(LiveBroker, self).__init__()
