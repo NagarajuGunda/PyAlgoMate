@@ -92,7 +92,7 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
             ceStrike, peStrike = findOTMStrikes(
                 bar.getClose(), self.strikeDifference, self.nStrikesAway)
 
-            self.ceSymbol, self.peSymbol = self.broker.findOptionSymbols(
+            self.ceSymbol, self.peSymbol = self.broker.getOptionSymbols(
                 self.underlyingInstrument, utils.getNearestWeeklyExpiryDate(dateTime.date()), ceStrike, peStrike)
 
         if (not self.bars.get(self.ceSymbol, None)) or (not self.bars.get(self.peSymbol, None)):

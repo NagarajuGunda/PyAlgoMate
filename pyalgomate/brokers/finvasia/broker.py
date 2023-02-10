@@ -42,7 +42,7 @@ class BacktestingBroker(backtesting.Broker):
         * SELL_SHORT orders are mapped to SELL orders.
     """
 
-    def findOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
+    def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
         return underlyingInstrument + str(ceStrikePrice) + "CE", underlyingInstrument + str(peStrikePrice) + "PE"
 
     def __init__(self, cash, barFeed, fee=0.0025):
@@ -99,22 +99,36 @@ class BacktestingBroker(backtesting.Broker):
         raise Exception("Stop limit orders are not supported")
 
 
-def findOptionSymbols(underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
+def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
     symbol = 'NFO|NIFTY'
     if 'NIFTY BANK' in underlyingInstrument:
         symbol = 'NFO|BANKNIFTY'
 
     dayMonthYear = f"{expiry.day:02d}" + \
         calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
-    return symbol + dayMonthYear + "C" + str(ceStrikePrice), symbol + dayMonthYear + "P" + str(peStrikePrice)
+    return symbol + dayMonthYear + callOrPut + str(strikePrice)
+
+
+def getOptionSymbols(underlyingInstrument, expiry, ltp, count):
+    ltp = int(float(ltp) / 100) * 100
+    optionSymbols = []
+    for n in range(count+1):
+       optionSymbols.append(getOptionSymbol(
+           underlyingInstrument, expiry, ltp + (n * 100), 'C'))
+
+    for n in range(count+1):
+       optionSymbols.append(getOptionSymbol(
+           underlyingInstrument, expiry, ltp - (n * 100), 'P'))
+
+    return optionSymbols
 
 
 class PaperTradingBroker(BacktestingBroker):
     """A Finvasia paper trading broker.
     """
 
-    def findOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
-        return findOptionSymbols(underlyingInstrument, expiry, ceStrikePrice, peStrikePrice)
+    def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
+        return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
 
     pass
 
@@ -216,8 +230,8 @@ class LiveBroker(broker.Broker):
 
     QUEUE_TIMEOUT = 0.01
 
-    def findOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
-        return findOptionSymbols(underlyingInstrument, expiry, ceStrikePrice, peStrikePrice)
+    def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
+        return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
 
     def __init__(self, api):
         super(LiveBroker, self).__init__()
