@@ -3,6 +3,7 @@
 """
 
 import six
+import pandas as pd
 
 from pyalgotrade.utils import csvutils
 from pyalgotrade import bar
@@ -80,6 +81,7 @@ class CustomCSVBarFeed(BarFeed):
     def __init__(self, frequency, timezone=None, maxLen=None):
         super(CustomCSVBarFeed, self).__init__(frequency, maxLen)
 
+        self.__frequency = frequency
         self.__timezone = timezone
         # Assume bars don't have adjusted close. This will be set to True after
         # loading the first file if the adj_close column is there.
@@ -121,6 +123,51 @@ class CustomCSVBarFeed(BarFeed):
 
     def setBarClass(self, barClass):
         self.__barClass = barClass
+
+    def addBarsFromParquet(self, path, timezone=None):
+        """Loads bars for a given instrument from a parquet file.
+        The instrument gets registered in the bar feed.
+
+        :param path: The path to the parquet file.
+        :type path: string.
+        :param timezone: The timezone to use to localize bars. Check :mod:`pyalgotrade.marketsession`.
+        :type timezone: A pytz timezone.
+        :param skipMalformedBars: True to skip errors while parsing bars.
+        :type skipMalformedBars: boolean.
+        """
+        def parse_bar_skip_malformed(row):
+            ret = None
+            try:
+                ret = self.__barClass(row[self.__columnNames['datetime']],
+                                      row[self.__columnNames['open']],
+                                      row[self.__columnNames['high']],
+                                      row[self.__columnNames['low']],
+                                      row[self.__columnNames['close']],
+                                      row[self.__columnNames['volume']],
+                                      None,
+                                      self.__frequency,
+                                      extra={
+                    self.__columnNames['open_interest']: row[self.__columnNames['open_interest']]}
+                )
+            except Exception:
+                pass
+            return ret
+
+        if timezone is None:
+            timezone = self.__timezone
+
+        # Load the parquet file
+        df = pd.read_parquet(path)
+
+        for name, group in df.groupby(self.__columnNames['ticker']):
+            bars = []
+            for row in group.to_dict('records'):
+                bar_ = parse_bar_skip_malformed(row)
+
+                if bar_ is not None and (self.getBarFilter() is None or self.getBarFilter().includeBar(bar_)):
+                    bars.append(bar_)
+
+            super(CustomCSVBarFeed, self).addBarsFromSequence(name, bars)
 
     def addBarsFromCSV(self, path, timezone=None, skipMalformedBars=False):
         """Loads bars for a given instrument from a CSV formatted file.

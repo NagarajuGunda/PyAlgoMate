@@ -7,3 +7,4 @@ https://raw.githubusercontent.com/Shoonya-Dev/ShoonyaApi-py/master/dist/NorenRes
 pyotp
 websocket_client
 six
+fastparquet

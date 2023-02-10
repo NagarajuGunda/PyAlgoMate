@@ -15,7 +15,7 @@ def main(dataFiles):
     feed = CustomCSVFeed.CustomCSVFeed()
     for files in dataFiles:
         for file in glob.glob(files):
-            feed.addBarsFromCSV(file, skipMalformedBars=True)
+            feed.addBarsFromParquet(file)
 
     print("")
     print(f"Time took in loading data <{datetime.datetime.now()-start}>")
@@ -112,4 +112,4 @@ def main(dataFiles):
 
 
 if __name__ == "__main__":
-    main(["pyalgomate/backtesting/data/2022-*.csv"])
+    main(["pyalgomate/backtesting/data/2022-*.parquet"])
