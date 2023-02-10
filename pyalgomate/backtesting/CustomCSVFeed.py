@@ -124,7 +124,7 @@ class CustomCSVBarFeed(BarFeed):
     def setBarClass(self, barClass):
         self.__barClass = barClass
 
-    def addBarsFromParquet(self, path, timezone=None):
+    def addBarsFromParquet(self, path, ticker=None, timezone=None):
         """Loads bars for a given instrument from a parquet file.
         The instrument gets registered in the bar feed.
 
@@ -158,6 +158,9 @@ class CustomCSVBarFeed(BarFeed):
 
         # Load the parquet file
         df = pd.read_parquet(path)
+
+        if ticker:
+            df = df[df[self.__columnNames['ticker']].str.startswith(ticker)]
 
         for name, group in df.groupby(self.__columnNames['ticker']):
             bars = []
