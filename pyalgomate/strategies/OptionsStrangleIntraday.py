@@ -1,4 +1,5 @@
 import logging
+import datetime
 from collections import deque
 
 from pyalgotrade import strategy
@@ -19,14 +20,18 @@ def findOTMStrikes(ltp, strikeDifference, nStrikesAway):
 
 class OptionsStrangleIntraday(strategy.BaseStrategy):
 
-    def __init__(self, feed, broker, underlyingInstrument, resampleFrequency=None):
+    def __init__(self, feed, broker, underlyingInstrument, callback=None, resampleFrequency=None):
         super(OptionsStrangleIntraday, self).__init__(feed, broker)
         self.__reset__()
+        self._observers = []
         self.currentDate = None
         self.bars = {}
         self.maxLen = 255
         self.broker = broker
         self.underlyingInstrument = underlyingInstrument
+        if callback:
+            self._observers.append(callback)
+
         if resampleFrequency:
             self.resampleBarFeed(resampleFrequency, self.resampledOnBars)
 
@@ -43,7 +48,9 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
         self.quantity = 25
         self.slPercentage = 25
         self.targetPercentage = 80
-        self.pnl = 0
+        self._pnl = 0
+        self.cePnl = 0
+        self.pePnl = 0
         self.premium = 100
         self.ceSymbol = None
         self.peSymbol = None
@@ -58,9 +65,21 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
         self.ceReEntry = 1
         self.peReEntry = 1
 
+    @property
+    def pnl(self):
+        return self._pnl
+
+    @pnl.setter
+    def pnl(self, value):
+        self._pnl = value
+        for callback in self._observers:
+            callback("pnl", self._pnl)
+
     def resampledOnBars(self, bars):
         logger.info("Resampled {0} {1}".format(bars.getDateTime(),
                                                bars[self.underlyingInstrument].getClose()))
+        logger.info(
+            f"===== PnL for {bars.getDateTime().date()} is {self.pnl} =====")
 
     def pushBars(self, bars):
         for key, value in bars.items():
@@ -85,7 +104,7 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
             self.__reset__()
             self.currentDate = dateTime.date()
 
-        if (dateTime.hour >= self.entryHour and dateTime.minute >= self.entryMinute and dateTime.second >= self.entrySecond) is not True:
+        if datetime.time(dateTime.hour, dateTime.minute, dateTime.second) < datetime.time(self.entryHour, self.entryMinute, self.entrySecond):
             return
 
         if not (self.ceSymbol or self.peSymbol):
@@ -103,11 +122,9 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
 
         if self.cePosition and ((ceLTP > self.ceSL) or (ceLTP < self.ceTarget)):
             self.cePosition = self.cePosition.exitMarket()
-            self.pnl += ((self.ceEnteredPrice - ceLTP) * self.quantity)
 
         if self.pePosition and ((peLTP > self.peSL) or (peLTP < self.peTarget)):
             self.pePosition = self.pePosition.exitMarket()
-            self.pnl += ((self.peEnteredPrice - peLTP) * self.quantity)
 
         if self.ceReEntry > 0 and (not self.cePosition):
             self.cePosition = self.enterShort(self.ceSymbol, self.quantity)
@@ -132,20 +149,26 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
         if (dateTime.hour >= self.exitHour and dateTime.minute >= self.exitMinute and dateTime.second >= self.exitSecond):
             if self.cePosition:
                 self.cePosition = self.cePosition.exitMarket()
-                self.pnl += ((self.ceEnteredPrice - ceLTP) * self.quantity)
+                self.cePnl = ((self.ceEnteredPrice - ceLTP) * self.quantity)
 
             if self.pePosition:
                 self.pePosition = self.pePosition.exitMarket()
-                self.pnl += ((self.peEnteredPrice - peLTP) * self.quantity)
+                self.pePnl = ((self.peEnteredPrice - peLTP) * self.quantity)
 
-            # logger.info(f"===== PnL for {dateTime} is {self.pnl} =====")
+        if self.cePosition:
+            self.cePnl = ((self.ceEnteredPrice - ceLTP) * self.quantity)
+
+        if self.pePosition:
+            self.pePnl = ((self.peEnteredPrice - peLTP) * self.quantity)
+
+        self.pnl = self.cePnl + self.pePnl
 
     def onEnterOk(self, position):
         execInfo = position.getEntryOrder().getExecutionInfo()
-        # logger.info(
-        #     f"===== Entered {position.getEntryOrder().getInstrument()} at {execInfo.getPrice()} {execInfo.getQuantity()} =====")
+        logger.info(
+            f"===== Entered {position.getEntryOrder().getInstrument()} at {execInfo.getPrice()} {execInfo.getQuantity()} =====")
 
     def onExitOk(self, position):
         execInfo = position.getExitOrder().getExecutionInfo()
-        # logger.info(
-        #     f"===== Exited {position.getEntryOrder().getInstrument()} at {execInfo.getPrice()} =====")
+        logger.info(
+            f"===== Exited {position.getEntryOrder().getInstrument()} at {execInfo.getPrice()} =====")
