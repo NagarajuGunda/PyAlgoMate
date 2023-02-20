@@ -44,7 +44,7 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
         self.exitSecond = 0
 
         self.strikeDifference = 100
-        self.nStrikesAway = 3
+        self.nStrikesAway = 0
         self.quantity = 25
         self.slPercentage = 25
         self.targetPercentage = 80
@@ -64,6 +64,8 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
         self.peEnteredPrice = None
         self.ceReEntry = 1
         self.peReEntry = 1
+        self.ceLTP = None
+        self.peLTP = None
 
     @property
     def pnl(self):
@@ -72,14 +74,36 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
     @pnl.setter
     def pnl(self, value):
         self._pnl = value
-        for callback in self._observers:
-            callback("pnl", self._pnl)
 
     def resampledOnBars(self, bars):
-        logger.info("Resampled {0} {1}".format(bars.getDateTime(),
-                                               bars[self.underlyingInstrument].getClose()))
-        logger.info(
-            f"===== PnL for {bars.getDateTime().date()} is {self.pnl} =====")
+        for callback in self._observers:
+            jsonData = {
+                "datetime": bars.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'),
+                "metrics": {
+                    "pnl": self._pnl,
+                    "cePnl": self.cePnl,
+                    "pePnl": self.pePnl,
+                    "ceSL": self.ceSL,
+                    "peSL": self.peSL,
+                    "ceTarget": self.ceTarget,
+                    "peTarget": self.peTarget,
+                    "ceEnteredPrice": self.ceEnteredPrice,
+                    "peEnteredPrice": self.peEnteredPrice,
+                    "ceLTP": self.ceLTP,
+                    "peLTP": self.peLTP
+                },
+                "charts": {
+                    "pnl": self._pnl,
+                    "cePnl": self.cePnl,
+                    "pePnl": self.pePnl,
+                    "ceSL": self.ceSL,
+                    "peSL": self.peSL,
+                    "ceTarget": self.ceTarget,
+                    "peTarget": self.peTarget,
+                    "combinedPremium": (self.ceLTP if self.ceLTP != None else 0) + (self.peLTP if self.peLTP != None else 0)
+                }
+            }
+            callback("OptionsStrangleIntraday", jsonData)
 
     def pushBars(self, bars):
         for key, value in bars.items():
@@ -117,19 +141,19 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
         if (not self.bars.get(self.ceSymbol, None)) or (not self.bars.get(self.peSymbol, None)):
             return
 
-        ceLTP = self.bars[self.ceSymbol][-1].getClose()
-        peLTP = self.bars[self.peSymbol][-1].getClose()
+        self.ceLTP = self.bars[self.ceSymbol][-1].getClose()
+        self.peLTP = self.bars[self.peSymbol][-1].getClose()
 
-        if self.cePosition and ((ceLTP > self.ceSL) or (ceLTP < self.ceTarget)):
+        if self.cePosition and ((self.ceLTP > self.ceSL) or (self.ceLTP < self.ceTarget)):
             self.cePosition = self.cePosition.exitMarket()
 
-        if self.pePosition and ((peLTP > self.peSL) or (peLTP < self.peTarget)):
+        if self.pePosition and ((self.peLTP > self.peSL) or (self.peLTP < self.peTarget)):
             self.pePosition = self.pePosition.exitMarket()
 
         if self.ceReEntry > 0 and (not self.cePosition):
             self.cePosition = self.enterShort(self.ceSymbol, self.quantity)
             # self.cePosition.getEntryOrder().getExecutionInfo().getPrice()
-            self.ceEnteredPrice = ceLTP
+            self.ceEnteredPrice = self.ceLTP
             self.ceSL = round(self.ceEnteredPrice *
                               (1 + (self.slPercentage / 100)), 1)
             self.ceTarget = round(self.ceEnteredPrice *
@@ -139,7 +163,7 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
         if self.peReEntry > 0 and (not self.pePosition):
             self.pePosition = self.enterShort(self.peSymbol, self.quantity)
             # self.pePosition.getEntryOrder().getExecutionInfo().getPrice()
-            self.peEnteredPrice = peLTP
+            self.peEnteredPrice = self.peLTP
             self.peSL = round(self.peEnteredPrice *
                               (1 + (self.slPercentage / 100)), 1)
             self.peTarget = round(self.peEnteredPrice *
@@ -149,17 +173,19 @@ class OptionsStrangleIntraday(strategy.BaseStrategy):
         if (dateTime.hour >= self.exitHour and dateTime.minute >= self.exitMinute and dateTime.second >= self.exitSecond):
             if self.cePosition:
                 self.cePosition = self.cePosition.exitMarket()
-                self.cePnl = ((self.ceEnteredPrice - ceLTP) * self.quantity)
+                self.cePnl = ((self.ceEnteredPrice - self.ceLTP)
+                              * self.quantity)
 
             if self.pePosition:
                 self.pePosition = self.pePosition.exitMarket()
-                self.pePnl = ((self.peEnteredPrice - peLTP) * self.quantity)
+                self.pePnl = ((self.peEnteredPrice - self.peLTP)
+                              * self.quantity)
 
         if self.cePosition:
-            self.cePnl = ((self.ceEnteredPrice - ceLTP) * self.quantity)
+            self.cePnl = ((self.ceEnteredPrice - self.ceLTP) * self.quantity)
 
         if self.pePosition:
-            self.pePnl = ((self.peEnteredPrice - peLTP) * self.quantity)
+            self.pePnl = ((self.peEnteredPrice - self.peLTP) * self.quantity)
 
         self.pnl = self.cePnl + self.pePnl
 
