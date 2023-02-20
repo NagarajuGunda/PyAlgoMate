@@ -9,3 +9,7 @@ websocket_client
 six
 fastparquet
 pendulum
+streamlit
+pyzmq
+aiohttp
+plotly
