@@ -111,15 +111,17 @@ def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
 
 def getOptionSymbols(underlyingInstrument, expiry, ltp, count):
     ltp = int(float(ltp) / 100) * 100
+    logger.info(f"Nearest strike price of {underlyingInstrument} is <{ltp}>")
     optionSymbols = []
-    for n in range(count+1):
+    for n in range(0, count+1):
        optionSymbols.append(getOptionSymbol(
            underlyingInstrument, expiry, ltp + (n * 100), 'C'))
 
-    for n in range(count+1):
+    for n in range(0, count+1):
        optionSymbols.append(getOptionSymbol(
            underlyingInstrument, expiry, ltp - (n * 100), 'P'))
 
+    logger.info("Options symbols are " + ",".join(optionSymbols))
     return optionSymbols
 
 
