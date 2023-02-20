@@ -2,7 +2,12 @@ import yaml
 import pyotp
 import logging
 import datetime
+import zmq
+import time
+import random
+import json
 
+import pyalgotrade.bar
 from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
 from pyalgomate.brokers.finvasia.broker import PaperTradingBroker
 import pyalgomate.brokers.finvasia as finvasia
@@ -11,7 +16,16 @@ import pyalgomate.utils as utils
 
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger(__file__)
+
+# ZeroMQ Context
+context = zmq.Context()
+
+# Define the socket using the "Context"
+sock = context.socket(zmq.PUB)
+sock.bind("tcp://127.0.0.1:5680")
 
 
 def getToken(api, exchangeSymbol):
@@ -40,6 +54,42 @@ def getTokenMappings(api, exchangeSymbols):
     return tokenMappings
 
 
+def valueChangedCallback(strategy, value):
+    jsonDump = json.dumps({strategy: value})
+    logger.debug(jsonDump)
+    sock.send_json(jsonDump)
+
+def fakeSend():
+    while True:
+        jsonData = {
+            "datetime": datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+            "metrics": {
+                "pnl": random.randint(-1000, 2000),
+                "cePnl": random.randint(-1000, 2000),
+                "pePnl": random.randint(-1000, 2000),
+                "ceSL": random.randint(200, 1000),
+                "peSL": random.randint(200, 1000),
+                "ceTarget": random.randint(0, 100),
+                "peTarget": random.randint(0, 100),
+                "ceEnteredPrice": random.randint(300, 600),
+                "peEnteredPrice": random.randint(300, 600),
+                "ceLTP": random.randint(300, 600),
+                "peLTP": random.randint(300, 600)
+            },
+            "charts": {
+                "pnl": random.randint(-1000, 2000),
+                "cePnl": random.randint(-1000, 2000),
+                "pePnl": random.randint(-1000, 2000),
+                "ceSL": random.randint(200, 1000),
+                "peSL": random.randint(200, 1000),
+                "ceTarget": random.randint(0, 100),
+                "peTarget": random.randint(0, 100),
+                "combinedPremium": random.randint(1000, 1200)
+            }
+        }
+        sock.send_json(json.dumps({"Dummy": jsonData}))
+        time.sleep(2)
+
 def main():
     with open('cred.yml') as f:
         cred = yaml.load(f, Loader=yaml.FullLoader)
@@ -62,7 +112,8 @@ def main():
             api, ["NSE|NIFTY INDEX", underlyingInstrument] + optionSymbols))
         broker = PaperTradingBroker(200000, barFeed)
 
-        strat = OptionsStrangleIntraday(barFeed, broker, underlyingInstrument)
+        strat = OptionsStrangleIntraday(
+            barFeed, broker, underlyingInstrument, valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
 
     strat.run()
 
