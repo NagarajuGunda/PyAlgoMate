@@ -1,0 +1,50 @@
+Instrument: BANKNIFTY
+StrategyType: Intraday
+EntryTime: '09:17:00 AM'
+ExitTime: '03:00:00 PM'
+LegwiseSL:
+  SquareOff: Partial
+  TrailSLToBreakEven: AllLegs
+Positions:
+  - Lots: 1
+    BuyOrSell: Sell
+    CallOrPut: Call
+    Expiry: Weekly
+    StrikeType: StraddleWidth
+    Strike: ATM
+    TargetProfit:
+      Type: Percentage
+      TargetProfit: 80
+    StopLoss:
+      Type: Percentage
+      StopLoss: 25
+    ReEntryOnTarget:
+      Type: RE-ASAP
+      Count: 1
+  - Lots: 1
+    BuyOrSell: Sell
+    CallOrPut: Put
+    Expiry: Weekly
+    StrikeType: StraddleWidth
+    Strike: ATM
+    TargetProfit:
+      Type: Percentage
+      TargetProfit: 80
+    StopLoss:
+      Type: Percentage
+      StopLoss: 25
+    ReEntryOnTarget:
+      Type: RE-ASAP
+      Count: 1
+    ReEntryOnSL:
+      Type: RE-ASAP
+      Count: 1
+OverallStopLoss:
+  Type: MTM
+  OverallStopLoss: 2500
+OverallTrailSL:
+  Type: MTM
+  OverallTrailSL: '1000, 500'
+OverallTarget:
+  Type: MTM
+  OverallTarget: 3000
