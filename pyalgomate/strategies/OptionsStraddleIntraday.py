@@ -101,7 +101,7 @@ class OptionsStraddleIntraday(strategy.BaseStrategy):
                     "combinedPremium": (self.ceLTP if self.ceLTP != None else 0) + (self.peLTP if self.peLTP != None else 0)
                 }
             }
-            callback(__class__, jsonData)
+            callback(__class__.__name__, jsonData)
 
     def pushBars(self, bars):
         for key, value in bars.items():

@@ -42,6 +42,9 @@ class BacktestingBroker(backtesting.Broker):
         * SELL_SHORT orders are mapped to SELL orders.
     """
 
+    def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
+        return underlyingInstrument + str(strikePrice) + ('CE' if (callOrPut == 'C' or callOrPut == 'Call') else 'PE')
+
     def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
         return underlyingInstrument + str(ceStrikePrice) + "CE", underlyingInstrument + str(peStrikePrice) + "PE"
 
@@ -113,11 +116,11 @@ def getOptionSymbols(underlyingInstrument, expiry, ltp, count):
     ltp = int(float(ltp) / 100) * 100
     logger.info(f"Nearest strike price of {underlyingInstrument} is <{ltp}>")
     optionSymbols = []
-    for n in range(0, count+1):
+    for n in range(-count, count+1):
        optionSymbols.append(getOptionSymbol(
            underlyingInstrument, expiry, ltp + (n * 100), 'C'))
 
-    for n in range(0, count+1):
+    for n in range(-count, count+1):
        optionSymbols.append(getOptionSymbol(
            underlyingInstrument, expiry, ltp - (n * 100), 'P'))
 
@@ -128,6 +131,15 @@ def getOptionSymbols(underlyingInstrument, expiry, ltp, count):
 class PaperTradingBroker(BacktestingBroker):
     """A Finvasia paper trading broker.
     """
+
+    def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
+        symbol = 'NFO|NIFTY'
+        if underlyingInstrument in ['NIFTY BANK', 'BANKNIFTY']:
+            symbol = 'NFO|BANKNIFTY'
+
+        dayMonthYear = f"{expiry.day:02d}" + \
+            calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
+        return symbol + dayMonthYear + ('C' if (callOrPut == 'C' or callOrPut == 'Call') else 'P') + str(strikePrice)
 
     def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
         return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
@@ -231,6 +243,15 @@ class LiveBroker(broker.Broker):
     """
 
     QUEUE_TIMEOUT = 0.01
+
+    def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
+        symbol = 'NFO|NIFTY'
+        if underlyingInstrument in ['NIFTY BANK', 'BANKNIFTY']:
+            symbol = 'NFO|BANKNIFTY'
+
+        dayMonthYear = f"{expiry.day:02d}" + \
+            calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
+        return symbol + dayMonthYear + ('C' if (callOrPut == 'C' or callOrPut == 'Call') else 'P') + str(strikePrice)
 
     def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
         return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
