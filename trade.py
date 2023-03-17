@@ -12,11 +12,13 @@ from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
 from pyalgomate.brokers.finvasia.broker import PaperTradingBroker
 import pyalgomate.brokers.finvasia as finvasia
 from pyalgomate.strategies.OptionsStrangleIntraday import OptionsStrangleIntraday
+from pyalgomate.strategies.OptionsStraddleIntraday import OptionsStraddleIntraday
+from pyalgomate.strategies.OptionsTimeBasedStrategy import OptionsTimeBasedStrategy
 import pyalgomate.utils as utils
 
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__file__)
 
@@ -112,8 +114,8 @@ def main():
             api, ["NSE|NIFTY INDEX", underlyingInstrument] + optionSymbols))
         broker = PaperTradingBroker(200000, barFeed)
 
-        strat = OptionsStrangleIntraday(
-            barFeed, broker, underlyingInstrument, valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
+        strat = OptionsTimeBasedStrategy(
+            barFeed, broker, "Straddle.yaml", valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
 
     strat.run()
 

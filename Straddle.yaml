@@ -1,4 +1,4 @@
-Instrument: BANKNIFTY
+Instrument: NSE|NIFTY BANK
 StrategyType: Intraday
 EntryTime: '09:17:00 AM'
 ExitTime: '03:00:00 PM'
