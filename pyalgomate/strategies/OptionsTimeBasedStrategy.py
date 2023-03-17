@@ -12,7 +12,7 @@ class State(object):
     EXITED = 4
 
 class OptionsTimeBasedStrategy(BaseStrategy):
-    def __init__(self, feed, broker, strategyFile):
+    def __init__(self, feed, broker, strategyFile, callback=None, resampleFrequency=None):
         super(OptionsTimeBasedStrategy, self).__init__(feed, broker)
 
         self.strategy = OptionStrategy.from_yaml_file(strategyFile)
@@ -23,6 +23,13 @@ class OptionsTimeBasedStrategy(BaseStrategy):
 
         self.quantity = 25
         self.currentDate = None
+        self._observers = []
+        
+        if callback:
+            self._observers.append(callback)
+
+        if resampleFrequency:
+            self.resampleBarFeed(resampleFrequency, self.resampledOnBars)
 
     def __reset__(self):
         self.openPositions = {}
@@ -30,6 +37,28 @@ class OptionsTimeBasedStrategy(BaseStrategy):
         self.overallPnL = 0
         self.state = State.LIVE
 
+    def resampledOnBars(self, bars):
+        jsonData = {
+                "datetime": bars.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'),
+                "metrics": {
+                    "pnl": self.overallPnL
+                },
+                "charts": {
+                    "pnl": self.overallPnL
+                }
+            }
+        
+        combinedPremium = 0
+        for instrument, openPosition in list(self.openPositions.items()):
+            ltp = self.getFeed().getDataSeries(instrument)[-1].getClose()
+            jsonData["metrics"][f"{instrument} PnL"] = jsonData["charts"][f"{instrument} PnL"] =  self.getPnL(openPosition)
+            jsonData["metrics"][f"{instrument} LTP"] = jsonData["charts"][f"{instrument} LTP"] = ltp
+            combinedPremium += ltp
+        
+        jsonData["metrics"]["Combined Premium"] = combinedPremium
+
+        for callback in self._observers:            
+            callback(__class__.__name__, jsonData)
 
     def __getStrikePrice(self, underlyingLTP, strikeType, strike, callOrPut):
         strikeDifference = 100
@@ -110,6 +139,9 @@ class OptionsTimeBasedStrategy(BaseStrategy):
 
         self.closedPositions[position.getInstrument()]["exitOrder"] = position.getExitOrder()
 
+    def __haveLTP(self, instrument):
+        return instrument in self.getFeed().getKeys() and len(self.getFeed().getDataSeries(instrument)) > 0
+
     def onBars(self, bars):
         # Get the current timestamp
         currentDateTime = bars.getDateTime()
@@ -118,20 +150,26 @@ class OptionsTimeBasedStrategy(BaseStrategy):
             self.__reset__()
             self.currentDate = currentDateTime.date()
 
+        # Check if we data for underlying instrument
+        if not self.__haveLTP(self.strategy.instrument):
+            return
+
+        underlyingLTP = self.getFeed().getDataSeries(self.strategy.instrument)[-1].getClose()
+
+        # Collect the symbols and check if we have data for them
+        symbols = [self.getBroker().getOptionSymbol(
+            self.strategy.instrument, utils.getNearestWeeklyExpiryDate(
+                currentDateTime.date()),
+            self.__getStrikePrice(underlyingLTP,
+                                  position.strikeType, position.strike, position.callOrPut),
+            position.callOrPut) for position in self.strategy.positions]
+
+        for symbol in symbols:
+            if not self.__haveLTP(symbol):
+                return
+
         # Check if it's time to enter a trade
         if self.strategy.entryTime <= currentDateTime.time() < self.strategy.exitTime and self.state == State.LIVE:
-            # Collect the symbols and check if we have data for them
-            symbols = [self.getBroker().getOptionSymbol(
-                self.strategy.instrument, utils.getNearestWeeklyExpiryDate(
-                    currentDateTime.date()),
-                self.__getStrikePrice(bars[self.strategy.instrument].getClose(),
-                                        position.strikeType, position.strike, position.callOrPut),
-                position.callOrPut) for position in self.strategy.positions]
-
-            for symbol in symbols:
-                if bars.getBar(symbol) is None:
-                    return
-
             self.state = State.PLACING_ORDERS
             # Place the trade
             for index, position in enumerate(self.strategy.positions):

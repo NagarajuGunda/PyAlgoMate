@@ -134,7 +134,7 @@ class PaperTradingBroker(BacktestingBroker):
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
         symbol = 'NFO|NIFTY'
-        if underlyingInstrument in ['NIFTY BANK', 'BANKNIFTY']:
+        if 'NIFTY BANK' in underlyingInstrument  or 'BANKNIFTY' in underlyingInstrument:
             symbol = 'NFO|BANKNIFTY'
 
         dayMonthYear = f"{expiry.day:02d}" + \
@@ -246,7 +246,7 @@ class LiveBroker(broker.Broker):
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
         symbol = 'NFO|NIFTY'
-        if underlyingInstrument in ['NIFTY BANK', 'BANKNIFTY']:
+        if 'NIFTY BANK' in underlyingInstrument  or 'BANKNIFTY' in underlyingInstrument:
             symbol = 'NFO|BANKNIFTY'
 
         dayMonthYear = f"{expiry.day:02d}" + \
