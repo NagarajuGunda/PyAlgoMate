@@ -115,6 +115,9 @@ class OptionContract:
         self.type = type
         self.underlying = underlying
 
+    def __repr__(self):
+        return f'OptionContract(symbol={self.symbol}, strike={self.strike}, expiry={self.expiry}, type = {self.type}, underlying={self.underlying})'
+
 
 class OptionGreeks:
     def __init__(self, optionContract: OptionContract, price: float, delta: float, gamma: float, theta: float, vega: float, iv: float):
@@ -125,3 +128,6 @@ class OptionGreeks:
         self.theta = theta
         self.vega = vega
         self.iv = iv
+
+    def __repr__(self):
+        return f'OptionGreeks(optionContract={self.optionContract}, price={self.price}, delta={self.delta}, gamma={self.gamma}, theta={self.theta}, vega={self.vega}, iv={self.iv}'
