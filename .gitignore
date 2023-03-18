@@ -1,4 +1,6 @@
 cred.yml
+trades.csv
+pyalgomate/backtesting/data/test.parquet
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
