@@ -1,5 +1,6 @@
 import logging
 import datetime
+import pandas as pd
 
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 
@@ -32,6 +33,9 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
 
         self.currentDate = None
         self.overallPnL = 0
+        self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Exit Date/Time',
+                                     'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price'])
+        self.tradesCSV = 'trades.csv'
 
     def __reset__(self):
         # members that needs to be reset after exit time
@@ -87,6 +91,17 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
 
         self.openPositions[position.getInstrument()] = position.getEntryOrder()
 
+        # Append a new row to the tradesDf DataFrame with the trade information
+        newRow = {'Entry Date/Time': execInfo.getDateTime(),
+                  'Exit Date/Time': None,
+                  'Instrument': position.getInstrument(),
+                  'Buy/Sell': "Buy" if position.getEntryOrder().isBuy() else "Sell",
+                  'Quantity': execInfo.getQuantity(),
+                  'Entry Price': position.getEntryOrder().getAvgFillPrice(),
+                  'Exit Price': None}
+        self.tradesDf = pd.concat([self.tradesDf, pd.DataFrame(
+            [newRow], columns=self.tradesDf.columns)], ignore_index=True)
+
         logger.info(
             f"Option greeks for {position.getInstrument()}\n{self.optionData[position.getInstrument()]}")
 
@@ -100,6 +115,13 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
         )]["exitOrder"] = position.getExitOrder()
         self.closedPositions[position.getInstrument(
         )]["entryOrder"] = self.openPositions.pop(position.getInstrument())
+
+        # Update the corresponding row in the tradesDf DataFrame with the exit information
+        idx = self.tradesDf.loc[self.tradesDf['Instrument']
+                                == position.getInstrument()].index[-1]
+        self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Price']] = [
+            execInfo.getDateTime(), position.getExitOrder().getAvgFillPrice()]
+        self.tradesDf.to_csv(self.tradesCSV)
 
         logger.info(
             f"Option greeks for {position.getInstrument()}\n{self.optionData[position.getInstrument()]}")
