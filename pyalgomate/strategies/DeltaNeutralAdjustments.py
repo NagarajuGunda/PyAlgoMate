@@ -70,18 +70,19 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
             pnl += self.getPnL(openPosition)
 
         closedPositions = self.closedPositions.copy()
-        for instrument, closedPosition in closedPositions.items():
-            entryOrder = closedPosition["entryOrder"]
-            exitOrder = closedPosition["exitOrder"]
-            entryPrice = entryOrder.getAvgFillPrice()
-            exitPrice = exitOrder.getAvgFillPrice()
+        for instrument, closedPositionByInstrument in closedPositions.items():
+            for closedPosition in closedPositionByInstrument:
+                entryOrder = closedPosition["entryOrder"]
+                exitOrder = closedPosition["exitOrder"]
+                entryPrice = entryOrder.getAvgFillPrice()
+                exitPrice = exitOrder.getAvgFillPrice()
 
-            if entryOrder.isBuy():
-                pnl += (exitPrice * exitOrder.getQuantity()) - \
-                    (entryPrice * entryOrder.getQuantity())
-            else:
-                pnl += (entryPrice * entryOrder.getQuantity()) - \
-                    (exitPrice * exitOrder.getQuantity())
+                if entryOrder.isBuy():
+                    pnl += (exitPrice * exitOrder.getQuantity()) - \
+                        (entryPrice * entryOrder.getQuantity())
+                else:
+                    pnl += (entryPrice * entryOrder.getQuantity()) - \
+                        (exitPrice * exitOrder.getQuantity())
 
         return pnl
 
@@ -110,11 +111,20 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
         logger.info(
             f"{execInfo.getDateTime()} ===== Exited {position.getEntryOrder().getInstrument()} at {execInfo.getPrice()} =====")
 
-        self.closedPositions[position.getInstrument()] = dict()
-        self.closedPositions[position.getInstrument(
-        )]["exitOrder"] = position.getExitOrder()
-        self.closedPositions[position.getInstrument(
-        )]["entryOrder"] = self.openPositions.pop(position.getInstrument())
+        # Check if the symbol already exists in closedPositions
+        entryOrder = self.openPositions.pop(position.getInstrument())
+        if position.getInstrument() in self.closedPositions:
+            # Append the new exit and entry orders to the list of dictionaries for this symbol
+            self.closedPositions[position.getInstrument()].append({
+                "exitOrder": position.getExitOrder(),
+                "entryOrder": entryOrder
+            })
+        else:
+            # Create a new list of dictionaries for this symbol and append the new exit and entry orders
+            self.closedPositions[position.getInstrument()] = [{
+                "exitOrder": position.getExitOrder(),
+                "entryOrder": entryOrder
+            }]
 
         # Update the corresponding row in the tradesDf DataFrame with the exit information
         idx = self.tradesDf.loc[self.tradesDf['Instrument']
