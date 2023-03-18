@@ -24,7 +24,10 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         types = []
         for instrument, bar in bars.items():
             optionContract = self.getBroker().getOptionContract(instrument)
+
             if optionContract is not None:
+                if not (optionContract.underlying in self.getFeed().getKeys() and len(self.getFeed().getDataSeries(optionContract.underlying)) > 0):
+                    return
                 optionContracts.append(optionContract)
                 strikes.append(optionContract.strike)
                 prices.append(bar.getClose())

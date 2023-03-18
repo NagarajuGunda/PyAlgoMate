@@ -14,9 +14,9 @@ class State(object):
     EXITED = 4
 
 
-class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
+class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
     def __init__(self, feed, broker, callback=None, resampleFrequency=None):
-        super(DeltaNeutralAdjustments, self).__init__(feed, broker)
+        super(DeltaNeutralIntraday, self).__init__(feed, broker)
         self._observers = []
         if callback:
             self._observers.append(callback)
@@ -30,6 +30,8 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
         self.lotSize = 25
         self.lots = 1
         self.quantity = self.lotSize * self.lots
+        self.portfolioSL = 10000
+        self.vegaSL = 1500
 
         self.currentDate = None
         self.overallPnL = 0
@@ -43,9 +45,11 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
         self.state = State.LIVE
         self.positionCall = None
         self.positionPut = None
+        self.positionVega = None
         self.openPositions = {}
         self.closedPositions = {}
         self.overallPnL = 0
+        self.numberOfAdjustments = 0
 
     def resampledOnBars(self, bars):
         pass
@@ -88,7 +92,8 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
 
     def onEnterOk(self, position):
         execInfo = position.getEntryOrder().getExecutionInfo()
-        logger.info(f"{execInfo.getDateTime()} ===== Position opened: {position.getEntryOrder().getInstrument()} at {execInfo.getPrice()} {execInfo.getQuantity()} =====")
+        action = "Buy" if position.getEntryOrder().isBuy() else "Sell"
+        logger.info(f"{execInfo.getDateTime()} ===== {action} Position opened: {position.getEntryOrder().getInstrument()} at <{execInfo.getPrice()}> with quantity<{execInfo.getQuantity()}> =====")
 
         self.openPositions[position.getInstrument()] = position.getEntryOrder()
 
@@ -109,7 +114,7 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
     def onExitOk(self, position):
         execInfo = position.getExitOrder().getExecutionInfo()
         logger.info(
-            f"{execInfo.getDateTime()} ===== Exited {position.getEntryOrder().getInstrument()} at {execInfo.getPrice()} =====")
+            f"{execInfo.getDateTime()} ===== Exited {position.getEntryOrder().getInstrument()} at <{execInfo.getPrice()}> with quantity<{execInfo.getQuantity()}> =====")
 
         # Check if the symbol already exists in closedPositions
         entryOrder = self.openPositions.pop(position.getInstrument())
@@ -146,8 +151,19 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
             self.positionPut.exitMarket()
             self.positionPut = None
 
+        if self.positionVega:
+            self.positionVega.exitMarket()
+            self.positionVega = None
+
     def __haveLTP(self, instrument):
         return instrument in self.getFeed().getKeys() and len(self.getFeed().getDataSeries(instrument)) > 0
+
+    def getNearestDeltaOption(self, optionType, deltaValue):
+        options = [opt for opt in self.optionData.values(
+        ) if opt.optionContract.type == optionType]
+        options.sort(key=lambda x: abs(
+            x.delta + deltaValue))
+        return options[0]
 
     def onBars(self, bars):
         if bars.getDateTime().date() != self.currentDate:
@@ -170,6 +186,10 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
                     x.delta - self.initialDeltaDifference))
                 putOptions.sort(key=lambda x: abs(
                     x.delta + self.initialDeltaDifference))
+
+                if len(callOptions) == 0 or len(putOptions) == 0:
+                    return
+
                 selectedCallOption = callOptions[0]
                 selectedPutOption = putOptions[0]
 
@@ -188,10 +208,22 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
             # Wait until both positions are entered
             if self.positionCall is not None and self.positionPut is not None:
                 if self.positionCall.getInstrument() in self.openPositions and self.positionPut.getInstrument() in self.openPositions:
-                    self.state = State.ENTERED
+                    if self.positionVega is not None:
+                        if self.positionVega.getInstrument() in self.openPositions:
+                            self.state = State.ENTERED
+                    else:
+                        self.state = State.ENTERED
         elif self.state == State.ENTERED:
-            # Exit all positions if exit time is met
+            # Exit all positions if exit time is met or portfolio SL is hit
             if bars.getDateTime().time() >= self.exitTime:
+                self.closeAllPositions()
+                return
+
+            self.overallPnL = self.getOverallPnL(bars)
+
+            if self.overallPnL <= -self.portfolioSL:
+                logger.info(
+                    f"Portfolio SL({self.portfolioSL} is hit. Current PnL is {self.overallPnL}. Exiting all positions!)")
                 self.closeAllPositions()
                 return
 
@@ -209,23 +241,32 @@ class DeltaNeutralAdjustments(BaseOptionsGreeksStrategy):
                 if abs(callOptionGreeks.delta) > abs(putOptionGreeks.delta):
                     self.positionPut.exitMarket()
                     # Find put option with delta closest to delta of call option
-                    putOptions = [opt for opt in self.optionData.values(
-                    ) if opt.optionContract.type == 'p']
-                    putOptions.sort(key=lambda x: abs(
-                        x.delta + callOptionGreeks.delta))
-                    selectedPutOption = putOptions[0]
+                    selectedPutOption = self.getNearestDeltaOption(
+                        'p', callOptionGreeks.delta)
                     self.positionPut = self.enterShort(
                         selectedPutOption.optionContract.symbol, self.quantity)
                 else:
                     self.positionCall.exitMarket()
                     # Find call option with delta closest to delta of put option
-                    callOptions = [opt for opt in self.optionData.values(
-                    ) if opt.optionContract.type == 'c']
-                    callOptions.sort(key=lambda x: abs(
-                        x.delta + putOptionGreeks.delta))
-                    selectedCallOption = callOptions[0]
+                    selectedCallOption = self.getNearestDeltaOption(
+                        'c', putOptionGreeks.delta)
                     self.positionCall = self.enterShort(
                         selectedCallOption.optionContract.symbol, self.quantity)
+
+                self.numberOfAdjustments += 1
+
+            if self.positionVega is None and self.numberOfAdjustments >= 2:
+                selectedOption = self.getNearestDeltaOption('p' if abs(
+                    callOptionGreeks.delta) > abs(putOptionGreeks.delta) else 'c', 0.5)
+                if selectedOption.optionContract.symbol in [self.positionCall.getInstrument(),
+                                                            self.positionPut.getInstrument()]:
+                    logger.info(
+                        f"We just have entered short positon of <{selectedOption.optionContract.symbol}> in current adjustment. Skipping buying same position.")
+                else:
+                    logger.info(
+                        f"Number of adjustments has reached {self.numberOfAdjustments}. Managing vega by buying an option. Current PnL is {self.overallPnL}).")
+                    self.positionVega = self.enterLong(
+                        selectedOption.optionContract.symbol, self.quantity)
         # Check if we are in the EXITED state
         elif self.state == State.EXITED:
             pass
