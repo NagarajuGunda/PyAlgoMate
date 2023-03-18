@@ -4,6 +4,7 @@ import datetime
 
 from pyalgomate.brokers.finvasia.broker import BacktestingBroker
 from pyalgomate.strategies.OptionsTimeBasedStrategy import OptionsTimeBasedStrategy
+from pyalgomate.strategies.DeltaNeutralAdjustments import DeltaNeutralAdjustments
 from pyalgotrade.stratanalyzer import returns as stratReturns, drawdown, trades
 from pyalgomate.backtesting import CustomCSVFeed
 
@@ -23,7 +24,8 @@ def main(dataFiles):
     start = datetime.datetime.now()
 
     broker = BacktestingBroker(200000, feed)
-    strat = OptionsTimeBasedStrategy(feed, broker, "Straddle.yaml")
+    #strat = OptionsTimeBasedStrategy(feed, broker, "Straddle.yaml")
+    strat = DeltaNeutralAdjustments(feed, broker)
     returnsAnalyzer = stratReturns.Returns()
     tradesAnalyzer = trades.Trades()
     drawDownAnalyzer = drawdown.DrawDown()
@@ -112,4 +114,4 @@ def main(dataFiles):
 
 
 if __name__ == "__main__":
-    main(["pyalgomate/backtesting/data/2022-*11.parquet"])
+    main(["pyalgomate/backtesting/data/2022-*08.parquet"])

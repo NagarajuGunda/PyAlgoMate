@@ -13,3 +13,4 @@ streamlit
 pyzmq
 aiohttp
 plotly
+py_vollib

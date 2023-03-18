@@ -8,9 +8,11 @@ import logging
 import datetime
 import six
 import calendar
+import re
 
 from pyalgotrade import broker
 from pyalgotrade.broker import backtesting
+from pyalgomate.strategies import OptionContract
 
 logger = logging.getLogger(__file__)
 
@@ -47,6 +49,14 @@ class BacktestingBroker(backtesting.Broker):
 
     def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
         return underlyingInstrument + str(ceStrikePrice) + "CE", underlyingInstrument + str(peStrikePrice) + "PE"
+
+    def getOptionContract(self, symbol):
+        m = re.match(r"([A-Z]+)(\d+)(CE|PE)", symbol)
+
+        if m is None:
+            return None
+        
+        return OptionContract(symbol, int(m.group(2)), None, "c" if m.group(3) == "CE" else "p", m.group(1))
 
     def __init__(self, cash, barFeed, fee=0.0025):
         commission = backtesting.TradePercentage(fee)
@@ -144,6 +154,18 @@ class PaperTradingBroker(BacktestingBroker):
     def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
         return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
 
+    def getOptionContract(self, symbol):
+        m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)", symbol)
+
+        if m is None:
+            return None
+        
+        day = int(m.group(2))
+        month = m.group(3)
+        year = int(m.group(4)) + 2000
+        expiry = datetime.date(year, datetime.datetime.strptime(month, '%b').month, day)
+        return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", m.group(1))
+    
     pass
 
 
@@ -255,6 +277,18 @@ class LiveBroker(broker.Broker):
 
     def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
         return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
+
+    def getOptionContract(self, symbol):
+        m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)", symbol)
+
+        if m is None:
+            return None
+        
+        day = int(m.group(2))
+        month = m.group(3)
+        year = int(m.group(4)) + 2000
+        expiry = datetime.date(year, datetime.datetime.strptime(month, '%b').month, day)
+        return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", m.group(1))
 
     def __init__(self, api):
         super(LiveBroker, self).__init__()

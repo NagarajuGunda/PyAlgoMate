@@ -105,3 +105,23 @@ class OptionStrategy:
             overallTarget=Target(
                 content['OverallTarget']['Type'], content['OverallTarget']['OverallTarget'])
         )
+
+
+class OptionContract:
+    def __init__(self, symbol: str, strike: int, expiry: datetime.date, type: str, underlying: str):
+        self.symbol = symbol
+        self.strike = strike
+        self.expiry = expiry
+        self.type = type
+        self.underlying = underlying
+
+
+class OptionGreeks:
+    def __init__(self, optionContract: OptionContract, price: float, delta: float, gamma: float, theta: float, vega: float, iv: float):
+        self.optionContract = optionContract
+        self.price = price
+        self.delta = delta
+        self.gamma = gamma
+        self.theta = theta
+        self.vega = vega
+        self.iv = iv
