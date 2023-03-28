@@ -39,6 +39,7 @@ class SubscribeEvent(object):
 
     def __init__(self, eventDict):
         self.__eventDict = eventDict
+        self.__datetime = None
 
     @property
     def exchange(self):
@@ -54,17 +55,24 @@ class SubscribeEvent(object):
 
     @property
     def dateTime(self):
-        return datetime.datetime.now()
-        now = datetime.datetime.now()
-        milliseconds = int(str(now)[20:])
-        microseconds = int(str(datetime.datetime.now().microsecond)[:2])
-        return datetime.datetime.fromtimestamp(int(self.__eventDict["ft"])) + datetime.timedelta(milliseconds=milliseconds, microseconds=microseconds)
+        if self.__datetime is None:
+            self.__datetime = datetime.datetime.fromtimestamp(int(self.__eventDict['ft'])) if self.__eventDict.get(
+                'ft', None) is not None else datetime.datetime.now()
+
+        return self.__datetime
+
+    @dateTime.setter
+    def dateTime(self, value):
+        self.__datetime = value
 
     @property
     def price(self): return float(self.__eventDict.get('lp', 0))
 
     @property
     def volume(self): return float(self.__eventDict.get('v', 0))
+
+    @property
+    def openInterest(self): return float(self.__eventDict.get('oi', 0))
 
     @property
     def seq(self): return int(self.dateTime())
@@ -75,7 +83,7 @@ class SubscribeEvent(object):
     def TradeBar(self):
         open = high = low = close = self.price
 
-        return bar.BasicBar(self.dateTime, open, high, low, close, self.volume, None, bar.Frequency.TRADE, {"instrument": self.instrument})
+        return bar.BasicBar(self.dateTime, open, high, low, close, self.volume, None, bar.Frequency.TRADE, {"instrument": self.instrument, "Open Interest": self.openInterest})
 
 
 class WebSocketClient:
@@ -97,6 +105,7 @@ class WebSocketClient:
         self.__pending_subscriptions = list(tokenMappings.keys())
         self.__connected = False
         self.__initialized = threading.Event()
+        self.__currentDateTime = None
 
     def startClient(self):
         self.__api.start_websocket(order_update_callback=self.onOrderBookUpdate,
@@ -147,18 +156,27 @@ class WebSocketClient:
     def onQuoteUpdate(self, message):
         logger.debug(message)
 
-        message["ts"] = self.__tokenMappings[f"{message['e']}|{message['tk']}"].split('|')[1]
-
         field = message.get("t")
+        message["ts"] = self.__tokenMappings[f"{message['e']}|{message['tk']}"].split('|')[
+            1]
         # t='tk' is sent once on subscription for each instrument.
         # this will have all the fields with the most recent value thereon t='tf' is sent for fields that have changed.
-        if field == "tf":
-            self.onTrade(SubscribeEvent(message).TradeBar())
-        elif field == "tk":
-            self.__onSubscriptionSucceeded(SubscribeEvent(message))
-            self.onTrade(SubscribeEvent(message).TradeBar())
-        else:
-            self.onUnknownEvent(SubscribeEvent(message))
+        subscribeEvent = SubscribeEvent(message)
+
+        if field not in ["tf", "tk"]:
+            self.onUnknownEvent(subscribeEvent)
+
+        if field == "tk":
+            self.__onSubscriptionSucceeded(subscribeEvent)
+
+        # dateTime = subscribeEvent.dateTime
+        # instrument = subscribeEvent.instrument
+        # if self.__currentDateTime is not None and dateTime <= self.__currentDateTime:
+        #     logger.debug(f"Current date time <{self.__currentDateTime}> for <{instrument}> is higher/equal than tick date time <{dateTime}>. Modifying tick time!")
+        #     subscribeEvent.dateTime = datetime.datetime.now().replace(microsecond=0)
+        # self.__currentDateTime = subscribeEvent.dateTime
+        subscribeEvent.dateTime = datetime.datetime.now()
+        self.onTrade(subscribeEvent.TradeBar())
 
     def onOrderBookUpdate(self, message):
         hello = True
