@@ -110,7 +110,9 @@ class WebSocketClient:
     def startClient(self):
         self.__api.start_websocket(order_update_callback=self.onOrderBookUpdate,
                                    subscribe_callback=self.onQuoteUpdate,
-                                   socket_open_callback=self.onOpened)
+                                   socket_open_callback=self.onOpened,
+                                   socket_close_callback=self.onClosed,
+                                   socket_error_callback=self.onError)
 
     def stopClient(self):
         try:
