@@ -8,6 +8,7 @@ import pyalgotrade.bar
 from pyalgomate.brokers.finvasia.broker import BacktestingBroker
 from pyalgomate.strategies.OptionsTimeBasedStrategy import OptionsTimeBasedStrategy
 from pyalgomate.strategies.DeltaNeutralIntraday import DeltaNeutralIntraday
+from pyalgomate.strategies.RollingStraddleIntraday import RollingStraddleIntraday
 from pyalgomate.strategies.StraddleIntradayWithVega import StraddleIntradayWithVega
 from pyalgotrade.stratanalyzer import returns as stratReturns, drawdown, trades
 from pyalgomate.analyzers import daywise
@@ -28,8 +29,8 @@ def valueChangedCallback(strategy, value):
 
 
 def main(dataFiles):
-    underlyingInstrument = 'NIFTY'
-    lotSize=50
+    underlyingInstrument = 'BANKNIFTY'
+    lotSize=25
     start = datetime.datetime.now()
     feed = CustomCSVFeed.CustomCSVFeed()
     feed.addBarsFromParquets(dataFiles=dataFiles, ticker=underlyingInstrument)
@@ -41,7 +42,8 @@ def main(dataFiles):
     broker = BacktestingBroker(200000, feed)
     #strat = OptionsTimeBasedStrategy(feed, broker, "Straddle.yaml")
     #strat = DeltaNeutralIntraday(feed, broker)
-    strat = StraddleIntradayWithVega(feed, broker, None, valueChangedCallback, lotSize=lotSize)
+    #strat = DeltaNeutralIntraday(feed, broker, None, valueChangedCallback, lotSize=lotSize)
+    strat = RollingStraddleIntraday(feed=feed, broker=broker, registeredOptionsCount=None, callback=valueChangedCallback, lotSize=lotSize)
     returnsAnalyzer = stratReturns.Returns()
     tradesAnalyzer = trades.Trades()
     drawDownAnalyzer = drawdown.DrawDown()
@@ -132,4 +134,4 @@ def main(dataFiles):
 
 
 if __name__ == "__main__":
-    main(["pyalgomate/backtesting/data/2022/*.parquet"])
+    main(["pyalgomate/backtesting/data/2023/banknifty/02.parquet"])
