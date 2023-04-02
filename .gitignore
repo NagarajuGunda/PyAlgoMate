@@ -2,7 +2,7 @@ cred.yml
 trades*.csv
 trades*.xlsx
 pyalgomate/backtesting/data/test.parquet
-pyalgomate/backtesting/results/*
+results/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
