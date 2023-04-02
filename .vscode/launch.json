@@ -5,12 +5,21 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Attach using Process Id",
+            "type": "python",
+            "request": "attach",
+            "processId": "${command:pickProcess}",
+            "justMyCode": true
+        },
+        {
             "name": "Python: Current File with profiler",
             "type": "python",
             "request": "launch",
             "module": "cProfile",
             "args": [
-                "-o", "/tmp/tmp.prof", "${file}"
+                "-o",
+                "/tmp/tmp.prof",
+                "${file}"
             ]
         },
         {
