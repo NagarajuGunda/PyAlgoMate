@@ -6,6 +6,7 @@ import zmq
 import time
 import random
 import json
+from multiprocessing import Process
 
 import pyalgotrade.bar
 from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
@@ -14,6 +15,8 @@ import pyalgomate.brokers.finvasia as finvasia
 from pyalgomate.strategies.OptionsStrangleIntraday import OptionsStrangleIntraday
 from pyalgomate.strategies.OptionsStraddleIntraday import OptionsStraddleIntraday
 from pyalgomate.strategies.OptionsTimeBasedStrategy import OptionsTimeBasedStrategy
+from pyalgomate.strategies.DeltaNeutralIntraday import DeltaNeutralIntraday
+from pyalgomate.strategies.StraddleIntradayWithVega import StraddleIntradayWithVega
 import pyalgomate.utils as utils
 
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
@@ -61,6 +64,7 @@ def valueChangedCallback(strategy, value):
     logger.debug(jsonDump)
     sock.send_json(jsonDump)
 
+
 def fakeSend():
     while True:
         jsonData = {
@@ -92,6 +96,11 @@ def fakeSend():
         sock.send_json(json.dumps({"Dummy": jsonData}))
         time.sleep(2)
 
+
+def runStrategy(strategy):
+    strategy.run()
+
+
 def main():
     with open('cred.yml') as f:
         cred = yaml.load(f, Loader=yaml.FullLoader)
@@ -107,17 +116,52 @@ def main():
 
         ltp = api.get_quotes('NSE', getToken(api, underlyingInstrument))['lp']
 
-        optionSymbols = finvasia.broker.getOptionSymbols(underlyingInstrument, utils.getNearestWeeklyExpiryDate(
-            datetime.datetime.now().date()), ltp, 5)
+        currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
+            datetime.datetime.now().date())
+        monthlyExpiry = utils.getNearestMonthlyExpiryDate(
+            datetime.datetime.now().date())
+        monthlyExpiry = utils.getNextMonthlyExpiryDate(
+            datetime.datetime.now().date()) if monthlyExpiry == currentWeeklyExpiry else monthlyExpiry
 
-        barFeed = LiveTradeFeed(api, getTokenMappings(
-            api, ["NSE|NIFTY INDEX", underlyingInstrument] + optionSymbols))
+        optionSymbols = finvasia.broker.getOptionSymbols(
+            underlyingInstrument, currentWeeklyExpiry, ltp, 10)
+        optionSymbols += finvasia.broker.getOptionSymbols(
+            underlyingInstrument, monthlyExpiry, ltp, 10)
+
+        optionSymbols = list(dict.fromkeys(optionSymbols))
+
+        tokenMappings = getTokenMappings(
+            api, ["NSE|NIFTY INDEX", underlyingInstrument] + optionSymbols)
+
+        # Remove NFO| and replace index names
+        # for key, value in tokenMappings.items():
+        #     tokenMappings[key] = value.replace('NFO|', '').replace('NSE|NIFTY BANK', 'BANKNIFTY').replace(
+        #         'NSE|NIFTY INDEX', 'NIFTY')
+
+        barFeed = LiveTradeFeed(api, tokenMappings)
         broker = PaperTradingBroker(200000, barFeed)
 
-        strat = OptionsTimeBasedStrategy(
-            barFeed, broker, "Straddle.yaml", valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
+        # strat = OptionsTimeBasedStrategy(
+        #     barFeed, broker, "Straddle.yaml", valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
+        # deltaNeutralIntradayStrategy = DeltaNeutralIntraday(barFeed, broker, len(
+        #     optionSymbols), valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
+        straddleIntradayWithVegaStrategy = StraddleIntradayWithVega(barFeed, broker, len(
+            optionSymbols), valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
 
-    strat.run()
+        strategies = [straddleIntradayWithVegaStrategy]
+
+        straddleIntradayWithVegaStrategy.run()
+    # Create a process for each strategy and start them
+    # processes = [Process(target=runStrategy, args=(strategy,))
+    #              for strategy in strategies]
+    # for process in processes:
+    #     process.start()
+
+    # # Wait for all processes to finish
+    # for process in processes:
+    #     process.join()
+    else:
+        logger.error("Api returned None")
 
 
 if __name__ == "__main__":
