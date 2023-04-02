@@ -296,7 +296,7 @@ class LiveTradeFeed(MyBarFeed):
 
     def __onTrade(self, trade):
         self.__tradeBars.put(
-            {trade.getExtraColumns().get("instrument"): trade})
+            {trade.getExtraColumns().get("Instrument"): trade})
 
     def barsHaveAdjClose(self):
         return False

@@ -66,6 +66,11 @@ class SubscribeEvent(object):
         self.__datetime = value
 
     @property
+    def tickDateTime(self):
+        return datetime.datetime.fromtimestamp(int(self.__eventDict['ft'])) if self.__eventDict.get(
+            'ft', None) is not None else datetime.datetime.now()
+
+    @property
     def price(self): return float(self.__eventDict.get('lp', 0))
 
     @property
@@ -83,7 +88,19 @@ class SubscribeEvent(object):
     def TradeBar(self):
         open = high = low = close = self.price
 
-        return bar.BasicBar(self.dateTime, open, high, low, close, self.volume, None, bar.Frequency.TRADE, {"instrument": self.instrument, "Open Interest": self.openInterest})
+        return bar.BasicBar(self.dateTime,
+                            open,
+                            high,
+                            low,
+                            close,
+                            self.volume,
+                            None,
+                            bar.Frequency.TRADE,
+                            {
+                                "Instrument": self.instrument,
+                                "Open Interest": self.openInterest,
+                                "Date/Time": self.tickDateTime
+                            })
 
 
 class WebSocketClient:
