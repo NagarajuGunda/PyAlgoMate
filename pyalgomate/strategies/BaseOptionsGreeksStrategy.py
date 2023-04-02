@@ -212,7 +212,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         return delta
 
-    def __getUnderlyingPrice(self, underlyingInstrument):
+    def getUnderlyingPrice(self, underlyingInstrument):
         if not (underlyingInstrument in self.getFeed().getKeys() and len(self.getFeed().getDataSeries(underlyingInstrument)) > 0):
             return None
         return self.getFeed().getDataSeries(underlyingInstrument)[-1].getClose()
@@ -229,10 +229,10 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             optionContract = self.getBroker().getOptionContract(instrument)
 
             if optionContract is not None:
-                underlyingPrice = self.__getUnderlyingPrice(
+                underlyingPrice = self.getUnderlyingPrice(
                     optionContract.underlying)
                 if underlyingPrice is None:
-                    underlyingPrice = self.__getUnderlyingPrice(
+                    underlyingPrice = self.getUnderlyingPrice(
                         "NSE|NIFTY BANK" if optionContract.underlying == "NFO|BANKNIFTY" else "NSE|NIFTY INDEX")
                     if underlyingPrice is None:
                         return
