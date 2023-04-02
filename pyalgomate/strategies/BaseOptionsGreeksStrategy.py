@@ -41,7 +41,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Exit Date/Time',
                                      'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL'])
-        self.tradesCSV = f"{self.strategyName}_trades.csv"
+        self.tradesCSV = f"results/{self.strategyName}.csv"
 
     def reset(self):
         self.__optionData = dict()
