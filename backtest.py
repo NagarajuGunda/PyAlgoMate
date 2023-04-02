@@ -1,23 +1,38 @@
 import logging
 import glob
 import datetime
+import zmq
+import json
 
+import pyalgotrade.bar
 from pyalgomate.brokers.finvasia.broker import BacktestingBroker
 from pyalgomate.strategies.OptionsTimeBasedStrategy import OptionsTimeBasedStrategy
 from pyalgomate.strategies.DeltaNeutralIntraday import DeltaNeutralIntraday
+from pyalgomate.strategies.StraddleIntradayWithVega import StraddleIntradayWithVega
 from pyalgotrade.stratanalyzer import returns as stratReturns, drawdown, trades
+from pyalgomate.analyzers import daywise
 from pyalgomate.backtesting import CustomCSVFeed
 
 logging.getLogger().handlers.clear()
 
+# ZeroMQ Context
+context = zmq.Context()
+
+# Define the socket using the "Context"
+sock = context.socket(zmq.PUB)
+sock.bind("tcp://127.0.0.1:5680")
+
+def valueChangedCallback(strategy, value):
+    jsonDump = json.dumps({strategy: value})
+    sock.send_json(jsonDump)
+
 
 def main(dataFiles):
-    underlyingInstrument = 'BANKNIFTY'
+    underlyingInstrument = 'NIFTY'
+    lotSize=50
     start = datetime.datetime.now()
     feed = CustomCSVFeed.CustomCSVFeed()
-    for files in dataFiles:
-        for file in glob.glob(files):
-            feed.addBarsFromParquet(path=file, ticker=underlyingInstrument)
+    feed.addBarsFromParquets(dataFiles=dataFiles, ticker=underlyingInstrument)
 
     print("")
     print(f"Time took in loading data <{datetime.datetime.now()-start}>")
@@ -25,14 +40,17 @@ def main(dataFiles):
 
     broker = BacktestingBroker(200000, feed)
     #strat = OptionsTimeBasedStrategy(feed, broker, "Straddle.yaml")
-    strat = DeltaNeutralIntraday(feed, broker)
+    #strat = DeltaNeutralIntraday(feed, broker)
+    strat = StraddleIntradayWithVega(feed, broker, None, valueChangedCallback, lotSize=lotSize)
     returnsAnalyzer = stratReturns.Returns()
     tradesAnalyzer = trades.Trades()
     drawDownAnalyzer = drawdown.DrawDown()
+    #dayWiseAnalyzer = daywise.DayWise()
 
     strat.attachAnalyzer(returnsAnalyzer)
     strat.attachAnalyzer(drawDownAnalyzer)
     strat.attachAnalyzer(tradesAnalyzer)
+    #strat.attachAnalyzer(dayWiseAnalyzer)
 
     strat.run()
 
@@ -114,4 +132,4 @@ def main(dataFiles):
 
 
 if __name__ == "__main__":
-    main(["pyalgomate/backtesting/data/2022-*10.parquet"])
+    main(["pyalgomate/backtesting/data/2022/*.parquet"])
