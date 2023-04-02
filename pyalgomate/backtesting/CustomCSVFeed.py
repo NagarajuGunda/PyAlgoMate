@@ -3,6 +3,7 @@
 """
 
 import six
+import glob
 import pandas as pd
 
 from pyalgotrade.utils import csvutils
@@ -124,7 +125,7 @@ class CustomCSVBarFeed(BarFeed):
     def setBarClass(self, barClass):
         self.__barClass = barClass
 
-    def addBarsFromParquet(self, path, ticker=None, timezone=None):
+    def addBarsFromDataframe(self, dataframe, ticker=None, timezone=None):
         """Loads bars for a given instrument from a parquet file.
         The instrument gets registered in the bar feed.
 
@@ -156,13 +157,10 @@ class CustomCSVBarFeed(BarFeed):
         if timezone is None:
             timezone = self.__timezone
 
-        # Load the parquet file
-        df = pd.read_parquet(path)
-
         if ticker:
-            df = df[df[self.__columnNames['ticker']].str.startswith(ticker)]
+            dataframe = dataframe[dataframe[self.__columnNames['ticker']].str.startswith(ticker)]
 
-        for name, group in df.groupby(self.__columnNames['ticker']):
+        for name, group in dataframe.groupby(self.__columnNames['ticker']):
             bars = []
             for row in group.to_dict('records'):
                 bar_ = parse_bar_skip_malformed(row)
@@ -171,6 +169,26 @@ class CustomCSVBarFeed(BarFeed):
                     bars.append(bar_)
 
             super(CustomCSVBarFeed, self).addBarsFromSequence(name, bars)
+
+    def addBarsFromParquet(self, path, ticker=None, timezone=None):
+        # Load the parquet file
+        df = pd.read_parquet(path)
+        self.addBarsFromDataframe(df, ticker, timezone)
+
+    def addBarsFromParquets(self, dataFiles, ticker=None, timezone=None):
+        df = None
+        for files in dataFiles:
+            for file in glob.glob(files):
+                if df is None:
+                    df = pd.read_parquet(file)
+                else:
+                    df = pd.concat([df, pd.read_parquet(file)],
+                                   ignore_index=True)
+
+        df = df.sort_values([self.__columnNames['ticker'], self.__columnNames['datetime']]).drop_duplicates(
+            subset=[self.__columnNames['ticker'], self.__columnNames['datetime']], keep='first')
+
+        self.addBarsFromDataframe(df, ticker, timezone)
 
     def addBarsFromCSV(self, path, timezone=None, skipMalformedBars=False):
         """Loads bars for a given instrument from a CSV formatted file.
