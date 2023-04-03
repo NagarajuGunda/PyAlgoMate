@@ -285,13 +285,13 @@ class TradeEvent(object):
         return self.__eventDict.get('rejreason', None)
     
     def getAvgFilledPrice(self):
-        return self.__eventDict.get('avgprc', None)
+        return float(self.__eventDict.get('avgprc', 0.0))
     
     def getTotalFilledQuantity(self):
-        return self.__eventDict.get('fillshares', None)
+        return float(self.__eventDict.get('fillshares', 0.0))
     
     def getDateTime(self):
-        return time.strptime(self.__eventDict['norentm'], '%H:%M:%S %d-%m-%Y') if self.__eventDict.get('norentm', None) is not None else None
+        return datetime.datetime.strptime(self.__eventDict['norentm'], '%H:%M:%S %d-%m-%Y') if self.__eventDict.get('norentm', None) is not None else None
 
 # def getOrderStatus(orderId):
 #     orderBook = api.get_order_book()
@@ -322,10 +322,12 @@ class TradeMonitor(threading.Thread):
     # Events
     ON_USER_TRADE = 1
 
-    def __init__(self, api: ShoonyaApi):
+    def __init__(self, liveBroker: broker.Broker):
         super(TradeMonitor, self).__init__()
         self.__lastTradeId = -1
-        self.__api = api
+        self.__lastTradeTime = datetime.datetime.now().replace(microsecond=0)
+        self.__api = liveBroker.getApi()
+        self.__broker = liveBroker
         self.__queue = six.moves.queue.Queue()
         self.__stop = False
 
@@ -335,14 +337,18 @@ class TradeMonitor(threading.Thread):
         if orderBook is None:
             logger.info(
                 'No order placed for the day yet or there is problem using get_order_book api')
-            return None
+            return []
 
-        # Get the new trades only.
-        # ret = [trade for trade in orderBook if trade['norenordno'] > self.__lastTradeId]
+        # Get the new trades only
         ret = []
         for order in orderBook:
+            orderTime = datetime.datetime.strptime(order['norentm'], '%H:%M:%S %d-%m-%Y') if order.get('norentm', None) is not None else None
+            if orderTime is None:
+                continue
+
             orderId = order.get('norenordno', None)
-            if orderId is not None and int(orderId) > int(self.__lastTradeId):
+            # if orderId is not None and int(orderId) > int(self.__lastTradeId):
+            if orderId is not None and len([order for order in self.__broker.getActiveOrders().copy() if order.getId() == orderId]):
                 orderHistories = self.__api.single_order_history(
                     orderno=orderId)
                 if orderHistories is None:
@@ -356,14 +362,16 @@ class TradeMonitor(threading.Thread):
                         logger.error(
                             f'Fetching order history for {orderId} failed with with reason {errorMsg}')
                         continue
+                    elif orderHistory['status'] in ['OPEN', 'PENDING']:
+                        continue
                     elif orderHistory['status'] in ['CANCELED', 'REJECTED', 'COMPLETE']:
                         ret.append(TradeEvent(order))
                     else:
                         logger.error(
                             f'Unknown trade status {orderHistory.get("status", None)}')
 
-        # Sort by id, so older trades first.
-        return sorted(ret, key=lambda t: t.getId())
+        # Sort by time, so older trades first.
+        return sorted(ret, key=lambda t: t.getDateTime())
 
     def getQueue(self):
         return self.__queue
@@ -372,8 +380,8 @@ class TradeMonitor(threading.Thread):
         trades = self._getNewTrades()
         # Store the last trade id since we'll start processing new ones only.
         if len(trades):
-            self.__lastTradeId = trades[-1].getId()
-            logger.info(f'Last trade found: {self.__lastTradeId}')
+            self.__lastTradeTime = trades[-1].getDateTime()
+            logger.info(f'Last trade found at {self.__lastTradeTime}. Order id {trades[-1].getId()}')
 
         super(TradeMonitor, self).start()
 
@@ -382,7 +390,7 @@ class TradeMonitor(threading.Thread):
             try:
                 trades = self._getNewTrades()
                 if len(trades):
-                    self.__lastTradeId = trades[-1].getId()
+                    self.__lastTradeTime = trades[-1].getDateTime()
                     logger.info(f'{len(trades)} new trade/s found')
                     self.__queue.put((TradeMonitor.ON_USER_TRADE, trades))
             except Exception as e:
@@ -467,11 +475,14 @@ class LiveBroker(broker.Broker):
         super(LiveBroker, self).__init__()
         self.__stop = False
         self.__api = api
-        self.__tradeMonitor = TradeMonitor(self.__api)
+        self.__tradeMonitor = TradeMonitor(self)
         self.__cash = 0
         self.__shares = {}
         self.__activeOrders = {}
 
+    def getApi(self):
+        return self.__api
+    
     def getInstrumentTraits(self, instrument):
         return QuantityTraits()
 
@@ -557,8 +568,7 @@ class LiveBroker(broker.Broker):
             if order is not None:
                 self._onTrade(order, trade)
             else:
-                logger.info("Trade %d refered to order that is not active" % (
-                    trade.getId()))
+                logger.info(f"Trade {trade.getId()} refered to order that is not active")
 
     # BEGIN observer.Subject interface
     def start(self):
@@ -688,7 +698,7 @@ class LiveBroker(broker.Broker):
             symbol = splitStrings[1] if len(splitStrings) > 1 else order.getInstrument()
             quantity = order.getQuantity()
             price = order.getLimitPrice() if order.getType() in [broker.Order.Type.LIMIT, broker.Order.Type.STOP_LIMIT] else 0
-            stopPrice = order.getStopPrice() if order.getType() in [broker.Order.Type.LIMIT, broker.Order.Type.STOP_LIMIT] else 0
+            stopPrice = order.getStopPrice() if order.getType() in [broker.Order.Type.STOP_LIMIT] else 0
             priceType = {
                 # LMT / MKT / SL-LMT / SL-MKT / DS / 2L / 3L
                 broker.Order.Type.MARKET: 'MKT',
@@ -698,6 +708,7 @@ class LiveBroker(broker.Broker):
             }.get(order.getType())
             retention = 'DAY'  # DAY / EOS / IOC
 
+            logger.info(f'Placing {priceType} {"Buy" if order.isBuy() else "Sell"} order for {order.getInstrument()} with {quantity} quantity')
             try:
                 finvasiaOrder = self.__placeOrder(buyOrSell,
                                                 productType,
@@ -713,6 +724,7 @@ class LiveBroker(broker.Broker):
                 logger.critical(f'Could not place order for {symbol}')
                 return
 
+            logger.info(f'Placed {priceType} {"Buy" if order.isBuy() else "Sell"} order {finvasiaOrder.getId()} at {finvasiaOrder.getDateTime()}')
             order.setSubmitted(finvasiaOrder.getId(),
                                finvasiaOrder.getDateTime())
             self._registerOrder(order)
@@ -735,13 +747,13 @@ class LiveBroker(broker.Broker):
             raise Exception("Only BUY/SELL orders are supported")
 
         if orderType == broker.MarketOrder:
-            return orderType(action, instrument, quantity, False, None)
+            return broker.MarketOrder(action, instrument, quantity, False, self.getInstrumentTraits(instrument))
         elif orderType == broker.LimitOrder:
-            return orderType(action, instrument, price, quantity, None)
+            return broker.LimitOrder(action, instrument, price, quantity, self.getInstrumentTraits(instrument))
         elif orderType == broker.StopOrder:
-            return orderType(action, instrument, stopPrice, quantity, None)
+            return broker.StopOrder(action, instrument, stopPrice, quantity, self.getInstrumentTraits(instrument))
         elif orderType == broker.StopLimitOrder:
-            return orderType(action, instrument, stopPrice, price, quantity, None)
+            return broker.StopLimitOrder(action, instrument, stopPrice, price, quantity, self.getInstrumentTraits(instrument))
 
     def createMarketOrder(self, action, instrument, quantity, onClose=False):
         return self._createOrder(broker.MarketOrder, action, instrument, quantity, None, None)
