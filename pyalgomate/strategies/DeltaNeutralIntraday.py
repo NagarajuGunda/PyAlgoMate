@@ -19,14 +19,14 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                                                    resampleFrequency=resampleFrequency)
 
         self.entryTime = datetime.time(hour=9, minute=17)
-        self.exitTime = datetime.time(hour=15, minute=00)
+        self.exitTime = datetime.time(hour=15, minute=15)
         self.expiry = Expiry.WEEKLY
         self.initialDeltaDifference = 0.2
         self.deltaThreshold = 0.2
         self.lotSize = lotSize if lotSize is not None else 25
         self.lots = 1
         self.quantity = self.lotSize * self.lots
-        self.portfolioSL = 10000
+        self.portfolioSL = 4000
         self.vegaSL = 1500
 
         self.registeredOptionsCount = registeredOptionsCount if registeredOptionsCount is not None else 0
