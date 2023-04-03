@@ -152,8 +152,9 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.tradesDf = pd.concat([self.tradesDf, pd.DataFrame(
             [newRow], columns=self.tradesDf.columns)], ignore_index=True)
 
-        self.log(
-            f"Option greeks for {position.getInstrument()}\n{self.__optionData[position.getInstrument()]}", logging.DEBUG)
+        if self.__optionData.get(position.getInstrument(), None) is not None:
+            self.log(
+                f"Option greeks for {position.getInstrument()}\n{self.__optionData[position.getInstrument()]}", logging.DEBUG)
 
     def onExitOk(self, position: position):
         execInfo = position.getExitOrder().getExecutionInfo()
