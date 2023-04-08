@@ -18,7 +18,7 @@ from pyalgotrade import dispatchprio
 from pyalgotrade import bar
 from pyalgotrade import barfeed
 from pyalgotrade import observer
-from pyalgomate.brokers.finvasia import wsclient
+from pyalgomate.brokers.zerodha import wsclient
 
 logger = logging.getLogger(__name__)
 
