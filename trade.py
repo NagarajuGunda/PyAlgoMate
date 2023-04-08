@@ -10,7 +10,7 @@ from multiprocessing import Process
 
 import pyalgotrade.bar
 from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
-from pyalgomate.brokers.finvasia.broker import PaperTradingBroker
+from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker
 import pyalgomate.brokers.finvasia as finvasia
 from pyalgomate.strategies.OptionsStrangleIntraday import OptionsStrangleIntraday
 from pyalgomate.strategies.OptionsStraddleIntraday import OptionsStraddleIntraday
@@ -41,7 +41,7 @@ def getToken(api, exchangeSymbol):
 
     if ret != None:
         for value in ret['values']:
-            if value['instname'] == 'OPTIDX' and value['tsym'] == symbol:
+            if value['instname'] in ['OPTIDX', 'EQ'] and value['tsym'] == symbol:
                 return value['token']
             if value['instname'] == 'UNDIND' and value['cname'] == symbol:
                 return value['token']
@@ -139,18 +139,21 @@ def main():
         #         'NSE|NIFTY INDEX', 'NIFTY')
 
         barFeed = LiveTradeFeed(api, tokenMappings)
-        broker = PaperTradingBroker(200000, barFeed)
+        #broker = PaperTradingBroker(200000, barFeed)
+        broker = LiveBroker(api)
 
         # strat = OptionsTimeBasedStrategy(
         #     barFeed, broker, "Straddle.yaml", valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
-        # deltaNeutralIntradayStrategy = DeltaNeutralIntraday(barFeed, broker, len(
-        #     optionSymbols), valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
-        straddleIntradayWithVegaStrategy = StraddleIntradayWithVega(barFeed, broker, len(
-            optionSymbols), valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
+        #deltaNeutralIntradayStrategy = DeltaNeutralIntraday(feed=barFeed, broker=broker, registeredOptionsCount=len(
+        #    optionSymbols), callback=valueChangedCallback, resampleFrequency=pyalgotrade.bar.Frequency.MINUTE, collectData=True)
+        straddleIntradayWithVegaStrategy = StraddleIntradayWithVega(feed=barFeed, broker=broker, registeredOptionsCount=len(
+            optionSymbols), callback=valueChangedCallback, resampleFrequency=pyalgotrade.bar.Frequency.MINUTE, collectData=True)
+        #straddleIntradayWithVegaStrategy = StraddleIntradayWithVega(barFeed, broker, len(
+        #    optionSymbols), valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
 
         strategies = [straddleIntradayWithVegaStrategy]
 
-        straddleIntradayWithVegaStrategy.run()
+        straddleIntradayWithVegaStrategy.run()  
     # Create a process for each strategy and start them
     # processes = [Process(target=runStrategy, args=(strategy,))
     #              for strategy in strategies]
