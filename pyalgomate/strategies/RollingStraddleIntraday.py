@@ -15,7 +15,7 @@ class RollingStraddleIntraday(BaseOptionsGreeksStrategy):
                                                       callback=callback, resampleFrequency=resampleFrequency)
 
         self.entryTime = datetime.time(hour=9, minute=17)
-        self.exitTime = datetime.time(hour=15, minute=00)
+        self.exitTime = datetime.time(hour=15, minute=15)
         self.expiry = Expiry.WEEKLY
         self.initialDeltaDifference = 0.5
         self.strikeThreshold = 100
@@ -34,6 +34,7 @@ class RollingStraddleIntraday(BaseOptionsGreeksStrategy):
         self.positionCall = None
         self.positionPut = None
         self.atmStrike = None
+        self.optionData = {}
         self.numberOfAdjustments = 0
 
     def closeAllPositions(self):
@@ -108,6 +109,22 @@ class RollingStraddleIntraday(BaseOptionsGreeksStrategy):
 
         return False
 
+        # if self.positionCall is not None and self.positionPut is not None:
+        #     callOptionGreeks = self.optionData[self.positionCall.getInstrument(
+        #     )]
+        #     putOptionGreeks = self.optionData[self.positionPut.getInstrument(
+        #     )]
+
+        #     deltaDifference = abs(
+        #         callOptionGreeks.delta + putOptionGreeks.delta)
+
+        #     deltaThreshold = 0.2
+        #     if deltaDifference > deltaThreshold:
+        #         self.log(
+        #             f"Overall delta {deltaDifference} has breached delta threshold {deltaThreshold}. Adjustments needed")
+        #         return True
+        # return False
+
     def onBars(self, bars):
         self.log(f"Bar date times - {bars.getDateTime()}", logging.DEBUG)
         overallDelta = self.getOverallDelta()
@@ -115,8 +132,18 @@ class RollingStraddleIntraday(BaseOptionsGreeksStrategy):
         currentExpiry = utils.getNearestWeeklyExpiryDate(bars.getDateTime().date(
         )) if self.expiry == Expiry.WEEKLY else utils.getNearestMonthlyExpiryDate(bars.getDateTime().date())
 
-        optionData = self.getOptionData(bars)
-        if (self.registeredOptionsCount > 0) and (len(optionData) < self.registeredOptionsCount):
+        # Skip the monthly expiry days
+        if utils.getNearestMonthlyExpiryDate(bars.getDateTime().date()) == bars.getDateTime().date():
+            return
+
+        # set exit time based on expiry/non-expiry day
+        if currentExpiry == bars.getDateTime().date():
+            self.exitTime = datetime.time(hour=15, minute=25)
+        else:
+            datetime.time(hour=14, minute=00)
+
+        self.optionData = self.getOptionData(bars)
+        if (self.registeredOptionsCount > 0) and (len(self.optionData) < self.registeredOptionsCount):
             return
 
         if self.state == State.LIVE:
@@ -133,6 +160,7 @@ class RollingStraddleIntraday(BaseOptionsGreeksStrategy):
             elif self.canDoAdjustments():
                 self.closeAllPositions()
                 self.takePositions(currentExpiry, bars.getDateTime())
+                self.numberOfAdjustments += 1
         # Check if we are in the EXITED state
         elif self.state == State.EXITED:
             pass
