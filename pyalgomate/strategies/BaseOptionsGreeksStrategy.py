@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import datetime
 import pandas as pd
+import os
 
 from pyalgotrade.broker import Order, OrderExecutionInfo
 from pyalgotrade.strategy import position
@@ -17,6 +18,18 @@ class State(object):
     ENTERED = 3
     EXITED = 4
 
+    @classmethod
+    def toString(cls, state):
+        if state == cls.LIVE:
+            return "LIVE"
+        elif state == cls.PLACING_ORDERS:
+            return "PLACING_ORDERS"
+        elif state == cls.ENTERED:
+            return "ENTERED"
+        elif state == cls.EXITED:
+            return "EXITED"
+        else:
+            raise "Invalid State"
 
 class Expiry(object):
     WEEKLY = 1
@@ -25,11 +38,12 @@ class Expiry(object):
 
 class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
-    def __init__(self, feed, broker, strategyName, logger: logging.Logger, callback=None, resampleFrequency=None):
+    def __init__(self, feed, broker, strategyName, logger: logging.Logger, callback=None, resampleFrequency=None, collectData=None):
         super(BaseOptionsGreeksStrategy, self).__init__(feed, broker)
         self.marketEndTime = datetime.time(hour=15, minute=30)
         self.strategyName = strategyName
         self.logger = logger
+        self.collectData = collectData
 
         self._observers = []
         if callback:
@@ -40,8 +54,17 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.reset()
 
         self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Exit Date/Time',
-                                     'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL'])
+                                     'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL', 'Date'])
         self.tradesCSV = f"results/{self.strategyName}.csv"
+
+        if self.collectData is not None:
+            self.dataColumns = ["Ticker", "Date/Time", "Open", "High",
+                                "Low", "Close", "Volume", "Open Interest"]
+            self.dataFilename = "data.csv"
+
+            df = pd.DataFrame(columns=self.dataColumns)
+
+            df.to_csv(self.dataFilename, index=False)
 
     def reset(self):
         self.__optionData = dict()
@@ -50,9 +73,31 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.overallPnL = 0
         self.state = State.LIVE
 
+    def appendBars(self, bars, df):
+        for ticker, bar in bars.items():
+            newRow = {
+                "Ticker": ticker,
+                "Date/Time": bar.getDateTime(),
+                "Open": bar.getOpen(),
+                "High": bar.getHigh(),
+                "Low": bar.getLow(),
+                "Close": bar.getClose(),
+                "Volume": bar.getVolume(),
+                "Open Interest": bar.getExtraColumns().get("Open Interest", 0)
+            }
+
+            df = pd.concat([df, pd.DataFrame(
+                [newRow], columns=self.dataColumns)], ignore_index=True)
+
+        return df
+
     def resampledOnBars(self, bars):
-        if self.state != State.ENTERED:
-            return
+        self.log(f"On Resampled Bars - Date/Time - {bars.getDateTime()}")
+        if self.collectData is not None:
+            df = pd.DataFrame(columns=self.dataColumns)
+            df = self.appendBars(bars, df)
+            df.to_csv(self.dataFilename, mode='a',
+                      header=not os.path.exists(self.dataFilename), index=False)
 
         jsonData = {
             "datetime": bars.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'),
@@ -61,32 +106,34 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             },
             "charts": {
                 "pnl": self.overallPnL
-            }
+            },
+            "state": State.toString(self.state)
         }
 
-        combinedPremium = 0
-        for instrument, openPosition in list(self.openPositions.items()):
-            ltp = self.getFeed().getDataSeries(instrument)[-1].getClose()
-            jsonData["metrics"][f"{instrument} PnL"] = jsonData["charts"][f"{instrument} PnL"] = self.getPnL(
-                openPosition)
-            jsonData["metrics"][f"{instrument} LTP"] = jsonData["charts"][f"{instrument} LTP"] = ltp
-            combinedPremium += ltp
+        if self.state != State.EXITED:
+            combinedPremium = 0
+            for instrument, openPosition in list(self.openPositions.items()):
+                ltp = self.getFeed().getDataSeries(instrument)[-1].getClose()
+                jsonData["metrics"][f"{instrument} PnL"] = jsonData["charts"][f"{instrument} PnL"] = self.getPnL(
+                    openPosition)
+                jsonData["metrics"][f"{instrument} LTP"] = jsonData["charts"][f"{instrument} LTP"] = ltp
+                combinedPremium += ltp
 
-        jsonData["metrics"]["Combined Premium"] = combinedPremium
+            jsonData["metrics"]["Combined Premium"] = combinedPremium
 
-        jsonData["optionChain"] = dict()
-        for instrument, optionGreek in self.__optionData.items():
-            optionGreekDict = dict([attr, getattr(optionGreek, attr)]
-                                   for attr in dir(optionGreek) if not attr.startswith('_'))
-            optionContract = optionGreekDict.pop('optionContract')
-            optionContractDict = dict([attr, getattr(optionContract, attr)] for attr in dir(
-                optionContract) if not attr.startswith('_'))
-            optionContractDict['expiry'] = optionContractDict['expiry'].strftime(
-                '%Y-%m-%d')
-            optionGreekDict.update(optionContractDict)
-            jsonData["optionChain"][instrument] = optionGreekDict
+            jsonData["optionChain"] = dict()
+            for instrument, optionGreek in self.__optionData.items():
+                optionGreekDict = dict([attr, getattr(optionGreek, attr)]
+                                       for attr in dir(optionGreek) if not attr.startswith('_'))
+                optionContract = optionGreekDict.pop('optionContract')
+                optionContractDict = dict([attr, getattr(optionContract, attr)] for attr in dir(
+                    optionContract) if not attr.startswith('_'))
+                optionContractDict['expiry'] = optionContractDict['expiry'].strftime(
+                    '%Y-%m-%d')
+                optionGreekDict.update(optionContractDict)
+                jsonData["optionChain"][instrument] = optionGreekDict
 
-        jsonData["trades"] = self.tradesDf.to_json()
+            jsonData["trades"] = self.tradesDf.to_json()
 
         for callback in self._observers:
             callback(self.strategyName, jsonData)
@@ -148,7 +195,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                   'Quantity': execInfo.getQuantity(),
                   'Entry Price': position.getEntryOrder().getAvgFillPrice(),
                   'Exit Price': None,
-                  'PnL': None}
+                  'PnL': None,
+                  'Date': None}
         self.tradesDf = pd.concat([self.tradesDf, pd.DataFrame(
             [newRow], columns=self.tradesDf.columns)], ignore_index=True)
 
@@ -189,8 +237,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         idx = self.tradesDf.loc[self.tradesDf['Instrument']
                                 == position.getInstrument()].index[-1]
-        self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Price', 'PnL']] = [
-            execInfo.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'), exitPrice, pnl]
+        self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Price', 'PnL', 'Date']] = [
+            execInfo.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'), exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d')]
         self.tradesDf.to_csv(self.tradesCSV)
 
         self.log(
@@ -209,7 +257,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
     def getOverallDelta(self):
         delta = 0
         for instrument, openPosition in self.openPositions.copy().items():
-            delta += self.__optionData[openPosition.getInstrument()].delta
+            delta += self.__optionData[openPosition.getInstrument()].delta if self.__optionData.get(openPosition.getInstrument(), None) is not None else 0
 
         return delta
 

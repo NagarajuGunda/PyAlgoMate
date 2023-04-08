@@ -8,12 +8,12 @@ from pyalgomate.strategies.BaseOptionsGreeksStrategy import State, Expiry
 
 
 class StraddleIntradayWithVega(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, registeredOptionsCount=None, callback=None, resampleFrequency=None, lotSize=None):
+    def __init__(self, feed, broker, registeredOptionsCount=None, callback=None, resampleFrequency=None, lotSize=None,collectData=None):
         super(StraddleIntradayWithVega, self).__init__(feed, broker,
                                                        strategyName=__class__.__name__,
                                                        logger=logging.getLogger(
                                                            __file__),
-                                                       callback=callback, resampleFrequency=resampleFrequency)
+                                                       callback=callback, resampleFrequency=resampleFrequency,collectData=collectData)
 
         self.entryTime = datetime.time(hour=9, minute=17)
         self.exitTime = datetime.time(hour=15, minute=00)
@@ -136,7 +136,7 @@ class StraddleIntradayWithVega(BaseOptionsGreeksStrategy):
                         self.state = State.PLACING_ORDERS
                         self.positionVega = self.enterLong(
                             selectedOption.optionContract.symbol, self.quantity)
-            else:
+            elif self.positionVega.getInstrument() in self.openPositions:
                 # Check if SL is hit for the buy position
                 entryOrder = self.openPositions[self.positionVega.getEntryOrder(
                 ).getInstrument()]

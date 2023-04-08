@@ -10,19 +10,20 @@ logger = logging.getLogger(__file__)
 
 
 class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, registeredOptionsCount=None, callback=None, resampleFrequency=None, lotSize=None):
+    def __init__(self, feed, broker, registeredOptionsCount=None, callback=None, resampleFrequency=None, lotSize=None, collectData=None):
         super(DeltaNeutralIntraday, self).__init__(feed, broker,
                                                    strategyName=__class__.__name__,
                                                    logger=logging.getLogger(
                                                        __file__),
                                                    callback=callback,
-                                                   resampleFrequency=resampleFrequency)
+                                                   resampleFrequency=resampleFrequency,
+                                                   collectData=collectData)
 
         self.entryTime = datetime.time(hour=9, minute=17)
         self.exitTime = datetime.time(hour=15, minute=15)
         self.expiry = Expiry.WEEKLY
         self.initialDeltaDifference = 0.2
-        self.deltaThreshold = 0.2
+        self.deltaThreshold = 0.3
         self.lotSize = lotSize if lotSize is not None else 25
         self.lots = 1
         self.quantity = self.lotSize * self.lots
@@ -120,13 +121,14 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                 callOptionGreeks.delta + putOptionGreeks.delta)
 
             if deltaDifference > self.deltaThreshold:
-                self.state = State.PLACING_ORDERS
                 # Close the profit making position and take another position with delta nearest to that of other option
                 if abs(callOptionGreeks.delta) > abs(putOptionGreeks.delta):
                     self.positionPut.exitMarket()
                     # Find put option with delta closest to delta of call option
                     selectedPutOption = self.getNearestDeltaOption(
                         'p', callOptionGreeks.delta, currentExpiry)
+                    
+                    self.state = State.PLACING_ORDERS
                     self.positionPut = self.enterShort(
                         selectedPutOption.optionContract.symbol, self.quantity)
                 else:
@@ -134,14 +136,16 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                     # Find call option with delta closest to delta of put option
                     selectedCallOption = self.getNearestDeltaOption(
                         'c', putOptionGreeks.delta, currentExpiry)
+                    self.state = State.PLACING_ORDERS
                     self.positionCall = self.enterShort(
                         selectedCallOption.optionContract.symbol, self.quantity)
 
                 self.numberOfAdjustments += 1
 
             if self.positionVega is None and self.numberOfAdjustments >= 2:
-                selectedOption = self.getNearestDeltaOption('p' if abs(
-                    callOptionGreeks.delta) > abs(putOptionGreeks.delta) else 'c', 0.5, currentExpiry)
+                #monthlyExpiry = utils.getNearestMonthlyExpiryDate(bars.getDateTime().date())
+                selectedOption = self.getNearestDeltaOption('c' if abs(
+                    callOptionGreeks.delta) > abs(putOptionGreeks.delta) else 'p', 0.5, currentExpiry)
                 if selectedOption.optionContract.symbol in [self.positionCall.getInstrument(),
                                                             self.positionPut.getInstrument()]:
                     self.log(
@@ -149,6 +153,7 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                 else:
                     self.log(
                         f"Number of adjustments has reached {self.numberOfAdjustments}. Managing vega by buying an option. Current PnL is {self.overallPnL}).")
+                    self.state = State.PLACING_ORDERS
                     self.positionVega = self.enterLong(
                         selectedOption.optionContract.symbol, self.quantity)
         # Check if we are in the EXITED state
