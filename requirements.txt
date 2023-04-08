@@ -17,3 +17,4 @@ py_vollib
 streamlit-aggrid
 streamlit_plotly_events
 sqlalchemy
+kiteconnect
