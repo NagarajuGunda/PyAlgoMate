@@ -8,6 +8,7 @@ import os
 
 import pyalgotrade.bar
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
+from pyalgomate.brokers.zerodha.kiteext import KiteExt
 
 import pyalgomate.utils as utils
 
@@ -16,10 +17,16 @@ from pyalgotrade.strategy import BaseStrategy
 from pyalgomate.backtesting import CustomCSVFeed
 from pyalgomate.brokers.finvasia.broker import BacktestingBroker
 from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
+from pyalgomate.brokers.zerodha.feed import ZerodhaLiveFeed
 from pyalgomate.brokers.finvasia.broker import PaperTradingBroker
 import pyalgomate.brokers.finvasia as finvasia
 
 logger = logging.getLogger(__file__)
+
+
+class Broker(object):
+    FINVASIA = 1
+    ZERODHA = 2
 
 
 def getToken(api, exchangeSymbol):
@@ -48,6 +55,15 @@ def getTokenMappings(api, exchangeSymbols):
     return tokenMappings
 
 
+def getZerodhaTokensList(api: KiteExt, instruments):
+    tokenMappings = {}
+    response = api.ltp(instruments)
+    for instrument in instruments:
+        token = response[instrument]['instrument_token']
+        tokenMappings[token] = instrument
+    return tokenMappings
+
+
 class IntradayData(BaseStrategy):
     def __init__(self, feed, broker):
         super(IntradayData, self).__init__(feed, broker)
@@ -59,7 +75,7 @@ class IntradayData(BaseStrategy):
         self.fileName = "data.csv"
 
         df = pd.DataFrame(columns=self.columns)
-        
+
         df.to_csv(self.fileName, index=False)
 
     def appendBars(self, bars, df):
@@ -92,35 +108,60 @@ class IntradayData(BaseStrategy):
 
 
 def main():
+    broker = Broker.ZERODHA
+
     with open('cred.yml') as f:
         cred = yaml.load(f, Loader=yaml.FullLoader)
 
-    api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
-                          websocket='wss://api.shoonya.com/NorenWSTP/')
+    if broker == Broker.FINVASIA:
+        api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
+                         websocket='wss://api.shoonya.com/NorenWSTP/')
 
-    twoFA = pyotp.TOTP(cred['factor2']).now()
-    ret = api.login(userid=cred['user'], password=cred['pwd'], twoFA=twoFA,
-                    vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
+        twoFA = pyotp.TOTP(cred['factor2']).now()
+        ret = api.login(userid=cred['user'], password=cred['pwd'], twoFA=twoFA,
+                        vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
 
-    if ret != None:
-        underlyingInstrument = 'NSE|NIFTY BANK'
+        if ret != None:
+            underlyingInstrument = 'NSE|NIFTY BANK'
 
-        ltp = api.get_quotes('NSE', getToken(api, underlyingInstrument))['lp']
+            ltp = api.get_quotes('NSE', getToken(
+                api, underlyingInstrument))['lp']
 
-        optionSymbols = finvasia.broker.getOptionSymbols(underlyingInstrument, utils.getNearestWeeklyExpiryDate(
-            datetime.datetime.now().date()), ltp, 10)
-        optionSymbols += finvasia.broker.getOptionSymbols(underlyingInstrument, utils.getNearestMonthlyExpiryDate(
-            datetime.datetime.now().date()), ltp, 10)
+            optionSymbols = finvasia.broker.getOptionSymbols(underlyingInstrument, utils.getNearestWeeklyExpiryDate(
+                datetime.datetime.now().date()), ltp, 10)
+            optionSymbols += finvasia.broker.getOptionSymbols(underlyingInstrument, utils.getNearestMonthlyExpiryDate(
+                datetime.datetime.now().date()), ltp, 10)
 
-        tokenMappings = getTokenMappings(
-            api, ["NSE|NIFTY INDEX", underlyingInstrument] + optionSymbols)
+            tokenMappings = getTokenMappings(
+                api, ["NSE|NIFTY INDEX", underlyingInstrument] + optionSymbols)
 
-        barFeed = LiveTradeFeed(api, tokenMappings)
+            barFeed = LiveTradeFeed(api, tokenMappings)
+            broker = PaperTradingBroker(200000, barFeed)
+    elif broker == Broker.ZERODHA:
+        api = KiteExt()
+        twoFA = pyotp.TOTP(cred['factor2']).now()
+        api.login_with_credentials(
+            userid=cred['user'], password=cred['pwd'], twofa=twoFA)
+
+        profile = api.profile()
+        print(f"Welcome {profile.get('user_name')}")
+
+        instruments = [
+            "NSE:ABFRL",
+            "NSE:ADANIENT",
+            "NSE:ADANIPORTS",
+            "NSE:AMARAJABAT",
+            "NSE:ABB",
+            "NSE:NIFTY 50"
+        ]
+
+        tokenMappings = getZerodhaTokensList(api, instruments)
+        barFeed = ZerodhaLiveFeed(api, tokenMappings)
         broker = PaperTradingBroker(200000, barFeed)
 
-        intradayData = IntradayData(barFeed, broker)
+    intradayData = IntradayData(barFeed, broker)
 
-        intradayData.run()
+    intradayData.run()
 
 
 def main_backtest():
