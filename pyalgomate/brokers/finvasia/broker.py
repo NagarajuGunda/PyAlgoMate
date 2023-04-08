@@ -324,51 +324,35 @@ class TradeMonitor(threading.Thread):
 
     def __init__(self, liveBroker: broker.Broker):
         super(TradeMonitor, self).__init__()
-        self.__lastTradeId = -1
-        self.__lastTradeTime = datetime.datetime.now().replace(microsecond=0)
         self.__api = liveBroker.getApi()
         self.__broker = liveBroker
         self.__queue = six.moves.queue.Queue()
         self.__stop = False
 
     def _getNewTrades(self):
-        orderBook = self.__api.get_order_book()
-
-        if orderBook is None:
-            logger.info(
-                'No order placed for the day yet or there is problem using get_order_book api')
-            return []
-
-        # Get the new trades only
         ret = []
-        for order in orderBook:
-            orderTime = datetime.datetime.strptime(order['norentm'], '%H:%M:%S %d-%m-%Y') if order.get('norentm', None) is not None else None
-            if orderTime is None:
+        activeOrderIds = [order.getId() for order in self.__broker.getActiveOrders().copy()]
+        for orderId in activeOrderIds:
+            orderHistories = self.__api.single_order_history(
+                orderno=orderId)
+            if orderHistories is None:
+                logger.info(
+                    f'Order history not found for order id {orderId}')
                 continue
 
-            orderId = order.get('norenordno', None)
-            # if orderId is not None and int(orderId) > int(self.__lastTradeId):
-            if orderId is not None and len([order for order in self.__broker.getActiveOrders().copy() if order.getId() == orderId]):
-                orderHistories = self.__api.single_order_history(
-                    orderno=orderId)
-                if orderHistories is None:
-                    logger.info(
-                        f'Order history not found for order id {orderId}')
+            for orderHistory in orderHistories:
+                if orderHistory['stat'] == 'Not_Ok':
+                    errorMsg = orderHistory['emsg']
+                    logger.error(
+                        f'Fetching order history for {orderId} failed with with reason {errorMsg}')
                     continue
-
-                for orderHistory in orderHistories:
-                    if orderHistory['stat'] == 'Not_Ok':
-                        errorMsg = orderHistory['emsg']
-                        logger.error(
-                            f'Fetching order history for {orderId} failed with with reason {errorMsg}')
-                        continue
-                    elif orderHistory['status'] in ['OPEN', 'PENDING']:
-                        continue
-                    elif orderHistory['status'] in ['CANCELED', 'REJECTED', 'COMPLETE']:
-                        ret.append(TradeEvent(order))
-                    else:
-                        logger.error(
-                            f'Unknown trade status {orderHistory.get("status", None)}')
+                elif orderHistory['status'] in ['OPEN', 'PENDING']:
+                    continue
+                elif orderHistory['status'] in ['CANCELED', 'REJECTED', 'COMPLETE']:
+                    ret.append(TradeEvent(orderHistory))
+                else:
+                    logger.error(
+                        f'Unknown trade status {orderHistory.get("status", None)}')
 
         # Sort by time, so older trades first.
         return sorted(ret, key=lambda t: t.getDateTime())
@@ -378,10 +362,8 @@ class TradeMonitor(threading.Thread):
 
     def start(self):
         trades = self._getNewTrades()
-        # Store the last trade id since we'll start processing new ones only.
         if len(trades):
-            self.__lastTradeTime = trades[-1].getDateTime()
-            logger.info(f'Last trade found at {self.__lastTradeTime}. Order id {trades[-1].getId()}')
+            logger.info(f'Last trade found at {trades[-1].getDateTime()}. Order id {trades[-1].getId()}')
 
         super(TradeMonitor, self).start()
 
@@ -390,7 +372,6 @@ class TradeMonitor(threading.Thread):
             try:
                 trades = self._getNewTrades()
                 if len(trades):
-                    self.__lastTradeTime = trades[-1].getDateTime()
                     logger.info(f'{len(trades)} new trade/s found')
                     self.__queue.put((TradeMonitor.ON_USER_TRADE, trades))
             except Exception as e:
