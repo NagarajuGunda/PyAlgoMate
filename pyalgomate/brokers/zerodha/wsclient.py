@@ -95,12 +95,13 @@ class WebSocketClient:
         logger.debug(ticks)
 
         for tick in ticks:
-            instrument = self.__tokenMappings[tick['instrument_token']]
+            tokenId = tick['instrument_token']
+            instrument = self.__tokenMappings[tokenId]
             ltp = tick['last_price']
-            volume = tick['volume_traded']
+            volume = tick.get('volume_traded', None)
 
-            if instrument in self.__pending_subscriptions:
-                self.__onSubscriptionSucceeded(instrument)
+            if tokenId in self.__pending_subscriptions:
+                self.__onSubscriptionSucceeded(tokenId)
 
             basicBar = bar.BasicBar(datetime.datetime.now(),
                                     ltp,
@@ -121,10 +122,10 @@ class WebSocketClient:
     def onOrderBookUpdate(self, message):
         hello = True
 
-    def __onSubscriptionSucceeded(self, instrument):
-        logger.info(f"Subscription succeeded for <{instrument}>")
+    def __onSubscriptionSucceeded(self, tokenId):
+        logger.info(f"Subscription succeeded for <{self.__tokenMappings[tokenId]}>")
 
-        self.__pending_subscriptions.remove(f"{instrument}")
+        self.__pending_subscriptions.remove(tokenId)
 
         if not self.__pending_subscriptions:
             self.setInitialized()
