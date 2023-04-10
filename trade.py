@@ -146,14 +146,14 @@ def main():
         #     barFeed, broker, "Straddle.yaml", valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
         #deltaNeutralIntradayStrategy = DeltaNeutralIntraday(feed=barFeed, broker=broker, registeredOptionsCount=len(
         #    optionSymbols), callback=valueChangedCallback, resampleFrequency=pyalgotrade.bar.Frequency.MINUTE, collectData=True)
-        straddleIntradayWithVegaStrategy = StraddleIntradayWithVega(feed=barFeed, broker=broker, registeredOptionsCount=len(
+        strategy = DeltaNeutralIntraday(feed=barFeed, broker=broker, registeredOptionsCount=len(
             optionSymbols), callback=valueChangedCallback, resampleFrequency=pyalgotrade.bar.Frequency.MINUTE, collectData=True)
         #straddleIntradayWithVegaStrategy = StraddleIntradayWithVega(barFeed, broker, len(
         #    optionSymbols), valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
 
-        strategies = [straddleIntradayWithVegaStrategy]
+        #strategies = [straddleIntradayWithVegaStrategy]
 
-        straddleIntradayWithVegaStrategy.run()  
+        strategy.run()  
     # Create a process for each strategy and start them
     # processes = [Process(target=runStrategy, args=(strategy,))
     #              for strategy in strategies]
