@@ -47,10 +47,17 @@ class BacktestingBroker(backtesting.Broker):
     """
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
-        return underlyingInstrument + str(strikePrice) + ('CE' if (callOrPut == 'C' or callOrPut == 'Call') else 'PE')
+        #return underlyingInstrument + str(strikePrice) + ('CE' if (callOrPut == 'C' or callOrPut == 'Call') else 'PE')
+        symbol = 'NIFTY'
+        if 'NIFTY BANK' in underlyingInstrument or 'BANKNIFTY' in underlyingInstrument:
+            symbol = 'BANKNIFTY'
+
+        dayMonthYear = f"{expiry.day:02d}" + \
+            calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
+        return symbol + dayMonthYear + callOrPut + str(strikePrice)
 
     def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
-        return underlyingInstrument + str(ceStrikePrice) + "CE", underlyingInstrument + str(peStrikePrice) + "PE"
+        return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
 
     def getOptionContract(self, symbol):
         m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)", symbol)
