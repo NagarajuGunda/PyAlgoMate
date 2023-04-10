@@ -242,7 +242,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.tradesDf.to_csv(self.tradesCSV)
 
         self.log(
-            f"Option greeks for {position.getInstrument()}\n{self.__optionData[position.getInstrument()]}", logging.DEBUG)
+            f"Option greeks for {position.getInstrument()}\n{self.__optionData.get(position.getInstrument(), None) if self.__optionData is not None else None}", logging.DEBUG)
 
     def haveLTP(self, instrument):
         return instrument in self.getFeed().getKeys() and len(self.getFeed().getDataSeries(instrument)) > 0
