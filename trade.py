@@ -12,6 +12,9 @@ import pyalgotrade.bar
 from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
 from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker
 import pyalgomate.brokers.finvasia as finvasia
+from pyalgomate.brokers.zerodha.feed import ZerodhaLiveFeed
+from pyalgomate.brokers.zerodha.broker import ZerodhaPaperTradingBroker
+import pyalgomate.brokers.zerodha as zerodha
 from pyalgomate.strategies.OptionsStrangleIntraday import OptionsStrangleIntraday
 from pyalgomate.strategies.OptionsStraddleIntraday import OptionsStraddleIntraday
 from pyalgomate.strategies.OptionsTimeBasedStrategy import OptionsTimeBasedStrategy
@@ -20,6 +23,7 @@ from pyalgomate.strategies.StraddleIntradayWithVega import StraddleIntradayWithV
 import pyalgomate.utils as utils
 
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
+from pyalgomate.brokers.zerodha.kiteext import KiteExt
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -27,6 +31,12 @@ logger = logging.getLogger(__file__)
 
 # ZeroMQ Context
 context = zmq.Context()
+
+
+class Broker(object):
+    FINVASIA = 1
+    ZERODHA = 2
+
 
 # Define the socket using the "Context"
 sock = context.socket(zmq.PUB)
@@ -56,6 +66,15 @@ def getTokenMappings(api, exchangeSymbols):
         tokenMappings["{0}|{1}".format(exchangeSymbol.split(
             '|')[0], getToken(api, exchangeSymbol))] = exchangeSymbol
 
+    return tokenMappings
+
+
+def getZerodhaTokensList(api: KiteExt, instruments):
+    tokenMappings = {}
+    response = api.ltp(instruments)
+    for instrument in instruments:
+        token = response[instrument]['instrument_token']
+        tokenMappings[token] = instrument
     return tokenMappings
 
 
@@ -102,19 +121,62 @@ def runStrategy(strategy):
 
 
 def main():
+    broker = Broker.FINVASIA
+
     with open('cred.yml') as f:
         cred = yaml.load(f, Loader=yaml.FullLoader)
 
-    api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
-                          websocket='wss://api.shoonya.com/NorenWSTP/')
+    if broker == Broker.FINVASIA:
+        api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
+                         websocket='wss://api.shoonya.com/NorenWSTP/')
 
-    ret = api.login(userid=cred['user'], password=cred['pwd'], twoFA=pyotp.TOTP(cred['factor2']).now(),
-                    vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
+        ret = api.login(userid=cred['user'], password=cred['pwd'], twoFA=pyotp.TOTP(cred['factor2']).now(),
+                        vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
 
-    if ret != None:
-        underlyingInstrument = 'NSE|NIFTY BANK'
+        if ret != None:
+            underlyingInstrument = 'NSE|NIFTY BANK'
 
-        ltp = api.get_quotes('NSE', getToken(api, underlyingInstrument))['lp']
+            ltp = api.get_quotes('NSE', getToken(
+                api, underlyingInstrument))['lp']
+
+            currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
+                datetime.datetime.now().date())
+            monthlyExpiry = utils.getNearestMonthlyExpiryDate(
+                datetime.datetime.now().date())
+            monthlyExpiry = utils.getNextMonthlyExpiryDate(
+                datetime.datetime.now().date()) if monthlyExpiry == currentWeeklyExpiry else monthlyExpiry
+
+            optionSymbols = finvasia.broker.getOptionSymbols(
+                underlyingInstrument, currentWeeklyExpiry, ltp, 10)
+            optionSymbols += finvasia.broker.getOptionSymbols(
+                underlyingInstrument, monthlyExpiry, ltp, 10)
+
+            optionSymbols = list(dict.fromkeys(optionSymbols))
+
+            tokenMappings = getTokenMappings(
+                api, ["NSE|NIFTY INDEX", underlyingInstrument] + optionSymbols)
+
+            # Remove NFO| and replace index names
+            # for key, value in tokenMappings.items():
+            #     tokenMappings[key] = value.replace('NFO|', '').replace('NSE|NIFTY BANK', 'BANKNIFTY').replace(
+            #         'NSE|NIFTY INDEX', 'NIFTY')
+
+            barFeed = LiveTradeFeed(api, tokenMappings)
+            # broker = PaperTradingBroker(200000, barFeed)
+            broker = LiveBroker(api)
+    elif broker == Broker.ZERODHA:
+        api = KiteExt()
+        twoFA = pyotp.TOTP(cred['factor2']).now()
+        api.login_with_credentials(
+            userid=cred['user'], password=cred['pwd'], twofa=twoFA)
+
+        profile = api.profile()
+        print(f"Welcome {profile.get('user_name')}")
+
+        underlyingInstrument = 'NSE:NIFTY BANK'
+
+        ltp = api.quote(underlyingInstrument)[
+            underlyingInstrument]["last_price"]
 
         currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
             datetime.datetime.now().date())
@@ -123,48 +185,26 @@ def main():
         monthlyExpiry = utils.getNextMonthlyExpiryDate(
             datetime.datetime.now().date()) if monthlyExpiry == currentWeeklyExpiry else monthlyExpiry
 
-        optionSymbols = finvasia.broker.getOptionSymbols(
+        optionSymbols = zerodha.broker.getOptionSymbols(
             underlyingInstrument, currentWeeklyExpiry, ltp, 10)
-        optionSymbols += finvasia.broker.getOptionSymbols(
+        optionSymbols += zerodha.broker.getOptionSymbols(
             underlyingInstrument, monthlyExpiry, ltp, 10)
 
         optionSymbols = list(dict.fromkeys(optionSymbols))
 
-        tokenMappings = getTokenMappings(
-            api, ["NSE|NIFTY INDEX", underlyingInstrument] + optionSymbols)
+        tokenMappings = getZerodhaTokensList(
+            api, [underlyingInstrument] + optionSymbols)
 
-        # Remove NFO| and replace index names
-        # for key, value in tokenMappings.items():
-        #     tokenMappings[key] = value.replace('NFO|', '').replace('NSE|NIFTY BANK', 'BANKNIFTY').replace(
-        #         'NSE|NIFTY INDEX', 'NIFTY')
-
-        barFeed = LiveTradeFeed(api, tokenMappings)
-        #broker = PaperTradingBroker(200000, barFeed)
-        broker = LiveBroker(api)
-
-        # strat = OptionsTimeBasedStrategy(
-        #     barFeed, broker, "Straddle.yaml", valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
-        #deltaNeutralIntradayStrategy = DeltaNeutralIntraday(feed=barFeed, broker=broker, registeredOptionsCount=len(
-        #    optionSymbols), callback=valueChangedCallback, resampleFrequency=pyalgotrade.bar.Frequency.MINUTE, collectData=True)
-        strategy = DeltaNeutralIntraday(feed=barFeed, broker=broker, registeredOptionsCount=len(
-            optionSymbols), callback=valueChangedCallback, resampleFrequency=pyalgotrade.bar.Frequency.MINUTE, collectData=True)
-        #straddleIntradayWithVegaStrategy = StraddleIntradayWithVega(barFeed, broker, len(
-        #    optionSymbols), valueChangedCallback, pyalgotrade.bar.Frequency.MINUTE)
-
-        #strategies = [straddleIntradayWithVegaStrategy]
-
-        strategy.run()  
-    # Create a process for each strategy and start them
-    # processes = [Process(target=runStrategy, args=(strategy,))
-    #              for strategy in strategies]
-    # for process in processes:
-    #     process.start()
-
-    # # Wait for all processes to finish
-    # for process in processes:
-    #     process.join()
+        barFeed = ZerodhaLiveFeed(api, tokenMappings)
+        broker = ZerodhaPaperTradingBroker(200000, barFeed)
     else:
         logger.error("Api returned None")
+        return
+
+    strategy = DeltaNeutralIntraday(feed=barFeed, broker=broker, registeredOptionsCount=len(
+        optionSymbols), callback=valueChangedCallback, resampleFrequency=pyalgotrade.bar.Frequency.MINUTE, collectData=True)
+
+    strategy.run()
 
 
 if __name__ == "__main__":
