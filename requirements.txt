@@ -18,3 +18,4 @@ streamlit-aggrid
 streamlit_plotly_events
 sqlalchemy
 kiteconnect
+py_vollib_vectorized
