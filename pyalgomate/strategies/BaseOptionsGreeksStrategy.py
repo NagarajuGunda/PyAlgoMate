@@ -31,6 +31,7 @@ class State(object):
         else:
             raise "Invalid State"
 
+
 class Expiry(object):
     WEEKLY = 1
     MONTHLY = 2
@@ -53,18 +54,22 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         self.reset()
 
-        self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Exit Date/Time',
-                                     'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL', 'Date'])
         self.tradesCSV = f"results/{self.strategyName}.csv"
+
+        if os.path.isfile(self.tradesCSV):
+            self.tradesDf = pd.read_csv(self.tradesCSV, index_col=False)
+        else:
+            self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Exit Date/Time',
+                                                  'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL', 'Date'])
 
         if self.collectData is not None:
             self.dataColumns = ["Ticker", "Date/Time", "Open", "High",
                                 "Low", "Close", "Volume", "Open Interest"]
-            self.dataFilename = "data.csv"
+            self.dataFileName = "data.csv"
 
-            df = pd.DataFrame(columns=self.dataColumns)
-
-            df.to_csv(self.dataFilename, index=False)
+            if not os.path.isfile(self.dataFileName):
+                pd.DataFrame(columns=self.dataColumns).to_csv(
+                    self.dataFileName, index=False)
 
     def reset(self):
         self.__optionData = dict()
@@ -96,8 +101,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         if self.collectData is not None:
             df = pd.DataFrame(columns=self.dataColumns)
             df = self.appendBars(bars, df)
-            df.to_csv(self.dataFilename, mode='a',
-                      header=not os.path.exists(self.dataFilename), index=False)
+            df.to_csv(self.dataFileName, mode='a',
+                      header=not os.path.exists(self.dataFileName), index=False)
 
         jsonData = {
             "datetime": bars.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'),
@@ -239,7 +244,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                                 == position.getInstrument()].index[-1]
         self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Price', 'PnL', 'Date']] = [
             execInfo.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'), exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d')]
-        self.tradesDf.to_csv(self.tradesCSV)
+        self.tradesDf.to_csv(self.tradesCSV, index=False)
 
         self.log(
             f"Option greeks for {position.getInstrument()}\n{self.__optionData.get(position.getInstrument(), None) if self.__optionData is not None else None}", logging.DEBUG)
@@ -257,7 +262,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
     def getOverallDelta(self):
         delta = 0
         for instrument, openPosition in self.openPositions.copy().items():
-            delta += self.__optionData[openPosition.getInstrument()].delta if self.__optionData.get(openPosition.getInstrument(), None) is not None else 0
+            delta += self.__optionData[openPosition.getInstrument()].delta if self.__optionData.get(
+                openPosition.getInstrument(), None) is not None else 0
 
         return delta
 
