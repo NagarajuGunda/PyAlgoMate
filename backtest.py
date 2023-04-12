@@ -4,8 +4,7 @@ import datetime
 import zmq
 import json
 
-import pyalgotrade.bar
-from pyalgomate.brokers.finvasia.broker import BacktestingBroker
+from pyalgomate.brokers import BacktestingBroker
 from pyalgomate.strategies.OptionsTimeBasedStrategy import OptionsTimeBasedStrategy
 from pyalgomate.strategies.DeltaNeutralIntraday import DeltaNeutralIntraday
 from pyalgomate.strategies.RollingStraddleIntraday import RollingStraddleIntraday

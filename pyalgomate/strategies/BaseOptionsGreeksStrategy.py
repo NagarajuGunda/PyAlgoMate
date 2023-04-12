@@ -7,6 +7,8 @@ import os
 from pyalgotrade.broker import Order, OrderExecutionInfo
 from pyalgotrade.strategy import position
 from pyalgotrade import strategy
+from pyalgotrade import broker
+from pyalgomate.brokers import BacktestingBroker, QuantityTraits
 import pyalgomate.utils as utils
 from pyalgomate.strategies import OptionGreeks
 from py_vollib_vectorized import vectorized_implied_volatility, get_all_greeks
@@ -54,12 +56,15 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         self.reset()
 
-        self.tradesCSV = f"results/{self.strategyName}.csv"
+        if isinstance(self.getBroker(), BacktestingBroker):
+            self.tradesCSV = f"results/{self.strategyName}_backtest.csv"
+        else:
+            self.tradesCSV = f"results/{self.strategyName}_trades.csv"
 
         if os.path.isfile(self.tradesCSV):
             self.tradesDf = pd.read_csv(self.tradesCSV, index_col=False)
         else:
-            self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Exit Date/Time',
+            self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Entry Order Id', 'Exit Date/Time', 'Exit Order Id',
                                                   'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL', 'Date'])
 
         if self.collectData is not None:
@@ -70,6 +75,40 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             if not os.path.isfile(self.dataFileName):
                 pd.DataFrame(columns=self.dataColumns).to_csv(
                     self.dataFileName, index=False)
+
+        # build open orders from tradeDf
+        # self.buildOrdersFromOpenOrders()
+
+    def buildOrdersFromOpenOrders(self):
+        if not isinstance(self.getBroker(), BacktestingBroker):
+            today = datetime.date.today()
+
+            mask = (self.tradesDf['Exit Order Id'].isnull()) & \
+                (pd.to_datetime(
+                    self.tradesDf['Entry Date/Time'], format='%Y-%m-%dT%H:%M:%S').dt.date == today)
+            openPositions = self.tradesDf.loc[mask]
+
+            for index, openPosition in openPositions.iterrows():
+                order = broker.MarketOrder(broker.Order.Action.BUY if openPosition['Buy/Sell'] == 'BUY' else broker.Order.Action.SELL,
+                                           openPosition['Instrument'],
+                                           float(openPosition['Quantity']),
+                                           False,
+                                           QuantityTraits())
+
+                entryDateTime = datetime.datetime.strptime(
+                    openPosition['Entry Date/Time'], '%Y-%m-%dT%H:%M:%S')
+                order.setSubmitted(
+                    openPosition['Entry Order Id'], entryDateTime)
+                self.getBroker()._registerOrder(order)
+                order.switchState(broker.Order.State.SUBMITTED)
+                order.switchState(broker.Order.State.ACCEPTED)
+
+                fee = 0
+                orderExecutionInfo = broker.OrderExecutionInfo(
+                    openPosition['Entry Price'], openPosition['Quantity'], fee, entryDateTime)
+                order.addExecutionInfo(orderExecutionInfo)
+                self.getBroker().notifyOrderEvent(broker.OrderEvent(
+                    order, broker.OrderEvent.Type.FILLED, orderExecutionInfo))
 
     def reset(self):
         self.__optionData = dict()
@@ -194,7 +233,9 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         # Append a new row to the tradesDf DataFrame with the trade information
         newRow = {'Entry Date/Time': execInfo.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'),
+                  'Entry Order Id': position.getEntryOrder().getId(),
                   'Exit Date/Time': None,
+                  'Exit Order Id': None,
                   'Instrument': position.getInstrument(),
                   'Buy/Sell': "Buy" if position.getEntryOrder().isBuy() else "Sell",
                   'Quantity': execInfo.getQuantity(),
@@ -237,13 +278,14 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         # Update the corresponding row in the tradesDf DataFrame with the exit information
         entryPrice = entryOrder.getAvgFillPrice()
         exitPrice = position.getExitOrder().getAvgFillPrice()
+        exitOrderId = position.getExitOrder().getId()
         pnl = ((exitPrice - entryPrice) * entryOrder.getExecutionInfo().getQuantity()
                ) if entryOrder.isBuy() else ((entryPrice - exitPrice) * entryOrder.getExecutionInfo().getQuantity())
 
         idx = self.tradesDf.loc[self.tradesDf['Instrument']
                                 == position.getInstrument()].index[-1]
-        self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Price', 'PnL', 'Date']] = [
-            execInfo.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'), exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d')]
+        self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Order Id', 'Exit Price', 'PnL', 'Date']] = [
+            execInfo.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'), exitOrderId, exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d')]
         self.tradesDf.to_csv(self.tradesCSV, index=False)
 
         self.log(
