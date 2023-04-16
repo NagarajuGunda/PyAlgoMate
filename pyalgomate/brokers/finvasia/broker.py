@@ -289,7 +289,7 @@ class OrderResponse(object):
         return self.__dict["norenordno"]
 
     def getDateTime(self):
-        return datetime.datetime.strptime(self.__dict["request_time"], "%H:%M:%S %m-%d-%Y")
+        return datetime.datetime.strptime(self.__dict["request_time"], "%H:%M:%S %d-%m-%Y")
 
     def getStat(self):
         return self.__dict.get("stat", None)
