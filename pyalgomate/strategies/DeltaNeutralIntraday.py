@@ -44,24 +44,16 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
 
     def closeAllPositions(self):
         self.state = State.EXITED
-        if self.positionCall:
-            self.positionCall.exitMarket()
-            self.positionCall = None
+        for position in list(self.getActivePositions()):
+            if not position.exitActive():
+                position.exitMarket()
 
-        if self.positionPut:
-            self.positionPut.exitMarket()
-            self.positionPut = None
-
-        if self.positionVega:
-            self.positionVega.exitMarket()
-            self.positionVega = None
+        self.positionCall = self.positionPut = self.positionVega = None
 
     def onStart(self):
         super().onStart()
 
-        activePositions = self.getActivePositions()
-
-        for activePosition in activePositions:
+        for activePosition in list(self.getActivePositions()):
             if activePosition.getEntryOrder().isBuy():
                 self.positionVega = activePosition
             else:
@@ -104,7 +96,21 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
         if (len(optionData) < self.registeredOptionsCount):
             return
 
-        if self.state == State.LIVE:
+        self.overallPnL = self.getOverallPnL()
+
+        if bars.getDateTime().time() >= self.marketEndTime:
+            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+                self.log(
+                    f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
+            if self.state != State.LIVE:
+                self.__reset__()
+            return
+        # Exit all positions if exit time is met or portfolio SL is hit
+        elif bars.getDateTime().time() >= self.exitTime:
+            if self.state != State.EXITED:
+                self.closeAllPositions()
+            return
+        elif self.state == State.LIVE:
             if bars.getDateTime().time() >= self.entryTime and bars.getDateTime().time() < self.exitTime:
                 selectedCallOption = self.getNearestDeltaOption(
                     'c', self.initialDeltaDifference, currentExpiry)
@@ -137,13 +143,6 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
             elif self.positionCall is None and self.positionPut is None and self.positionVega is None:
                 self.state = State.LIVE
         elif self.state == State.ENTERED:
-            # Exit all positions if exit time is met or portfolio SL is hit
-            if bars.getDateTime().time() >= self.exitTime:
-                self.closeAllPositions()
-                return
-
-            self.overallPnL = self.getOverallPnL()
-
             if self.overallPnL <= -self.portfolioSL:
                 self.log(
                     f"Portfolio SL({self.portfolioSL} is hit. Current PnL is {self.overallPnL}. Exiting all positions!)")
@@ -196,12 +195,3 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
         # Check if we are in the EXITED state
         elif self.state == State.EXITED:
             pass
-
-        self.overallPnL = self.getOverallPnL()
-
-        if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
-                self.log(
-                    f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
-            if self.state != State.LIVE:
-                self.__reset__()
