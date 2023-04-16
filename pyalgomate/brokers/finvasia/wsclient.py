@@ -184,9 +184,11 @@ class WebSocketClient:
 
         if field not in ["tf", "tk"]:
             self.onUnknownEvent(subscribeEvent)
+            return
 
         if field == "tk":
             self.__onSubscriptionSucceeded(subscribeEvent)
+            return
 
         # dateTime = subscribeEvent.dateTime
         # instrument = subscribeEvent.instrument
