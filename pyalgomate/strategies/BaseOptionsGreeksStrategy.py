@@ -244,8 +244,10 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         self.openPositions[position.getInstrument()] = position.getEntryOrder()
 
-        # Check if there is an order already present in trade df
-        if self.tradesDf[self.tradesDf['Entry Order Id'] == position.getEntryOrder().getId()].shape[0] == 0:
+        # Check if there is an order id already present in trade df for the same instrument
+        if self.tradesDf[(self.tradesDf['Entry Order Id'] == position.getEntryOrder().getId())
+                         & (self.tradesDf['Instrument'] == position.getInstrument())
+                         ].shape[0] == 0:
             # Append a new row to the tradesDf DataFrame with the trade information
             newRow = {'Entry Date/Time': execInfo.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'),
                     'Entry Order Id': position.getEntryOrder().getId(),
