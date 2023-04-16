@@ -309,10 +309,10 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             f"Option greeks for {position.getInstrument()}\n{self.__optionData.get(position.getInstrument(), None) if self.__optionData is not None else None}", logging.DEBUG)
 
     def onEnterCanceled(self, position: position):
-        self.log(f"{position.getEntryOrder().getDateTime()} ===== Entry order cancelled: {position.getEntryOrder().getInstrument()} =====", logging.WARN)
+        self.log(f"===== Entry order cancelled: {position.getEntryOrder().getInstrument()} =====", logging.WARN)
 
     def onExitCanceled(self, position: position):
-        self.log(f"{position.getExitOrder().getDateTime()} ===== Exit order cancelled: {position.getExitOrder().getInstrument()} =====", logging.WARN)
+        self.log(f"===== Exit order cancelled: {position.getExitOrder().getInstrument()} =====", logging.WARN)
 
     def haveLTP(self, instrument):
         return instrument in self.getFeed().getKeys() and len(self.getFeed().getDataSeries(instrument)) > 0
