@@ -3,6 +3,7 @@ import numpy as np
 import datetime
 import pandas as pd
 import os
+import time
 
 from pyalgotrade.broker import Order, OrderExecutionInfo
 from pyalgotrade.strategy import position
@@ -11,6 +12,7 @@ from pyalgotrade import broker
 from pyalgomate.brokers import BacktestingBroker, QuantityTraits
 import pyalgomate.utils as utils
 from pyalgomate.strategies import OptionGreeks
+from pyalgomate.strategy.position import LongOpenPosition, ShortOpenPosition
 from py_vollib_vectorized import vectorized_implied_volatility, get_all_greeks
 
 
@@ -76,10 +78,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                 pd.DataFrame(columns=self.dataColumns).to_csv(
                     self.dataFileName, index=False)
 
-        # build open orders from tradeDf
-        # self.buildOrdersFromOpenOrders()
-
-    def buildOrdersFromOpenOrders(self):
+    def buildOrdersFromActiveOrders(self):
         if not isinstance(self.getBroker(), BacktestingBroker):
             today = datetime.date.today()
 
@@ -101,14 +100,24 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                     openPosition['Entry Order Id'], entryDateTime)
                 self.getBroker()._registerOrder(order)
                 order.switchState(broker.Order.State.SUBMITTED)
+
+                position = LongOpenPosition(self, order) if order.isBuy(
+                ) else ShortOpenPosition(self, order)
+
                 order.switchState(broker.Order.State.ACCEPTED)
 
                 fee = 0
                 orderExecutionInfo = broker.OrderExecutionInfo(
                     openPosition['Entry Price'], openPosition['Quantity'], fee, entryDateTime)
                 order.addExecutionInfo(orderExecutionInfo)
+                if not order.isActive():
+                    self.getBroker()._unregisterOrder(order)
                 self.getBroker().notifyOrderEvent(broker.OrderEvent(
                     order, broker.OrderEvent.Type.FILLED, orderExecutionInfo))
+
+            if len(openPositions) > 0:
+                # Sleep so that the order notifications are acknowledged
+                time.sleep(2)
 
     def reset(self):
         self.__optionData = dict()
@@ -157,7 +166,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         if self.state != State.EXITED:
             combinedPremium = 0
             for instrument, openPosition in list(self.openPositions.items()):
-                ltp = self.getFeed().getDataSeries(instrument)[-1].getClose()
+                ltp = self.getLTP(instrument)
                 jsonData["metrics"][f"{instrument} PnL"] = jsonData["charts"][f"{instrument} PnL"] = self.getPnL(
                     openPosition)
                 jsonData["metrics"][f"{instrument} LTP"] = jsonData["charts"][f"{instrument} LTP"] = ltp
@@ -189,7 +198,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             self.logger.info(f"{self.strategyName} {message}")
 
     def getPnL(self, order: Order):
-        if order is None:
+        if order is None or not self.haveLTP(order.getInstrument()):
             return 0
 
         entryPrice = order.getAvgFillPrice()
@@ -224,6 +233,10 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         return pnl
 
+    def onStart(self):
+        # build open orders from tradeDf
+        self.buildOrdersFromActiveOrders()
+
     def onEnterOk(self, position: position):
         execInfo = position.getEntryOrder().getExecutionInfo()
         action = "Buy" if position.getEntryOrder().isBuy() else "Sell"
@@ -231,20 +244,22 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         self.openPositions[position.getInstrument()] = position.getEntryOrder()
 
-        # Append a new row to the tradesDf DataFrame with the trade information
-        newRow = {'Entry Date/Time': execInfo.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'),
-                  'Entry Order Id': position.getEntryOrder().getId(),
-                  'Exit Date/Time': None,
-                  'Exit Order Id': None,
-                  'Instrument': position.getInstrument(),
-                  'Buy/Sell': "Buy" if position.getEntryOrder().isBuy() else "Sell",
-                  'Quantity': execInfo.getQuantity(),
-                  'Entry Price': position.getEntryOrder().getAvgFillPrice(),
-                  'Exit Price': None,
-                  'PnL': None,
-                  'Date': None}
-        self.tradesDf = pd.concat([self.tradesDf, pd.DataFrame(
-            [newRow], columns=self.tradesDf.columns)], ignore_index=True)
+        # Check if there is an order already present in trade df
+        if self.tradesDf[self.tradesDf['Entry Order Id'] == position.getEntryOrder().getId()].shape[0] == 0:
+            # Append a new row to the tradesDf DataFrame with the trade information
+            newRow = {'Entry Date/Time': execInfo.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'),
+                    'Entry Order Id': position.getEntryOrder().getId(),
+                    'Exit Date/Time': None,
+                    'Exit Order Id': None,
+                    'Instrument': position.getInstrument(),
+                    'Buy/Sell': "Buy" if position.getEntryOrder().isBuy() else "Sell",
+                    'Quantity': execInfo.getQuantity(),
+                    'Entry Price': position.getEntryOrder().getAvgFillPrice(),
+                    'Exit Price': None,
+                    'PnL': None,
+                    'Date': None}
+            self.tradesDf = pd.concat([self.tradesDf, pd.DataFrame(
+                [newRow], columns=self.tradesDf.columns)], ignore_index=True)
 
         if self.__optionData.get(position.getInstrument(), None) is not None:
             self.log(
@@ -293,6 +308,11 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def haveLTP(self, instrument):
         return instrument in self.getFeed().getKeys() and len(self.getFeed().getDataSeries(instrument)) > 0
+
+    def getLTP(self, instrument):
+        if self.haveLTP(instrument):
+            return self.getFeed().getDataSeries(instrument)[-1].getClose()
+        return 0
 
     def getNearestDeltaOption(self, optionType, deltaValue, expiry):
         options = [opt for opt in self.__optionData.values(
