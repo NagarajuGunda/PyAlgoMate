@@ -261,6 +261,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             self.tradesDf = pd.concat([self.tradesDf, pd.DataFrame(
                 [newRow], columns=self.tradesDf.columns)], ignore_index=True)
 
+            self.tradesDf.to_csv(self.tradesCSV, index=False)
+
         if self.__optionData.get(position.getInstrument(), None) is not None:
             self.log(
                 f"Option greeks for {position.getInstrument()}\n{self.__optionData[position.getInstrument()]}", logging.DEBUG)
@@ -305,6 +307,12 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         self.log(
             f"Option greeks for {position.getInstrument()}\n{self.__optionData.get(position.getInstrument(), None) if self.__optionData is not None else None}", logging.DEBUG)
+
+    def onEnterCanceled(self, position: position):
+        self.log(f"{position.getEntryOrder().getDateTime()} ===== Entry order cancelled: {position.getEntryOrder().getInstrument()} =====", logging.WARN)
+
+    def onExitCanceled(self, position: position):
+        self.log(f"{position.getExitOrder().getDateTime()} ===== Exit order cancelled: {position.getExitOrder().getInstrument()} =====", logging.WARN)
 
     def haveLTP(self, instrument):
         return instrument in self.getFeed().getKeys() and len(self.getFeed().getDataSeries(instrument)) > 0

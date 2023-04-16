@@ -56,6 +56,22 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
             self.positionVega.exitMarket()
             self.positionVega = None
 
+    def onStart(self):
+        super().onStart()
+
+        activePositions = self.getActivePositions()
+
+        for activePosition in activePositions:
+            if activePosition.getEntryOrder().isBuy():
+                self.positionVega = activePosition
+            else:
+                optionContract = self.getBroker().getOptionContract(activePosition.getInstrument())
+                if optionContract is not None:
+                    if optionContract.type == 'c':
+                        self.positionCall = activePosition
+                    else:
+                        self.positionPut = activePosition
+
     def onBars(self, bars):
         self.log(f"Bar date times - {bars.getDateTime()}", logging.DEBUG)
         overallDelta = self.getOverallDelta()
