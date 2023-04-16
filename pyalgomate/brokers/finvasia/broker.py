@@ -60,7 +60,7 @@ class PaperTradingBroker(BacktestingBroker):
     def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
         return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
 
-    def getOptionContract(self, symbol):
+    def getOptionContract(self, symbol) -> OptionContract:
         m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)", symbol)
 
         if m is None:
@@ -333,7 +333,7 @@ class LiveBroker(broker.Broker):
     def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
         return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
 
-    def getOptionContract(self, symbol):
+    def getOptionContract(self, symbol) -> OptionContract:
         m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)", symbol)
 
         if m is None:
