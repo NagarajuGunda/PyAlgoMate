@@ -72,6 +72,26 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                     else:
                         self.positionPut = activePosition
 
+    def onEnterCanceled(self, position):
+        super().onEnterCanceled(position)
+
+        if self.positionCall.getInstrument() == position.getInstrument():
+            self.positionCall = None
+        elif self.positionPut.getInstrument() == position.getInstrument():
+            self.positionPut = None
+        elif self.positionVega.getInstrument() == position.getInstrument():
+            self.positionVega = None
+
+    def onExitCanceled(self, position):
+        super().onExitCanceled(position)
+
+        if self.positionCall.getInstrument() == position.getInstrument():
+            self.positionCall = None
+        elif self.positionPut.getInstrument() == position.getInstrument():
+            self.positionPut = None
+        elif self.positionVega.getInstrument() == position.getInstrument():
+            self.positionVega = None
+
     def onBars(self, bars):
         self.log(f"Bar date times - {bars.getDateTime()}", logging.DEBUG)
         overallDelta = self.getOverallDelta()
@@ -114,6 +134,8 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                             self.state = State.ENTERED
                     else:
                         self.state = State.ENTERED
+            elif self.positionCall is None and self.positionPut is None and self.positionVega is None:
+                self.state = State.LIVE
         elif self.state == State.ENTERED:
             # Exit all positions if exit time is met or portfolio SL is hit
             if bars.getDateTime().time() >= self.exitTime:
@@ -143,7 +165,7 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                     # Find put option with delta closest to delta of call option
                     selectedPutOption = self.getNearestDeltaOption(
                         'p', callOptionGreeks.delta, currentExpiry)
-                    
+
                     self.state = State.PLACING_ORDERS
                     self.positionPut = self.enterShort(
                         selectedPutOption.optionContract.symbol, self.quantity)
@@ -159,7 +181,6 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                 self.numberOfAdjustments += 1
 
             if self.positionVega is None and self.numberOfAdjustments >= 2:
-                #monthlyExpiry = utils.getNearestMonthlyExpiryDate(bars.getDateTime().date())
                 selectedOption = self.getNearestDeltaOption('c' if abs(
                     callOptionGreeks.delta) > abs(putOptionGreeks.delta) else 'p', 0.5, currentExpiry)
                 if selectedOption.optionContract.symbol in [self.positionCall.getInstrument(),
