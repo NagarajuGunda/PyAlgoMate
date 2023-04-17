@@ -155,11 +155,11 @@ class WebSocketClient:
             logger.info("Subscribing to channel %s." % channel)
             self.__api.subscribe(channel)
 
-    def onClosed(self, code, reason):
+    def onClosed(self):
         if self.__connected:
             self.__connected = False
 
-        logger.info("Closed. Code: %s. Reason: %s." % (code, reason))
+        logger.info("Websocket disconnected")
         self.__queue.put((WebSocketClient.Event.DISCONNECTED, None))
 
     def onError(self, exception):
