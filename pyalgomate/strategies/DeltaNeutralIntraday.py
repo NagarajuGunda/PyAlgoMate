@@ -64,24 +64,29 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                     else:
                         self.positionPut = activePosition
 
+        if self.positionCall is not None and self.positionPut is not None:
+            self.state = State.ENTERED
+
+        self.closeAllPositions()
+
     def onEnterCanceled(self, position):
         super().onEnterCanceled(position)
 
-        if self.positionCall.getInstrument() == position.getInstrument():
+        if self.positionCall is not None and (self.positionCall.getInstrument() == position.getInstrument()):
             self.positionCall = None
-        elif self.positionPut.getInstrument() == position.getInstrument():
+        elif self.positionPut is not None and (self.positionPut.getInstrument() == position.getInstrument()):
             self.positionPut = None
-        elif self.positionVega.getInstrument() == position.getInstrument():
+        elif self.positionVega is not None and (self.positionVega.getInstrument() == position.getInstrument()):
             self.positionVega = None
 
     def onExitCanceled(self, position):
         super().onExitCanceled(position)
 
-        if self.positionCall.getInstrument() == position.getInstrument():
+        if self.positionCall is not None and (self.positionCall.getInstrument() == position.getInstrument()):
             self.positionCall = None
-        elif self.positionPut.getInstrument() == position.getInstrument():
+        elif self.positionPut is not None and (self.positionPut.getInstrument() == position.getInstrument()):
             self.positionPut = None
-        elif self.positionVega.getInstrument() == position.getInstrument():
+        elif self.positionVega is not None and (self.positionVega.getInstrument() == position.getInstrument()):
             self.positionVega = None
 
     def onBars(self, bars):
