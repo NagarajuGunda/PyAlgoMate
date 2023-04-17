@@ -19,9 +19,19 @@ class OpenPosition(object):
         self.__allOrNone = allOrNone
 
         self.switchState(WaitingEntryState())
-        self.__submitAndRegisterOrder(entryOrder)
+        self.__activeOrders[entryOrder.getId()] = entryOrder
+        self.getStrategy().registerPositionOrder(self, entryOrder)
 
     def __submitAndRegisterOrder(self, order):
+        assert(order.isInitial())
+
+        # Check if an order can be submitted in the current state.
+        self.__state.canSubmitOrder(self, order)
+
+        # This may raise an exception, so we wan't to submit the order before moving forward and registering
+        # the order in the strategy.
+        self.getStrategy().getBroker().submitOrder(order)
+
         self.__activeOrders[order.getId()] = order
         self.getStrategy().registerPositionOrder(self, order)
 
