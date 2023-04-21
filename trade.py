@@ -148,8 +148,8 @@ def main():
 
             optionSymbols = finvasia.broker.getOptionSymbols(
                 underlyingInstrument, currentWeeklyExpiry, ltp, 10)
-            optionSymbols += finvasia.broker.getOptionSymbols(
-                underlyingInstrument, monthlyExpiry, ltp, 10)
+            # optionSymbols += finvasia.broker.getOptionSymbols(
+            #     underlyingInstrument, monthlyExpiry, ltp, 10)
 
             optionSymbols = list(dict.fromkeys(optionSymbols))
 
@@ -187,8 +187,8 @@ def main():
 
         optionSymbols = zerodha.broker.getOptionSymbols(
             underlyingInstrument, currentWeeklyExpiry, ltp, 10)
-        optionSymbols += zerodha.broker.getOptionSymbols(
-            underlyingInstrument, monthlyExpiry, ltp, 10)
+        # optionSymbols += zerodha.broker.getOptionSymbols(
+        #     underlyingInstrument, monthlyExpiry, ltp, 10)
 
         optionSymbols = list(dict.fromkeys(optionSymbols))
 
