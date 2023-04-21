@@ -28,7 +28,7 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
         self.lots = 1
         self.quantity = self.lotSize * self.lots
         self.portfolioSL = 4000
-        self.vegaSL = 1500
+        self.vegaSL = 10
 
         self.registeredOptionsCount = registeredOptionsCount if registeredOptionsCount is not None else 0
 
@@ -67,8 +67,6 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
         if self.positionCall is not None and self.positionPut is not None:
             self.state = State.ENTERED
 
-        self.closeAllPositions()
-
     def onEnterCanceled(self, position):
         super().onEnterCanceled(position)
 
@@ -102,6 +100,10 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
             return
 
         self.overallPnL = self.getOverallPnL()
+
+        self.log(f"Current PnL is {self.overallPnL}. Overall delta is {overallDelta}. Datetime {bars.getDateTime()}. State is {State.toString(self.state)}.\n" +
+                 "\tRegistered option count is {self.registeredOptionsCount}. Number of options present {len(optionData)}.\n" +
+                 "\tNumber of open positions are {len(self.openPositions)}. Number of closed positions are {len(self.closedPositions)}.", logging.DEBUG)
 
         if bars.getDateTime().time() >= self.marketEndTime:
             if (len(self.openPositions) + len(self.closedPositions)) > 0:
@@ -153,6 +155,24 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                     f"Portfolio SL({self.portfolioSL} is hit. Current PnL is {self.overallPnL}. Exiting all positions!)")
                 self.closeAllPositions()
                 return
+            elif self.positionVega is not None and self.positionVega.getInstrument() in self.openPositions:
+                # Check if SL is hit for the buy position
+                entryOrder = self.openPositions[self.positionVega.getEntryOrder(
+                ).getInstrument()]
+                pnl = self.getPnL(entryOrder)
+                entryPrice = entryOrder.getAvgFillPrice()
+
+                pnLPercentage = (
+                    pnl / entryPrice) * 100
+
+                if pnLPercentage <= -self.vegaSL:
+                    self.log(
+                        f'SL {self.vegaSL}% hit for {self.positionVega.getInstrument()}. Exiting position!')
+                    self.state = State.PLACING_ORDERS
+                    self.positionVega.exitMarket()
+                    self.positionVega = None
+                    self.numberOfAdjustments = 0
+                    return
 
             # Adjust positions if delta difference is more than delta threshold
             callOptionGreeks = optionData[self.positionCall.getInstrument(
@@ -163,28 +183,31 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                 callOptionGreeks.delta + putOptionGreeks.delta)
 
             if deltaDifference > self.deltaThreshold:
+                if (abs(callOptionGreeks.delta) > 0.45) or (abs(putOptionGreeks.delta) > 0.45):
+                    self.closeAllPositions()
+                    return
                 # Close the profit making position and take another position with delta nearest to that of other option
                 if abs(callOptionGreeks.delta) > abs(putOptionGreeks.delta):
                     self.positionPut.exitMarket()
-                    # Find put option with delta closest to delta of call option
+                    # Find put option with delta closest to delta of put option
                     selectedPutOption = self.getNearestDeltaOption(
                         'p', callOptionGreeks.delta, currentExpiry)
 
                     self.state = State.PLACING_ORDERS
                     self.positionPut = self.enterShort(
                         selectedPutOption.optionContract.symbol, self.quantity)
+                    self.numberOfAdjustments += 1
                 else:
                     self.positionCall.exitMarket()
-                    # Find call option with delta closest to delta of put option
+                    # Find call option with delta closest to delta of call option
                     selectedCallOption = self.getNearestDeltaOption(
                         'c', putOptionGreeks.delta, currentExpiry)
                     self.state = State.PLACING_ORDERS
                     self.positionCall = self.enterShort(
                         selectedCallOption.optionContract.symbol, self.quantity)
+                    self.numberOfAdjustments -= 1
 
-                self.numberOfAdjustments += 1
-
-            if self.positionVega is None and self.numberOfAdjustments >= 2:
+            if self.positionVega is None and abs(self.numberOfAdjustments) >= 2:
                 selectedOption = self.getNearestDeltaOption('c' if abs(
                     callOptionGreeks.delta) > abs(putOptionGreeks.delta) else 'p', 0.5, currentExpiry)
                 if selectedOption.optionContract.symbol in [self.positionCall.getInstrument(),
