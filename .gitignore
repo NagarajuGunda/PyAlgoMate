@@ -1,4 +1,5 @@
 cred.yml
+shoonyakey.txt
 trades*.csv
 trades*.xlsx
 pyalgomate/backtesting/data/test.parquet

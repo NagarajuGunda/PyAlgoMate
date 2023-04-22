@@ -21,6 +21,8 @@ from pyalgomate.brokers.zerodha.feed import ZerodhaLiveFeed
 from pyalgomate.brokers.finvasia.broker import PaperTradingBroker
 import pyalgomate.brokers.finvasia as finvasia
 
+logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__file__)
 
 
@@ -108,7 +110,7 @@ class IntradayData(BaseStrategy):
 
 
 def main():
-    broker = Broker.ZERODHA
+    broker = Broker.FINVASIA
 
     with open('cred.yml') as f:
         cred = yaml.load(f, Loader=yaml.FullLoader)
@@ -117,11 +119,25 @@ def main():
         api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
                          websocket='wss://api.shoonya.com/NorenWSTP/')
 
-        twoFA = pyotp.TOTP(cred['factor2']).now()
-        ret = api.login(userid=cred['user'], password=cred['pwd'], twoFA=twoFA,
+        userToken = None
+        tokenFile = 'shoonyakey.txt'
+        if os.path.exists(tokenFile) and (datetime.datetime.fromtimestamp(os.path.getmtime(tokenFile)).date() == datetime.datetime.today().date()):
+            logger.info(f"Token has been created today already. Re-using it")
+            with open(tokenFile, 'r') as f:
+                userToken = f.read()
+            logger.info(f"userid {cred['user']} password ******** usertoken {userToken}")
+            loginStatus = api.set_session(userid=cred['user'], password=cred['pwd'],usertoken=userToken)
+        else:
+            print(f"Logging in and persisting user token")
+            loginStatus = api.login(userid=cred['user'], password=cred['pwd'], twoFA=pyotp.TOTP(cred['factor2']).now(),
                         vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
+            
+            with open(tokenFile,'w') as f:
+                f.write(loginStatus.get('susertoken'))
+            
+            logger.info(f"{loginStatus.get('uname')}={loginStatus.get('stat')} token={loginStatus.get('susertoken')}")
 
-        if ret != None:
+        if loginStatus != None:
             underlyingInstrument = 'NSE|NIFTY BANK'
 
             ltp = api.get_quotes('NSE', getToken(
