@@ -143,14 +143,14 @@ class TradeMonitor(threading.Thread):
         activeOrderIds = [order.getId()
                           for order in self.__broker.getActiveOrders().copy()]
         if len(activeOrderIds) == 0:
-            return
+            return ret
 
         orderBook = None
         try:
             orderBook = self.__api.orders()
         except Exception as e:
-            logger.error('%s Failed to fetch order book', self.broker)
-            return
+            logger.error('Failed to fetch order book',)
+            return ret
 
         for orderId in activeOrderIds:
             for bOrder in orderBook:
