@@ -13,7 +13,7 @@ from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
 from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker
 import pyalgomate.brokers.finvasia as finvasia
 from pyalgomate.brokers.zerodha.feed import ZerodhaLiveFeed
-from pyalgomate.brokers.zerodha.broker import ZerodhaPaperTradingBroker
+from pyalgomate.brokers.zerodha.broker import ZerodhaPaperTradingBroker, ZerodhaLiveBroker
 import pyalgomate.brokers.zerodha as zerodha
 from pyalgomate.strategies.OptionsStrangleIntraday import OptionsStrangleIntraday
 from pyalgomate.strategies.OptionsStraddleIntraday import OptionsStraddleIntraday
@@ -196,7 +196,7 @@ def main():
             api, [underlyingInstrument] + optionSymbols)
 
         barFeed = ZerodhaLiveFeed(api, tokenMappings)
-        broker = ZerodhaPaperTradingBroker(200000, barFeed)
+        broker = ZerodhaLiveBroker(api)
     else:
         logger.error("Api returned None")
         return
