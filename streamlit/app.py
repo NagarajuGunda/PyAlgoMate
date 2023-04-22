@@ -1,10 +1,9 @@
 import zmq.asyncio
 import streamlit as st
 import asyncio
-from st_aggrid import GridOptionsBuilder, AgGrid, AgGridTheme, GridUpdateMode, DataReturnMode, ColumnsAutoSizeMode
+from st_aggrid import GridOptionsBuilder, AgGrid, AgGridTheme, ColumnsAutoSizeMode
 
 import pandas as pd
-import altair as alt
 import numpy as np
 import plotly.express as px
 import json
@@ -23,15 +22,11 @@ def get_data():
 
 
 @st.cache_resource
-def get_placeholders():
-    placeholders = {}
-    return placeholders
+def get_placeholder():
+    return st.empty()
 
 
 def plotChart(df):
-    # df = pd.DataFrame([10, 15, 5, 0, -5, -10, 0, 10,
-    #                   20, 25, 20, 30], columns=["pnl"])
-
     # Add an index column to the DataFrame
     df = df.reset_index().rename(columns={'index': 'index'})
 
@@ -87,11 +82,12 @@ async def subscribe():
                              'Delta', 'Gamma', 'Theta', 'Vega', 'Iv']]
                     lists[strategy]["optionChain"] = df
                 elif key == "trades":
-                    print(strategyData[key])
                     lists[strategy]["trades"] = pd.read_json(strategyData[key])
+                elif key == "ohlc":
+                    lists[strategy]["ohlc"] = pd.read_json(strategyData[key])
                 else:
                     lists[strategy][key] = strategyData[key]
-                display_data(strategy, key)
+        displayData()
 
 
 async def start_subscriber():
@@ -126,12 +122,16 @@ def getOptionType(instrument):
 
     return m.group(5)
 
+
 def plotPayOff(dataframe: pd.DataFrame):
     # Load the trades dataframe
     trades_df = dataframe
+    if trades_df.shape[0] == 0:
+        return
 
     # Define the strike price range for the options payoff chart
-    midStrike = int((trades_df["Strike"].min() + trades_df["Strike"].max()) / 2)
+    midStrike = int((trades_df["Strike"].min() +
+                    trades_df["Strike"].max()) / 2)
     minStrike = midStrike - (20 * 100)
     maxStrike = midStrike + (20 * 100)
     strikes = list(range(minStrike, maxStrike+100, 100))
@@ -179,7 +179,7 @@ def plotPayOff(dataframe: pd.DataFrame):
 
         # Add the total payoff to the DataFrame
         payoff_df.loc[payoff_df['Underlying'] ==
-            underlying, 'Payoff'] = total_payoff
+                      underlying, 'Payoff'] = total_payoff
 
     # Create a plotly figure object
     fig = go.Figure()
@@ -211,22 +211,40 @@ def plotPayOff(dataframe: pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def display_data(strategy, key):
-    placeholders = get_placeholders()
-    data = get_data().copy()
+def plotOHLC(df):
+    # Create the candlestick chart
+    fig = go.Figure(data=[go.Candlestick(x=df['Date/Time'],
+                                         open=df['Open'],
+                                         high=df['High'],
+                                         low=df['Low'],
+                                         close=df['Close'])])
 
-    if (len(placeholders) == 0):
-        return
+    # Add title and axis labels
+    fig.update_layout(title=f'Bar Chart',
+                      xaxis_title='Date',
+                      yaxis_title='Price')
 
-    if key == "optionChain" or key == "all":
-        with placeholders["optionChain"]:
-            # displayDataframe(data[strategy]["optionChain"], "optionChain")
-            st.dataframe(data[strategy]["optionChain"].reset_index(
+    # Display the chart in Streamlit
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def displayData():
+    METRICS_PER_ROW = 3
+    CHARTS_PER_ROW = 3
+
+    get_placeholder().empty()
+    with get_placeholder().container():
+        strategyData = get_data()[st.session_state.selectedStrategy]
+
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(
+            ["Option Chain", "Trades", "Metrics", "Charts", "OHLC"])
+
+        with tab1:
+            st.dataframe(strategyData['optionChain'].reset_index(
                 drop=True), use_container_width=True)
-    if key == "trades" or key == "all":
-        with placeholders["trades"]:
-            tradesData = data[strategy]["trades"]
-            optionChainData = data[strategy]["optionChain"]
+        with tab2:
+            tradesData = strategyData["trades"]
+            optionChainData = strategyData["optionChain"]
             mergedData = pd.merge(tradesData, optionChainData.rename(columns={
                                   "Symbol": "Instrument", "Price": "LTP"}), on="Instrument", how="inner")
             reOrderedColumns = ["Instrument", "Buy/Sell", "Entry Date/Time", "Exit Date/Time", "Quantity", "Entry Price", "Exit Price", "LTP",
@@ -240,71 +258,44 @@ def display_data(strategy, key):
             with tab1:
                 st.dataframe(mergedData, use_container_width=True)
             with tab2:
-                plotPayOff(mergedData[mergedData["Exit Price"].isnull()])
-    if key == "metrics" or key == "all":
-        for metric in data[strategy]["metrics"]:
-            value = data[strategy]["metrics"][metric]
-            placeHolderKey = "metrics_" + metric
-            if placeholders.get(placeHolderKey, None) is None:
-                continue
-            with placeholders[placeHolderKey]:
-                st.metric(label=metric, value=value, delta=value)
-    if key == "charts" or key == "all":
-        for chart in data[strategy]["charts"]:
-            values = data[strategy]["charts"][chart]
-            placeHolderKey = "charts_" + chart
-            if placeholders.get(placeHolderKey, None) is None:
-                continue
-            with placeholders[placeHolderKey]:
-                plotChart(pd.DataFrame(values, columns=[chart]))
+                if mergedData.shape[0] > 0:
+                    plotPayOff(mergedData[mergedData["Exit Price"].isnull()])
+        with tab3:
+            metricsData = strategyData["metrics"]
+            col1, col2, col3 = st.columns(3)
+            for index, metric in enumerate(metricsData):
+                with eval(f'col{(index % METRICS_PER_ROW) + 1}'):
+                    st.metric(
+                        label=metric, value=metricsData[metric], delta=metricsData[metric])
+        with tab4:
+            chartData = strategyData["charts"]
+            col1, col2, col3 = st.columns(3)
+            for index, chart in enumerate(chartData):
+                with eval(f'col{(index % CHARTS_PER_ROW) + 1}'):
+                    plotChart(pd.DataFrame(chartData[chart], columns=[chart]))
+
+        with tab5:
+            ohlcData = strategyData["ohlc"]
+
+            tickers = ohlcData['Ticker'].unique().tolist()
+
+            st.session_state.selectedTicker = st.selectbox(
+                'Select a Ticker', tickers, key=f"{datetime.datetime.now()}")
+
+            plotOHLC(ohlcData[ohlcData['Ticker'] ==
+                     st.session_state.selectedTicker])
+
+
+async def run():
+    strategies = (key for key in get_data().copy())
+    st.session_state.selectedStrategy = st.selectbox(
+        'Select a strategy', strategies)
+    displayData()
+    await start_subscriber()
 
 
 def main():
-    METRICS_PER_ROW = 3
-    CHARTS_PER_ROW = 3
-    data = get_data().copy()
-    placeholders = get_placeholders()
-    strategies = (key for key in data)
-    strategySelection = st.selectbox(
-        'Select a strategy',
-        strategies)
-
-    # Set up page content based on sidebar selection
-    if data.get(strategySelection, None) is not None:
-        tab1, tab2, tab3, tab4 = st.tabs(
-            ["Option Chain", "Trades", "Metrics", "Charts"])
-
-        for tab in ["optionChain", "trades", "metrics", "charts"]:
-            if placeholders.get(tab, None):
-                placeholders[tab].empty()
-
-        with tab1:
-            placeholders["optionChain"] = st.empty()
-        with tab2:
-            placeholders["trades"] = st.empty()
-        with tab3:
-            if placeholders.get("metrics", None):
-                placeholders["metrics"].empty()
-            placeholders["metrics"] = st.empty()
-            metrics = data[strategySelection]["metrics"]
-            with placeholders["metrics"]:
-                col1, col2, col3 = st.columns(3)
-                for index, metric in enumerate(metrics):
-                    with eval(f'col{(index % METRICS_PER_ROW) + 1}'):
-                        placeholders["metrics_" + metric] = st.empty()
-        with tab4:
-            if placeholders.get("charts", None):
-                placeholders["charts"].empty()
-            placeholders["charts"] = st.empty()
-            charts = data[strategySelection]["charts"]
-            with placeholders["charts"]:
-                col1, col2, col3 = st.columns(3)
-                for index, chart in enumerate(charts):
-                    with eval(f'col{(index % CHARTS_PER_ROW) + 1}'):
-                        placeholders["charts_" + chart] = st.empty()
-
-    display_data(strategySelection, "all")
-    asyncio.run(start_subscriber())
+    asyncio.run(run())
 
 
 if __name__ == "__main__":
