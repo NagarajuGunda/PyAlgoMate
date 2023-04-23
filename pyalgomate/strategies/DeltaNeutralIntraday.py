@@ -27,7 +27,7 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
         self.lotSize = lotSize if lotSize is not None else 25
         self.lots = 1
         self.quantity = self.lotSize * self.lots
-        self.portfolioSL = 4000
+        self.portfolioSL = 2000
         self.vegaSL = 10
 
         self.registeredOptionsCount = registeredOptionsCount if registeredOptionsCount is not None else 0
