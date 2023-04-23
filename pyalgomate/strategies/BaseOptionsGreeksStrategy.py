@@ -5,6 +5,7 @@ import pandas as pd
 import os
 import time
 
+import pyalgotrade.bar
 from pyalgotrade.broker import Order, OrderExecutionInfo
 from pyalgotrade.strategy import position
 from pyalgotrade import strategy
@@ -49,14 +50,13 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.strategyName = strategyName
         self.logger = logger
         self.collectData = collectData
-
         self._observers = []
+        self.reset()
+
         if callback:
             self._observers.append(callback)
-        if resampleFrequency:
-            self.resampleBarFeed(resampleFrequency, self.resampledOnBars)
-
-        self.reset()
+            
+        self.resampleBarFeed(pyalgotrade.bar.Frequency.MINUTE, self.on1MinBars)
 
         if isinstance(self.getBroker(), BacktestingBroker):
             self.tradesCSV = f"results/{self.strategyName}_backtest.csv"
@@ -69,9 +69,10 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Entry Order Id', 'Exit Date/Time', 'Exit Order Id',
                                                   'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL', 'Date'])
 
-        if self.collectData is not None:
-            self.dataColumns = ["Ticker", "Date/Time", "Open", "High",
+        self.dataColumns = ["Ticker", "Date/Time", "Open", "High",
                                 "Low", "Close", "Volume", "Open Interest"]
+        self.dataDf = pd.DataFrame(columns=self.dataColumns)
+        if self.collectData is not None:
             self.dataFileName = "data.csv"
 
             if not os.path.isfile(self.dataFileName):
@@ -84,7 +85,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
             mask = (self.tradesDf['Exit Order Id'].isnull()) & \
                 (pd.to_datetime(
-                    self.tradesDf['Entry Date/Time'], format='%Y-%m-%dT%H:%M:%S').dt.date == today)
+                    self.tradesDf['Entry Date/Time'], format='%Y-%m-%d %H:%M:%S').dt.date == today)
             openPositions = self.tradesDf.loc[mask]
 
             for index, openPosition in openPositions.iterrows():
@@ -95,7 +96,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                                            QuantityTraits())
 
                 entryDateTime = datetime.datetime.strptime(
-                    openPosition['Entry Date/Time'], '%Y-%m-%dT%H:%M:%S')
+                    openPosition['Entry Date/Time'], '%Y-%m-%d %H:%M:%S')
                 order.setSubmitted(
                     openPosition['Entry Order Id'], entryDateTime)
                 self.getBroker()._registerOrder(order)
@@ -144,26 +145,33 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         return df
 
-    def resampledOnBars(self, bars):
+    def on1MinBars(self, bars):
         self.log(f"On Resampled Bars - Date/Time - {bars.getDateTime()}")
+        df = pd.DataFrame(columns=self.dataColumns)
+        df = self.appendBars(bars, df)
         if self.collectData is not None:
-            df = pd.DataFrame(columns=self.dataColumns)
-            df = self.appendBars(bars, df)
             df.to_csv(self.dataFileName, mode='a',
                       header=not os.path.exists(self.dataFileName), index=False)
 
+        # Append data
+        self.dataDf = pd.concat([self.dataDf, df], ignore_index=True)
+
+        dataDf = self.dataDf.copy()
+        dataDf['Date/Time'] = dataDf['Date/Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
+
         jsonData = {
-            "datetime": bars.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'),
+            "datetime": bars.getDateTime().strftime('%Y-%m-%d %H:%M:%S'),
             "metrics": {
                 "pnl": self.overallPnL
             },
             "charts": {
                 "pnl": self.overallPnL
             },
+            "ohlc": dataDf.to_json(),
             "state": State.toString(self.state)
         }
 
-        if self.state != State.EXITED:
+        if self.state != State.LIVE:
             combinedPremium = 0
             for instrument, openPosition in list(self.openPositions.items()):
                 ltp = self.getLTP(instrument)
@@ -249,7 +257,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                          & (self.tradesDf['Instrument'] == position.getInstrument())
                          ].shape[0] == 0:
             # Append a new row to the tradesDf DataFrame with the trade information
-            newRow = {'Entry Date/Time': execInfo.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'),
+            newRow = {'Entry Date/Time': execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'),
                     'Entry Order Id': position.getEntryOrder().getId(),
                     'Exit Date/Time': None,
                     'Exit Order Id': None,
@@ -304,7 +312,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         idx = self.tradesDf.loc[self.tradesDf['Instrument']
                                 == position.getInstrument()].index[-1]
         self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Order Id', 'Exit Price', 'PnL', 'Date']] = [
-            execInfo.getDateTime().strftime('%Y-%m-%dT%H:%M:%S'), exitOrderId, exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d')]
+            execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'), exitOrderId, exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d')]
         self.tradesDf.to_csv(self.tradesCSV, index=False)
 
         self.log(
