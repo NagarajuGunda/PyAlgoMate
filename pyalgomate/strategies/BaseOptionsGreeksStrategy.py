@@ -51,7 +51,11 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.logger = logger
         self.collectData = collectData
         self._observers = []
+        self.__optionContracts = dict()
         self.reset()
+
+        # build option contracts
+        self.buildOptionContracts()
 
         if callback:
             self._observers.append(callback)
@@ -127,7 +131,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.overallPnL = 0
         self.state = State.LIVE
 
-    def appendBars(self, bars, df):
+    def getNewRows(self, bars):
+        newRows = []
         for ticker, bar in bars.items():
             newRow = {
                 "Ticker": ticker,
@@ -140,24 +145,12 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                 "Open Interest": bar.getExtraColumns().get("Open Interest", 0)
             }
 
-            df = pd.concat([df, pd.DataFrame(
-                [newRow], columns=self.dataColumns)], ignore_index=True)
+            newRows.append(newRow)
 
-        return df
+        return newRows
 
     def on1MinBars(self, bars):
-        self.log(f"On Resampled Bars - Date/Time - {bars.getDateTime()}")
-        df = pd.DataFrame(columns=self.dataColumns)
-        df = self.appendBars(bars, df)
-        if self.collectData is not None:
-            df.to_csv(self.dataFileName, mode='a',
-                      header=not os.path.exists(self.dataFileName), index=False)
-
-        # Append data
-        self.dataDf = pd.concat([self.dataDf, df], ignore_index=True)
-
-        dataDf = self.dataDf.copy()
-        dataDf['Date/Time'] = dataDf['Date/Time'].dt.strftime('%Y-%m-%d %H:%M:%S')
+        self.log(f"On Resampled Bars - Date/Time - {bars.getDateTime()}", logging.DEBUG)
 
         jsonData = {
             "datetime": bars.getDateTime().strftime('%Y-%m-%d %H:%M:%S'),
@@ -167,9 +160,22 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             "charts": {
                 "pnl": self.overallPnL
             },
-            "ohlc": dataDf.to_json(),
             "state": State.toString(self.state)
         }
+
+        if self.collectData is not None:
+            df = pd.DataFrame(self.getNewRows(bars), columns=self.dataColumns)
+            df.to_csv(self.dataFileName, mode='a',
+                      header=not os.path.exists(self.dataFileName), index=False)
+
+            # Append data
+            self.dataDf = pd.concat([self.dataDf, df], ignore_index=True)
+
+            dataDf = self.dataDf.copy()
+            dataDf['Date/Time'] = dataDf['Date/Time'].dt.strftime(
+                '%Y-%m-%d %H:%M:%S')
+
+            jsonData["ohlc"] = self.dataDf.to_json()
 
         if self.state != State.LIVE:
             combinedPremium = 0
@@ -416,3 +422,22 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
     def getOptionData(self, bars) -> dict:
         self.__calculateGreeks(bars)
         return self.__optionData
+
+    def getATMStrike(self, ltp, strikeDifference):
+        inputPrice = int(ltp)
+        remainder = int(inputPrice % strikeDifference)
+        if remainder < int(strikeDifference / 2):
+            return inputPrice - remainder
+        else:
+            return inputPrice + (strikeDifference - remainder)
+
+    def buildOptionContracts(self):
+        for instrument in self.getFeed().getRegisteredInstruments():
+            optionContract = self.getBroker().getOptionContract(instrument)
+            if optionContract is not None:
+                self.__optionContracts[instrument] = optionContract
+
+    def getOptionSymbol(self, underlying, expiry, strike, type):
+        options = [opt for opt in self.__optionContracts.values(
+        ) if opt.type == type and opt.expiry == expiry and opt.underlying == underlying and opt.strike == strike]
+        return options[0].symbol if len(options) > 0 else None

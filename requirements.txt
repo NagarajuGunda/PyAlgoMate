@@ -19,3 +19,5 @@ streamlit_plotly_events
 sqlalchemy
 kiteconnect
 py_vollib_vectorized
+pandas_ta
+talib
