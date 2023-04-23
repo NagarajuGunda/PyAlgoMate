@@ -1,12 +1,11 @@
 import logging
 import datetime
+from talipp.indicators import SuperTrend
+from talipp.indicators.SuperTrend import Trend
+from talipp.ohlcv import OHLCVFactory, OHLCV
 import pandas as pd
-import pandas_ta as ta
-import calendar
 
 import pyalgomate.utils as utils
-from pyalgotrade import strategy
-from pyalgotrade import bar
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import State, Expiry
 
@@ -36,10 +35,12 @@ class SuperTrendV1(BaseOptionsGreeksStrategy):
                             "Low", "Close", "Volume", "Open Interest"]
         self.tickDf = pd.DataFrame(columns=self.dataColumns)
         self.oneMinDf = pd.DataFrame(columns=self.dataColumns)
+        self.resampledDict = dict()
         self.resampleFrequency = '1T'
         self.supertrend = dict()
         self.supertrendLength = 7
         self.supertrendMultiplier = 3
+        self.indicatorValuesToBeAvailable = 45
 
     def __reset__(self):
         super().reset()
@@ -53,38 +54,52 @@ class SuperTrendV1(BaseOptionsGreeksStrategy):
     def on1MinBars(self, bars):
         currentExpiry = utils.getNearestWeeklyExpiryDate(
             bars.getDateTime().date())
-        newRows = []
-        for ticker, bar in bars.items():
-            newRow = {
-                "Ticker": ticker,
-                "Date/Time": bar.getDateTime(),
-                "Open": bar.getOpen(),
-                "High": bar.getHigh(),
-                "Low": bar.getLow(),
-                "Close": bar.getClose(),
-                "Volume": bar.getVolume(),
-                "Open Interest": bar.getExtraColumns().get("Open Interest", 0)
+        bar = bars.getBar(self.underlying)
+
+        if bar is None:
+            return
+
+        if self.underlying not in self.resampledDict:
+            self.resampledDict[self.underlying] = {
+                'Date/Time': [],
+                'Open': [],
+                'High': [],
+                'Low': [],
+                'Close': [],
+                'Volume': [],
+                'Open Interest': []
             }
 
-            newRows.append(newRow)
+        self.resampledDict[self.underlying]['Date/Time'].append(
+            bar.getDateTime())
+        self.resampledDict[self.underlying]['Open'].append(bar.getOpen())
+        self.resampledDict[self.underlying]['High'].append(bar.getHigh())
+        self.resampledDict[self.underlying]['Low'].append(bar.getLow())
+        self.resampledDict[self.underlying]['Close'].append(bar.getClose())
+        self.resampledDict[self.underlying]['Volume'].append(bar.getVolume())
+        self.resampledDict[self.underlying]['Open Interest'].append(
+            bar.getExtraColumns().get("Open Interest", 0))
 
-        self.oneMinDf = pd.concat([self.oneMinDf, pd.DataFrame(
-            newRows, columns=self.dataColumns)], ignore_index=True)
+        if self.underlying not in self.supertrend:
+            self.supertrend[self.underlying] = SuperTrend(
+                self.supertrendLength, self.supertrendMultiplier)
 
-        underlyingDf = self.oneMinDf[self.oneMinDf['Ticker']
-                                     == self.underlying]
-        supertrend = ta.supertrend(underlyingDf['High'], underlyingDf['Low'], underlyingDf['Close'],
-                                   length=self.supertrendLength, multiplier=self.supertrendMultiplier)
-        if supertrend is not None:
-            self.supertrend[ticker] = supertrend.iloc[:, 0].values
+        ohlcv = OHLCV(bar.getOpen(), bar.getHigh(), bar.getLow(),
+                      bar.getClose(), bar.getVolume(), bar.getDateTime())
+
+        self.supertrend[self.underlying].add_input_value(ohlcv)
+
+        if self.supertrend[self.underlying] is not None and len(self.supertrend[self.underlying]) > self.indicatorValuesToBeAvailable:
+            supertrendValue = self.supertrend[self.underlying][-1]
+            lastClose = self.resampledDict[self.underlying]['Close'][-1]
             self.log(
-                f'{bars.getDateTime()} - {ticker} - LTP <{underlyingDf.Close.values[-1]}> Supertrend <{self.supertrend[ticker][-1]}>', logging.DEBUG)
+                f'{bars.getDateTime()} - {self.underlying} - LTP <{lastClose}> Supertrend <{supertrendValue.value}>', logging.DEBUG)
 
             # Green
-            if underlyingDf.Close.values[-1] > self.supertrend[ticker][-1]:
+            if supertrendValue.trend == Trend.UP:
                 if self.positionBearish is not None:
                     self.log(
-                        f'{bars.getDateTime()} - Close greater than supertrend and so supertrend is green. Exiting last position')
+                        f'{bars.getDateTime()} - Supertrend trend is UP. Exiting last position')
                     self.positionBearish.exitMarket()
                     self.positionBearish = None
                 if self.positionBullish is None:
@@ -93,13 +108,13 @@ class SuperTrendV1(BaseOptionsGreeksStrategy):
                     peSymbol = self.getOptionSymbol(
                         self.underlying, currentExpiry, atmStrike, 'p')
                     self.log(
-                        f'{bars.getDateTime()} - Close greater than supertrend and so supertrend is green. Entering PE {peSymbol} short')
+                        f'{bars.getDateTime()} - Supertrend trend is UP. Entering PE {peSymbol} short')
                     self.positionBullish = self.enterShort(
                         peSymbol, self.quantity)
-            elif underlyingDf.Close.values[-1] < self.supertrend[ticker][-1]:
+            elif supertrendValue.trend == Trend.DOWN:
                 if self.positionBullish is not None:
                     self.log(
-                        f'{bars.getDateTime()} - Close lesser than supertrend and so supertrend is red. Exiting last position')
+                        f'{bars.getDateTime()} - Supertrend trend is DOWN. Exiting last position')
                     self.positionBullish.exitMarket()
                     self.positionBullish = None
                 if self.positionBearish is None:
@@ -108,7 +123,7 @@ class SuperTrendV1(BaseOptionsGreeksStrategy):
                     ceSymbol = self.getOptionSymbol(
                         self.underlying, currentExpiry, atmStrike, 'c')
                     self.log(
-                        f'{bars.getDateTime()} - Close lesser than supertrend and so supertrend is red. Entering CE {ceSymbol} short')
+                        f'{bars.getDateTime()} - Supertrend trend is DOWN. Entering CE {ceSymbol} short')
                     self.positionBearish = self.enterShort(
                         ceSymbol, self.quantity)
 
