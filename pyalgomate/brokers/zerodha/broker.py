@@ -122,7 +122,7 @@ class TradeEvent(object):
         return float(self.__eventDict.get('filled_quantity', 0.0))
 
     def getDateTime(self):
-        return datetime.datetime.strptime(self.__eventDict['order_timestamp'], '%Y-%m-%d %H:%M:%S') if self.__eventDict.get('order_timestamp', None) is not None else None
+        return self.__eventDict['order_timestamp'] if self.__eventDict.get('order_timestamp', None) is not None else None
 
 
 class TradeMonitor(threading.Thread):
