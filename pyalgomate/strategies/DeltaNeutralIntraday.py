@@ -171,7 +171,7 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                     self.state = State.PLACING_ORDERS
                     self.positionVega.exitMarket()
                     self.positionVega = None
-                    self.numberOfAdjustments = 0
+                    self.numberOfAdjustments -= 1
                     return
 
             # Adjust positions if delta difference is more than delta threshold
@@ -205,7 +205,7 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                     self.state = State.PLACING_ORDERS
                     self.positionCall = self.enterShort(
                         selectedCallOption.optionContract.symbol, self.quantity)
-                    self.numberOfAdjustments -= 1
+                    self.numberOfAdjustments += 1
 
             if self.positionVega is None and abs(self.numberOfAdjustments) >= 2:
                 selectedOption = self.getNearestDeltaOption('c' if abs(
