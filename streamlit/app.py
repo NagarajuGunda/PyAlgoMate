@@ -234,8 +234,13 @@ def displayData():
 
     get_placeholder().empty()
     with get_placeholder().container():
-        strategyData = get_data()[st.session_state.selectedStrategy]
-
+        strategies = (key for key in get_data().copy())
+        selectedStrategy = st.selectbox(
+        'Select a strategy', strategies, key=f"{datetime.datetime.now()}")
+        if get_data().get(selectedStrategy, None) is None:
+            return
+        strategyData = get_data()[selectedStrategy]
+        st.subheader(f'Last updated time: {strategyData["datetime"]}')
         tab1, tab2, tab3, tab4, tab5 = st.tabs(
             ["Option Chain", "Trades", "Metrics", "Charts", "OHLC"])
 
@@ -287,9 +292,6 @@ def displayData():
 
 
 async def run():
-    strategies = (key for key in get_data().copy())
-    st.session_state.selectedStrategy = st.selectbox(
-        'Select a strategy', strategies)
     displayData()
     await start_subscriber()
 
