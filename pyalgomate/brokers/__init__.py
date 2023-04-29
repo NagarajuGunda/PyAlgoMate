@@ -4,6 +4,7 @@
 
 import datetime
 import re
+import pandas as pd
 
 from pyalgotrade import broker
 from pyalgotrade.broker import fillstrategy
@@ -62,6 +63,9 @@ class BacktestingBroker(backtesting.Broker):
             return None
 
         return OptionContract(symbol, int(m.group(2)), None, "c" if m.group(3) == "CE" else "p", m.group(1))
+
+    def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
+        return pd.DataFrame(columns=['Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest'])
 
     def __init__(self, cash, barFeed, fee=0.0025):
         commission = backtesting.TradePercentage(fee)

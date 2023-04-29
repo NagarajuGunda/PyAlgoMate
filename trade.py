@@ -11,16 +11,19 @@ from multiprocessing import Process
 
 import pyalgotrade.bar
 from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
-from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker
+from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker, getFinvasiaToken, getFinvasiaTokenMappings
 import pyalgomate.brokers.finvasia as finvasia
 from pyalgomate.brokers.zerodha.feed import ZerodhaLiveFeed
 from pyalgomate.brokers.zerodha.broker import ZerodhaPaperTradingBroker, ZerodhaLiveBroker
 import pyalgomate.brokers.zerodha as zerodha
+from pyalgomate.brokers.zerodha.broker import getZerodhaTokensList
 from pyalgomate.strategies.OptionsStrangleIntraday import OptionsStrangleIntraday
 from pyalgomate.strategies.OptionsStraddleIntraday import OptionsStraddleIntraday
 from pyalgomate.strategies.OptionsTimeBasedStrategy import OptionsTimeBasedStrategy
 from pyalgomate.strategies.DeltaNeutralIntraday import DeltaNeutralIntraday
 from pyalgomate.strategies.StraddleIntradayWithVega import StraddleIntradayWithVega
+from pyalgomate.strategies.ATMStraddleV1 import ATMStraddleV1
+from pyalgomate.strategies.SuperTrendV1 import SuperTrendV1
 import pyalgomate.utils as utils
 
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
@@ -42,41 +45,6 @@ class Broker(object):
 # Define the socket using the "Context"
 sock = context.socket(zmq.PUB)
 sock.bind("tcp://127.0.0.1:5680")
-
-
-def getToken(api, exchangeSymbol):
-    splitStrings = exchangeSymbol.split('|')
-    exchange = splitStrings[0]
-    symbol = splitStrings[1]
-    ret = api.searchscrip(exchange=exchange, searchtext=symbol)
-
-    if ret != None:
-        for value in ret['values']:
-            if value['instname'] in ['OPTIDX', 'EQ'] and value['tsym'] == symbol:
-                return value['token']
-            if value['instname'] == 'UNDIND' and value['cname'] == symbol:
-                return value['token']
-
-    return None
-
-
-def getTokenMappings(api, exchangeSymbols):
-    tokenMappings = {}
-
-    for exchangeSymbol in exchangeSymbols:
-        tokenMappings["{0}|{1}".format(exchangeSymbol.split(
-            '|')[0], getToken(api, exchangeSymbol))] = exchangeSymbol
-
-    return tokenMappings
-
-
-def getZerodhaTokensList(api: KiteExt, instruments):
-    tokenMappings = {}
-    response = api.ltp(instruments)
-    for instrument in instruments:
-        token = response[instrument]['instrument_token']
-        tokenMappings[token] = instrument
-    return tokenMappings
 
 
 def valueChangedCallback(strategy, value):
@@ -118,7 +86,12 @@ def fakeSend():
 
 
 def runStrategy(strategy):
-    strategy.run()
+    try:
+        strategy.run()
+    except Exception as e:
+        logger.error(f'Exception occured while running the strategy. Exception {e}')
+        logger.info('Re-running the strategy')
+        runStrategy(strategy)
 
 
 def main():
@@ -152,7 +125,7 @@ def main():
         if loginStatus != None:
             underlyingInstrument = 'NSE|NIFTY BANK'
 
-            ltp = api.get_quotes('NSE', getToken(
+            ltp = api.get_quotes('NSE', getFinvasiaToken(
                 api, underlyingInstrument))['lp']
 
             currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
@@ -169,7 +142,7 @@ def main():
 
             optionSymbols = list(dict.fromkeys(optionSymbols))
 
-            tokenMappings = getTokenMappings(
+            tokenMappings = getFinvasiaTokenMappings(
                 api, ["NSE|NIFTY INDEX", underlyingInstrument] + optionSymbols)
 
             # Remove NFO| and replace index names
@@ -178,8 +151,8 @@ def main():
             #         'NSE|NIFTY INDEX', 'NIFTY')
 
             barFeed = LiveTradeFeed(api, tokenMappings)
-            # broker = PaperTradingBroker(200000, barFeed)
-            broker = LiveBroker(api)
+            broker = PaperTradingBroker(200000, barFeed)
+            #broker = LiveBroker(api)
     elif broker == Broker.ZERODHA:
         api = KiteExt()
         twoFA = pyotp.TOTP(cred['factor2']).now()
@@ -217,10 +190,12 @@ def main():
         logger.error("Api returned None")
         return
 
-    strategy = DeltaNeutralIntraday(feed=barFeed, broker=broker, registeredOptionsCount=len(
-        optionSymbols), callback=valueChangedCallback, resampleFrequency=pyalgotrade.bar.Frequency.MINUTE, collectData=True)
+    # strategy = DeltaNeutralIntraday(feed=barFeed, broker=broker, registeredOptionsCount=len(
+    #     optionSymbols), callback=valueChangedCallback, resampleFrequency=pyalgotrade.bar.Frequency.MINUTE, collectData=True)
+    strategy = SuperTrendV1(feed=barFeed, broker=broker,  underlying=underlyingInstrument,
+                            callback=valueChangedCallback, collectData=True)
 
-    strategy.run()
+    runStrategy(strategy)
 
 
 if __name__ == "__main__":
