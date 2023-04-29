@@ -9,6 +9,7 @@ import datetime
 import six
 import calendar
 import re
+import pandas as pd
 
 from pyalgotrade import broker
 from pyalgomate.brokers import BacktestingBroker, QuantityTraits
@@ -44,13 +45,39 @@ def getOptionSymbols(underlyingInstrument, expiry, ltp, count):
     return optionSymbols
 
 
+def getFinvasiaToken(api, exchangeSymbol):
+    splitStrings = exchangeSymbol.split('|')
+    exchange = splitStrings[0]
+    symbol = splitStrings[1]
+    ret = api.searchscrip(exchange=exchange, searchtext=symbol)
+
+    if ret != None:
+        for value in ret['values']:
+            if value['instname'] in ['OPTIDX', 'EQ'] and value['tsym'] == symbol:
+                return value['token']
+            if value['instname'] == 'UNDIND' and value['cname'] == symbol:
+                return value['token']
+
+    return None
+
+
+def getFinvasiaTokenMappings(api, exchangeSymbols):
+    tokenMappings = {}
+
+    for exchangeSymbol in exchangeSymbols:
+        tokenMappings["{0}|{1}".format(exchangeSymbol.split(
+            '|')[0], getFinvasiaToken(api, exchangeSymbol))] = exchangeSymbol
+
+    return tokenMappings
+
+
 class PaperTradingBroker(BacktestingBroker):
     """A Finvasia paper trading broker.
     """
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
         symbol = 'NFO|NIFTY'
-        if 'NIFTY BANK' in underlyingInstrument  or 'BANKNIFTY' in underlyingInstrument:
+        if 'NIFTY BANK' in underlyingInstrument or 'BANKNIFTY' in underlyingInstrument:
             symbol = 'NFO|BANKNIFTY'
 
         dayMonthYear = f"{expiry.day:02d}" + \
@@ -65,15 +92,15 @@ class PaperTradingBroker(BacktestingBroker):
 
         if m is None:
             return None
-        
+
         day = int(m.group(2))
         month = m.group(3)
         year = int(m.group(4)) + 2000
-        expiry = datetime.date(year, datetime.datetime.strptime(month, '%b').month, day)
+        expiry = datetime.date(
+            year, datetime.datetime.strptime(month, '%b').month, day)
         return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", m.group(1))
-    
-    pass
 
+    pass
 
     # get_order_book
     # Response data will be in json Array of objects with below fields in case of success.
@@ -86,7 +113,7 @@ class PaperTradingBroker(BacktestingBroker):
     # prc		                    Order Price
     # qty		                    Order Quantity
     # prd		                    Display product alias name, using prarr returned in user details.
-    # status		
+    # status
     # trantype	    B / S       	Transaction type of the order
     # prctyp	    LMT / MKT   	Price type
     # fillshares	                Total Traded Quantity of this order
@@ -98,8 +125,8 @@ class PaperTradingBroker(BacktestingBroker):
     # dscqty		                Order disclosed quantity.
     # trgprc		                Order trigger price
     # ret           DAY / IOC / EOS	Order validity
-    # uid		
-    # actid		
+    # uid
+    # actid
     # bpprc		                    Book Profit Price applicable only if product is selected as B (Bracket order )
     # blprc		                    Book loss Price applicable only if product is selected as H and B (High Leverage and Bracket order )
     # trailprc	                    Trailing Price applicable only if product is selected as H and B (High Leverage and Bracket order )
@@ -108,9 +135,9 @@ class PaperTradingBroker(BacktestingBroker):
     # ti		                    Tick size
     # ls		                    Lot size
     # token		                    Contract Token
-    # norentm		
-    # ordenttm		
-    # exch_tm		
+    # norentm
+    # ordenttm
+    # exch_tm
     # snoordt		                0 for profit leg and 1 for stoploss leg
     # snonum		                This field will be present for product H and B; and only if it is profit/sl order.
 
@@ -131,7 +158,7 @@ class PaperTradingBroker(BacktestingBroker):
     # prc		                    Order Price
     # qty		                    Order Quantity
     # prd		                    Display product alias name, using prarr returned in user details.
-    # status	                    	
+    # status
     # rpt		                    (fill/complete etc)
     # trantype	    B / S	        Transaction type of the order
     # prctyp	    LMT / MKT	    Price type
@@ -144,8 +171,8 @@ class PaperTradingBroker(BacktestingBroker):
     # dscqty		                Order disclosed quantity.
     # trgprc		                Order trigger price
     # ret	        DAY / IOC / EOS	Order validity
-    # uid		
-    # actid		
+    # uid
+    # actid
     # bpprc		                    Book Profit Price applicable only if product is selected as B (Bracket order )
     # blprc		                    Book loss Price applicable only if product is selected as H and B (High Leverage and Bracket order )
     # trailprc	                    	Trailing Price applicable only if product is selected as H and B (High Leverage and Bracket order )
@@ -154,35 +181,37 @@ class PaperTradingBroker(BacktestingBroker):
     # ti		                    Tick size
     # ls		                    Lot size
     # token		                    Contract Token
-    # norentm		
-    # ordenttm		
-    # exch_tm	
-    # 	
+    # norentm
+    # ordenttm
+    # exch_tm
+    #
     # Response data will be in json format with below fields in case of failure:
 
     # Json Fields	Possible value	Description
     # stat	        Not_Ok	        Order book failure indication.
     # request_time		            Response received time.
     # emsg		                    Error message
+
+
 class TradeEvent(object):
     def __init__(self, eventDict):
         self.__eventDict = eventDict
 
     def getId(self):
         return self.__eventDict.get('norenordno', None)
-    
+
     def getStatus(self):
         return self.__eventDict.get('status', None)
-    
+
     def getRejectedReason(self):
         return self.__eventDict.get('rejreason', None)
-    
+
     def getAvgFilledPrice(self):
         return float(self.__eventDict.get('avgprc', 0.0))
-    
+
     def getTotalFilledQuantity(self):
         return float(self.__eventDict.get('fillshares', 0.0))
-    
+
     def getDateTime(self):
         return datetime.datetime.strptime(self.__eventDict['norentm'], '%H:%M:%S %d-%m-%Y') if self.__eventDict.get('norentm', None) is not None else None
 
@@ -209,6 +238,7 @@ class TradeEvent(object):
 #                 return trade['flprc']
 #     return None
 
+
 class TradeMonitor(threading.Thread):
     POLL_FREQUENCY = 2
 
@@ -224,7 +254,8 @@ class TradeMonitor(threading.Thread):
 
     def _getNewTrades(self):
         ret = []
-        activeOrderIds = [order.getId() for order in self.__broker.getActiveOrders().copy()]
+        activeOrderIds = [order.getId()
+                          for order in self.__broker.getActiveOrders().copy()]
         for orderId in activeOrderIds:
             orderHistories = self.__api.single_order_history(
                 orderno=orderId)
@@ -256,7 +287,8 @@ class TradeMonitor(threading.Thread):
     def start(self):
         trades = self._getNewTrades()
         if len(trades):
-            logger.info(f'Last trade found at {trades[-1].getDateTime()}. Order id {trades[-1].getId()}')
+            logger.info(
+                f'Last trade found at {trades[-1].getDateTime()}. Order id {trades[-1].getId()}')
 
         super(TradeMonitor, self).start()
 
@@ -323,7 +355,7 @@ class LiveBroker(broker.Broker):
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
         symbol = 'NFO|NIFTY'
-        if 'NIFTY BANK' in underlyingInstrument  or 'BANKNIFTY' in underlyingInstrument:
+        if 'NIFTY BANK' in underlyingInstrument or 'BANKNIFTY' in underlyingInstrument:
             symbol = 'NFO|BANKNIFTY'
 
         dayMonthYear = f"{expiry.day:02d}" + \
@@ -338,12 +370,38 @@ class LiveBroker(broker.Broker):
 
         if m is None:
             return None
-        
+
         day = int(m.group(2))
         month = m.group(3)
         year = int(m.group(4)) + 2000
-        expiry = datetime.date(year, datetime.datetime.strptime(month, '%b').month, day)
+        expiry = datetime.date(
+            year, datetime.datetime.strptime(month, '%b').month, day)
         return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", m.group(1))
+
+    def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
+        startTime = startTime.replace(hour=0, minute=0, second=0, microsecond=0)
+        splitStrings = exchangeSymbol.split('|')
+        exchange = splitStrings[0]
+
+        logger.info(
+            f'Retrieving {interval} timeframe historical data for {exchangeSymbol}')
+        ret = self.__api.get_time_price_series(exchange=exchange, token=getFinvasiaToken(
+            self.__api, exchangeSymbol), starttime=startTime.timestamp(), interval=interval)
+
+        if ret != None:
+            df = pd.DataFrame(
+                ret)[['time', 'into', 'inth', 'intl', 'intc', 'v', 'oi']]
+            df = df.rename(columns={'time': 'Date/Time', 'into': 'Open', 'inth': 'High',
+                                    'intl': 'Low', 'intc': 'Close', 'v': 'Volume', 'oi': 'Open Interest'})
+            
+            df[['Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']] = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']].astype(float)
+
+            df = df.sort_values('Date/Time')
+            
+            logger.info(f'Retrieved {df.shape[0]} rows of historical data')
+            return df
+        else:
+            return pd.DataFrame(columns=['Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest'])
 
     def __init__(self, api: ShoonyaApi):
         super(LiveBroker, self).__init__()
@@ -356,7 +414,7 @@ class LiveBroker(broker.Broker):
 
     def getApi(self):
         return self.__api
-    
+
     def getInstrumentTraits(self, instrument):
         return QuantityTraits()
 
@@ -376,7 +434,7 @@ class LiveBroker(broker.Broker):
         balance = self.__api.get_limits()
 
         # Cash
-        #self.__cash = round(balance.getUSDAvailable(), 2)
+        # self.__cash = round(balance.getUSDAvailable(), 2)
         # logger.info("%s USD" % (self.__cash))
         # # BTC
         # btc = balance.getBTCAvailable()
@@ -392,7 +450,7 @@ class LiveBroker(broker.Broker):
         return
         self.__stop = True  # Stop running in case of errors.
         logger.info("Retrieving open orders.")
-        openOrders = None #self.__api.getOpenOrders()
+        openOrders = None  # self.__api.getOpenOrders()
         # for openOrder in openOrders:
         #     self._registerOrder(build_order_from_open_order(
         #         openOrder, self.getInstrumentTraits(common.btc_symbol)))
@@ -442,7 +500,8 @@ class LiveBroker(broker.Broker):
             if order is not None:
                 self._onTrade(order, trade)
             else:
-                logger.info(f"Trade {trade.getId()} refered to order that is not active")
+                logger.info(
+                    f"Trade {trade.getId()} refered to order that is not active")
 
     # BEGIN observer.Subject interface
     def start(self):
@@ -569,10 +628,13 @@ class LiveBroker(broker.Broker):
             productType = 'I'
             splitStrings = order.getInstrument().split('|')
             exchange = splitStrings[0] if len(splitStrings) > 1 else 'NSE'
-            symbol = splitStrings[1] if len(splitStrings) > 1 else order.getInstrument()
+            symbol = splitStrings[1] if len(
+                splitStrings) > 1 else order.getInstrument()
             quantity = order.getQuantity()
-            price = order.getLimitPrice() if order.getType() in [broker.Order.Type.LIMIT, broker.Order.Type.STOP_LIMIT] else 0
-            stopPrice = order.getStopPrice() if order.getType() in [broker.Order.Type.STOP_LIMIT] else 0
+            price = order.getLimitPrice() if order.getType() in [
+                broker.Order.Type.LIMIT, broker.Order.Type.STOP_LIMIT] else 0
+            stopPrice = order.getStopPrice() if order.getType() in [
+                broker.Order.Type.STOP_LIMIT] else 0
             priceType = {
                 # LMT / MKT / SL-LMT / SL-MKT / DS / 2L / 3L
                 broker.Order.Type.MARKET: 'MKT',
@@ -582,23 +644,25 @@ class LiveBroker(broker.Broker):
             }.get(order.getType())
             retention = 'DAY'  # DAY / EOS / IOC
 
-            logger.info(f'Placing {priceType} {"Buy" if order.isBuy() else "Sell"} order for {order.getInstrument()} with {quantity} quantity')
+            logger.info(
+                f'Placing {priceType} {"Buy" if order.isBuy() else "Sell"} order for {order.getInstrument()} with {quantity} quantity')
             try:
                 finvasiaOrder = self.__placeOrder(buyOrSell,
-                                                productType,
-                                                exchange,
-                                                symbol,
-                                                quantity,
-                                                price,
-                                                priceType,
-                                                stopPrice,
-                                                retention,
-                                                None)
+                                                  productType,
+                                                  exchange,
+                                                  symbol,
+                                                  quantity,
+                                                  price,
+                                                  priceType,
+                                                  stopPrice,
+                                                  retention,
+                                                  None)
             except Exception as e:
                 logger.critical(f'Could not place order for {symbol}')
                 return
 
-            logger.info(f'Placed {priceType} {"Buy" if order.isBuy() else "Sell"} order {finvasiaOrder.getId()} at {finvasiaOrder.getDateTime()}')
+            logger.info(
+                f'Placed {priceType} {"Buy" if order.isBuy() else "Sell"} order {finvasiaOrder.getId()} at {finvasiaOrder.getDateTime()}')
             order.setSubmitted(finvasiaOrder.getId(),
                                finvasiaOrder.getDateTime())
             self._registerOrder(order)

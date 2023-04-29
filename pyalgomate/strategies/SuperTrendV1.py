@@ -13,7 +13,7 @@ logger = logging.getLogger(__file__)
 
 
 class SuperTrendV1(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, registeredOptionsCount=None, callback=None, resampleFrequency=None, lotSize=None, collectData=None):
+    def __init__(self, feed, broker, underlying, registeredOptionsCount=None, callback=None, resampleFrequency=None, lotSize=None, collectData=None):
         super(SuperTrendV1, self).__init__(feed, broker,
                                            strategyName=__class__.__name__,
                                            logger=logging.getLogger(
@@ -27,7 +27,7 @@ class SuperTrendV1(BaseOptionsGreeksStrategy):
         self.lots = 1
         self.quantity = self.lotSize * self.lots
         self.portfolioSL = 2000
-        self.underlying = 'BANKNIFTY'
+        self.underlying = underlying
 
         self.__reset__()
 
@@ -42,23 +42,21 @@ class SuperTrendV1(BaseOptionsGreeksStrategy):
         self.supertrendMultiplier = 3
         self.indicatorValuesToBeAvailable = 45
 
+        # get historical data
+        historicalData = self.getBroker().getHistoricalData(self.underlying, datetime.datetime.now() -
+                                                            datetime.timedelta(days=20), self.resampleFrequency.replace("T", ""))
+
+        for index, row in historicalData.iterrows():
+            self.addSuperTrend(row['Date/Time'], row['Open'], row['High'],
+                               row['Low'], row['Close'], row['Volume'], row['Open Interest'])
+
     def __reset__(self):
         super().reset()
         # members that needs to be reset after exit time
         self.positionBullish = None
         self.positionBearish = None
 
-    def setUnderlying(self, underlying):
-        self.underlying = underlying
-
-    def on1MinBars(self, bars):
-        currentExpiry = utils.getNearestWeeklyExpiryDate(
-            bars.getDateTime().date())
-        bar = bars.getBar(self.underlying)
-
-        if bar is None:
-            return
-
+    def addSuperTrend(self, dateTime, open, high, low, close, volume, openInterest):
         if self.underlying not in self.resampledDict:
             self.resampledDict[self.underlying] = {
                 'Date/Time': [],
@@ -69,25 +67,35 @@ class SuperTrendV1(BaseOptionsGreeksStrategy):
                 'Volume': [],
                 'Open Interest': []
             }
-
         self.resampledDict[self.underlying]['Date/Time'].append(
-            bar.getDateTime())
-        self.resampledDict[self.underlying]['Open'].append(bar.getOpen())
-        self.resampledDict[self.underlying]['High'].append(bar.getHigh())
-        self.resampledDict[self.underlying]['Low'].append(bar.getLow())
-        self.resampledDict[self.underlying]['Close'].append(bar.getClose())
-        self.resampledDict[self.underlying]['Volume'].append(bar.getVolume())
+            dateTime)
+        self.resampledDict[self.underlying]['Open'].append(open)
+        self.resampledDict[self.underlying]['High'].append(high)
+        self.resampledDict[self.underlying]['Low'].append(low)
+        self.resampledDict[self.underlying]['Close'].append(close)
+        self.resampledDict[self.underlying]['Volume'].append(volume)
         self.resampledDict[self.underlying]['Open Interest'].append(
-            bar.getExtraColumns().get("Open Interest", 0))
+            openInterest)
 
         if self.underlying not in self.supertrend:
             self.supertrend[self.underlying] = SuperTrend(
                 self.supertrendLength, self.supertrendMultiplier)
 
-        ohlcv = OHLCV(bar.getOpen(), bar.getHigh(), bar.getLow(),
-                      bar.getClose(), bar.getVolume(), bar.getDateTime())
+        ohlcv = OHLCV(open, high, low,
+                      close, volume, dateTime)
 
         self.supertrend[self.underlying].add_input_value(ohlcv)
+
+    def on1MinBars(self, bars):
+        currentExpiry = utils.getNearestWeeklyExpiryDate(
+            bars.getDateTime().date())
+        bar = bars.getBar(self.underlying)
+
+        if bar is None:
+            return
+
+        self.addSuperTrend(bar.getDateTime(), bar.getOpen(), bar.getHigh(), bar.getLow(),
+                           bar.getClose(), bar.getVolume(), bar.getExtraColumns().get("Open Interest", 0))
 
         if self.supertrend[self.underlying] is not None and len(self.supertrend[self.underlying]) > self.indicatorValuesToBeAvailable:
             supertrendValue = self.supertrend[self.underlying][-1]
@@ -150,3 +158,64 @@ class SuperTrendV1(BaseOptionsGreeksStrategy):
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
                 self.__reset__()
+
+
+if __name__ == "__main__":
+    import yaml
+    import pyotp
+    import logging
+    import datetime
+    import os
+
+    from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
+    from pyalgomate.brokers.finvasia.broker import LiveBroker, getFinvasiaToken, getFinvasiaTokenMappings
+    import pyalgomate.brokers.finvasia as finvasia
+    from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
+
+    api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
+                     websocket='wss://api.shoonya.com/NorenWSTP/')
+
+    with open('cred.yml') as f:
+        cred = yaml.load(f, Loader=yaml.FullLoader)
+
+    userToken = None
+    tokenFile = 'shoonyakey.txt'
+    if os.path.exists(tokenFile) and (datetime.datetime.fromtimestamp(os.path.getmtime(tokenFile)).date() == datetime.datetime.today().date()):
+        logger.info(f"Token has been created today already. Re-using it")
+        with open(tokenFile, 'r') as f:
+            userToken = f.read()
+        logger.info(
+            f"userid {cred['user']} password ******** usertoken {userToken}")
+        loginStatus = api.set_session(
+            userid=cred['user'], password=cred['pwd'], usertoken=userToken)
+    else:
+        print(f"Logging in and persisting user token")
+        loginStatus = api.login(userid=cred['user'], password=cred['pwd'], twoFA=pyotp.TOTP(cred['factor2']).now(),
+                                vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
+
+        with open(tokenFile, 'w') as f:
+            f.write(loginStatus.get('susertoken'))
+
+        logger.info(
+            f"{loginStatus.get('uname')}={loginStatus.get('stat')} token={loginStatus.get('susertoken')}")
+
+    if loginStatus != None:
+        underlyingInstrument = 'NSE|NIFTY BANK'
+
+        token = getFinvasiaToken(
+            api, underlyingInstrument)
+        quotes = api.get_quotes('NSE', token)
+        ltp = quotes['lp']
+
+        currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
+            datetime.datetime.now().date())
+
+        tokenMappings = getFinvasiaTokenMappings(
+            api, ["NSE|NIFTY INDEX", underlyingInstrument])
+
+        barFeed = LiveTradeFeed(api, tokenMappings)
+        broker = LiveBroker(api)
+
+        strategy = SuperTrendV1(
+            feed=barFeed, broker=broker, underlying=underlyingInstrument)
+        strategy.run()
