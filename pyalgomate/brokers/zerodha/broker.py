@@ -274,7 +274,8 @@ class ZerodhaLiveBroker(broker.Broker):
         splitStrings = exchangeSymbol.split(':')
         exchange = splitStrings[0]
 
-        token = getZerodhaTokensList(self.__api, [exchangeSymbol])[0]
+        tokensList = getZerodhaTokensList(self.__api, [exchangeSymbol])
+        token = next(iter(tokensList))
 
         logger.info(
             f'Retrieving {interval} timeframe historical data for {exchangeSymbol}')
@@ -286,7 +287,7 @@ class ZerodhaLiveBroker(broker.Broker):
                 ret)[['date', 'open', 'high', 'low', 'close', 'volume']]
             df['Open Interest'] = 0
             df = df.rename(columns={'date': 'Date/Time', 'open': 'Open', 'high': 'High',
-                                    'low': 'Low', 'close': 'Close', 'volumev': 'Volume'})
+                                    'low': 'Low', 'close': 'Close', 'volume': 'Volume'})
 
             df[['Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']] = df[[
                 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']].astype(float)
