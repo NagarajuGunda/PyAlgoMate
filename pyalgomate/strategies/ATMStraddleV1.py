@@ -28,20 +28,17 @@ class ResampledBars():
 
         self.__strategy.getFeed().getNewValuesEvent().subscribe(self.newBars)
 
-    def getATMStraddleBar(self, dateTime):
+    def getCombinedPremiumBar(self, dateTime, strike, name):
         currentExpiry = utils.getNearestWeeklyExpiryDate(
             dateTime.date())
 
-        atmStrike = self.__strategy.getATMStrike(
-            self.__strategy.getLTP(self.__strategy.getUnderlying()), 100)
-
         ceSymbol = self.__strategy.getOptionSymbol(
-            self.__strategy.getUnderlying(), currentExpiry, atmStrike, 'c')
+            self.__strategy.getUnderlying(), currentExpiry, strike, 'c')
         peSymbol = self.__strategy.getOptionSymbol(
-            self.__strategy.getUnderlying(), currentExpiry, atmStrike, 'p')
+            self.__strategy.getUnderlying(), currentExpiry, strike, 'p')
 
         ceBar = self.__strategy.getFeed().getLastBar(ceSymbol)
-        peBar = self.__strategy.getFeed().getLastBar(ceSymbol)
+        peBar = self.__strategy.getFeed().getLastBar(peSymbol)
 
         if ceBar is None or peBar is None:
             return None
@@ -50,7 +47,7 @@ class ResampledBars():
             calendar.month_abbr[currentExpiry.month].upper(
             ) + str(currentExpiry.year % 100)
 
-        rollingStraddleTicker = f'{self.__strategy.getUnderlying()}{dayMonthYear}ATMSTRADDLE'
+        ticker = f'{self.__strategy.getUnderlying()}{dayMonthYear}{name}'
 
         return bar.BasicBar(dateTime,
                             ceBar.getOpen() + peBar.getOpen(),
@@ -61,10 +58,15 @@ class ResampledBars():
                             None,
                             bar.Frequency.TRADE,
                             {
-                                "Instrument": rollingStraddleTicker,
+                                "Instrument": ticker,
                                 "Open Interest": 0,
                                 "Date/Time": None
                             })
+
+    def getATMStraddleBar(self, dateTime):
+        atmStrike = self.__strategy.getATMStrike(
+            self.__strategy.getLTP(self.__strategy.getUnderlying()), 100)
+        return self.getCombinedPremiumBar(dateTime, atmStrike, 'ROLLINGATMSTRADDLE')
 
     def newBars(self, dateTime, bars):
         underlyingBar = bars.getBar(self.__strategy.getUnderlying())
@@ -79,6 +81,14 @@ class ResampledBars():
 
         if combinedBar is not None:
             barDict[combinedBar.getExtraColumns()['Instrument']] = combinedBar
+
+        if self.__strategy.atmStrike is not None:
+            combinedATMBar = self.getCombinedPremiumBar(
+                dateTime, self.__strategy.atmStrike, f'ATM{self.__strategy.atmStrike}COMBINED')
+
+            if combinedATMBar is not None:
+                barDict[combinedATMBar.getExtraColumns()['Instrument']
+                        ] = combinedATMBar
 
         bars = bar.Bars(barDict)
 
@@ -107,7 +117,7 @@ class ResampledBars():
 
 
 class ATMStraddleV1(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, callback=None, lotSize=None, collectData=None):
+    def __init__(self, feed, broker, underlying, callback=None, lotSize=None, collectData=None):
         super(ATMStraddleV1, self).__init__(feed, broker,
                                             strategyName=__class__.__name__,
                                             logger=logging.getLogger(
@@ -121,7 +131,7 @@ class ATMStraddleV1(BaseOptionsGreeksStrategy):
         self.lots = 1
         self.quantity = self.lotSize * self.lots
         self.portfolioSL = 2000
-        self.underlying = 'BANKNIFTY'
+        self.underlying = underlying
 
         self.__reset__()
 
@@ -139,26 +149,22 @@ class ATMStraddleV1(BaseOptionsGreeksStrategy):
         self.resampledBars = ResampledBars(
             bar.Frequency.MINUTE, self, self.onResampledBars)
 
+        # get historical data
+        historicalData = self.getBroker().getHistoricalData(self.underlying, datetime.datetime.now() -
+                                                            datetime.timedelta(days=20), self.resampleFrequency.replace("T", ""))
+
+        for index, row in historicalData.iterrows():
+            self.addSuperTrend(row['Date/Time'], row['Open'], row['High'],
+                               row['Low'], row['Close'], row['Volume'], row['Open Interest'])
+
     def __reset__(self):
         super().reset()
         # members that needs to be reset after exit time
         self.positionBullish = None
         self.positionBearish = None
+        self.atmStrike = None
 
-    def setUnderlying(self, underlying):
-        self.underlying = underlying
-
-    def getUnderlying(self):
-        return self.underlying
-
-    def onResampledBars(self, bars):
-        currentExpiry = utils.getNearestWeeklyExpiryDate(
-            bars.getDateTime().date())
-        bar = bars.getBar(self.underlying)
-
-        if bar is None:
-            return
-
+    def addSuperTrend(self, dateTime, open, high, low, close, volume, openInterest):
         if self.underlying not in self.resampledDict:
             self.resampledDict[self.underlying] = {
                 'Date/Time': [],
@@ -169,78 +175,53 @@ class ATMStraddleV1(BaseOptionsGreeksStrategy):
                 'Volume': [],
                 'Open Interest': []
             }
-
         self.resampledDict[self.underlying]['Date/Time'].append(
-            bar.getDateTime())
-        self.resampledDict[self.underlying]['Open'].append(bar.getOpen())
-        self.resampledDict[self.underlying]['High'].append(bar.getHigh())
-        self.resampledDict[self.underlying]['Low'].append(bar.getLow())
-        self.resampledDict[self.underlying]['Close'].append(bar.getClose())
-        self.resampledDict[self.underlying]['Volume'].append(bar.getVolume())
+            dateTime)
+        self.resampledDict[self.underlying]['Open'].append(open)
+        self.resampledDict[self.underlying]['High'].append(high)
+        self.resampledDict[self.underlying]['Low'].append(low)
+        self.resampledDict[self.underlying]['Close'].append(close)
+        self.resampledDict[self.underlying]['Volume'].append(volume)
         self.resampledDict[self.underlying]['Open Interest'].append(
-            bar.getExtraColumns().get("Open Interest", 0))
+            openInterest)
 
         if self.underlying not in self.supertrend:
             self.supertrend[self.underlying] = SuperTrend(
                 self.supertrendLength, self.supertrendMultiplier)
 
-        ohlcv = OHLCV(bar.getOpen(), bar.getHigh(), bar.getLow(),
-                      bar.getClose(), bar.getVolume(), bar.getDateTime())
+        ohlcv = OHLCV(open, high, low,
+                      close, volume, dateTime)
 
         self.supertrend[self.underlying].add_input_value(ohlcv)
 
-        if self.supertrend[self.underlying] is not None and len(self.supertrend[self.underlying]) > self.indicatorValuesToBeAvailable:
-            supertrendValue = self.supertrend[self.underlying][-1]
-            lastClose = self.resampledDict[self.underlying]['Close'][-1]
-            self.log(
-                f'{bars.getDateTime()} - {self.underlying} - LTP <{lastClose}> Supertrend <{supertrendValue.value}>', logging.DEBUG)
+    def getUnderlying(self):
+        return self.underlying
 
-            # Green
-            if supertrendValue.trend == Trend.UP:
-                if self.positionBearish is not None:
-                    self.log(
-                        f'{bars.getDateTime()} - Supertrend trend is UP. Exiting last position')
-                    self.positionBearish.exitMarket()
-                    self.positionBearish = None
-                if self.positionBullish is None:
-                    atmStrike = self.getATMStrike(
-                        self.getLTP(self.underlying), 100)
-                    peSymbol = self.getOptionSymbol(
-                        self.underlying, currentExpiry, atmStrike, 'p')
-                    self.log(
-                        f'{bars.getDateTime()} - Supertrend trend is UP. Entering PE {peSymbol} short')
-                    self.positionBullish = self.enterShort(
-                        peSymbol, self.quantity)
-            elif supertrendValue.trend == Trend.DOWN:
-                if self.positionBullish is not None:
-                    self.log(
-                        f'{bars.getDateTime()} - Supertrend trend is DOWN. Exiting last position')
-                    self.positionBullish.exitMarket()
-                    self.positionBullish = None
-                if self.positionBearish is None:
-                    atmStrike = self.getATMStrike(
-                        self.getLTP(self.underlying), 100)
-                    ceSymbol = self.getOptionSymbol(
-                        self.underlying, currentExpiry, atmStrike, 'c')
-                    self.log(
-                        f'{bars.getDateTime()} - Supertrend trend is DOWN. Entering CE {ceSymbol} short')
-                    self.positionBearish = self.enterShort(
-                        ceSymbol, self.quantity)
+    def onResampledBars(self, bars):
+        bar = bars.getBar(self.underlying)
+
+        if bar is None:
+            return
+
+        self.addSuperTrend(bar.getDateTime(), bar.getOpen(), bar.getHigh(), bar.getLow(),
+                           bar.getClose(), bar.getVolume(), bar.getExtraColumns().get("Open Interest", 0))
+
+        super().on1MinBars(bars)
+
+    def closeAllPositions(self):
+        if self.state == State.EXITED:
+            return
+
+        self.state = State.EXITED
+        for position in list(self.getActivePositions()):
+            if not position.exitActive():
+                position.exitMarket()
+        self.positionBearish = self.positionBullish = None
 
     def onBars(self, bars):
         self.log(f"Bar date times - {bars.getDateTime()}", logging.DEBUG)
 
         self.overallPnL = self.getOverallPnL()
-
-        if bars.getDateTime().time() >= self.exitTime:
-            if self.state != State.EXITED:
-                self.log(
-                    f"Current time {bars.getDateTime().time()} is >= Exit time {self.exitTime}. Closing all positions!")
-                for position in list(self.getActivePositions()):
-                    if not position.exitActive():
-                        position.exitMarket()
-                self.positionBearish = self.positionBullish = None
-                self.state = State.EXITED
 
         if bars.getDateTime().time() >= self.marketEndTime:
             if (len(self.openPositions) + len(self.closedPositions)) > 0:
@@ -248,6 +229,73 @@ class ATMStraddleV1(BaseOptionsGreeksStrategy):
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
                 self.__reset__()
+        # Exit all positions if exit time is met or portfolio SL is hit
+        elif (bars.getDateTime().time() >= self.exitTime):
+            if self.state != State.EXITED:
+                self.log(
+                    f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}. Closing all positions!')
+                self.closeAllPositions()
+        elif (self.overallPnL <= -self.portfolioSL):
+            if self.state != State.EXITED:
+                self.log(
+                    f'Current PnL <{self.overallPnL}> has crossed potfolio SL <{self.portfolioSL}>. Closing all positions!')
+                self.closeAllPositions()
+        elif (self.state == State.LIVE) and (self.entryTime <= bars.getDateTime().time() < self.exitTime):
+            if self.atmStrike is None:
+                self.atmStrike = self.getATMStrike(
+                    self.getLTP(self.getUnderlying()), 100)
+
+            if self.supertrend[self.underlying] is not None and len(self.supertrend[self.underlying]) > self.indicatorValuesToBeAvailable:
+                currentExpiry = utils.getNearestWeeklyExpiryDate(
+                    bars.getDateTime().date())
+                supertrendValue = self.supertrend[self.underlying][-1]
+                lastClose = self.resampledDict[self.underlying]['Close'][-1]
+                self.log(
+                    f'{bars.getDateTime()} - {self.underlying} - LTP <{lastClose}> Supertrend <{supertrendValue.value}>', logging.DEBUG)
+
+                # Green
+                if supertrendValue.trend == Trend.UP:
+                    if self.positionBearish is not None:
+                        self.log(
+                            f'{bars.getDateTime()} - Supertrend trend is UP. Exiting last position')
+                        self.positionBearish.exitMarket()
+                        self.positionBearish = None
+                    if self.positionBullish is None:
+                        atmStrike = self.getATMStrike(
+                            self.getLTP(self.underlying), 100)
+                        peSymbol = self.getOptionSymbol(
+                            self.underlying, currentExpiry, atmStrike, 'p')
+                        self.log(
+                            f'{bars.getDateTime()} - Supertrend trend is UP. Entering PE {peSymbol} short')
+                        self.positionBullish = self.enterShort(
+                            peSymbol, self.quantity)
+                elif supertrendValue.trend == Trend.DOWN:
+                    if self.positionBullish is not None:
+                        self.log(
+                            f'{bars.getDateTime()} - Supertrend trend is DOWN. Exiting last position')
+                        self.positionBullish.exitMarket()
+                        self.positionBullish = None
+                    if self.positionBearish is None:
+                        atmStrike = self.getATMStrike(
+                            self.getLTP(self.underlying), 100)
+                        ceSymbol = self.getOptionSymbol(
+                            self.underlying, currentExpiry, atmStrike, 'c')
+                        self.log(
+                            f'{bars.getDateTime()} - Supertrend trend is DOWN. Entering CE {ceSymbol} short')
+                        self.positionBearish = self.enterShort(
+                            ceSymbol, self.quantity)
+        elif self.state == State.PLACING_ORDERS:
+            for position in list(self.getActivePositions()):
+                if position.getInstrument() not in self.openPositions:
+                    return
+            self.state = State.ENTERED
+        elif self.state == State.ENTERED:
+            if (self.adjustsmentsDone is False) and (self.overallPnL <= -self.adjustmentSL):
+                self.log(
+                    f'Current PnL <{self.overallPnL}> has crossed the adjustments SL <{self.adjustmentSL}>. Doing adjustments!')
+                self.doAdjustments(bars.getDateTime().date())
+        elif self.state == State.EXITED:
+            pass
 
 
 if __name__ == "__main__":
