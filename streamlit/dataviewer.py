@@ -2,6 +2,7 @@ from st_aggrid import GridUpdateMode, DataReturnMode
 import streamlit as st
 import pandas as pd
 from pathlib import Path
+import datetime
 
 ###################################
 from st_aggrid import AgGrid
@@ -12,13 +13,15 @@ from st_aggrid.shared import JsCode
 import plotly.graph_objs as go
 
 
-def plotOHLC(dfIn: pd.DataFrame):
-    timeframe = '5min'
+def plotOHLC(dfIn: pd.DataFrame, timeframe):
+    if dfIn.shape[0] == 0:
+        st.write('No data found!')
+        return
+
+    timeframe = f'{timeframe}min'
 
     # if df['Date/Time'].dtype == 'datetime64[ns]':
     #     df['Date/Time'] = df['Date/Time'].dt.strftime("%Y/%m/%d %H:%M")
-
-    dfIn['Date/Time'] = pd.to_datetime(dfIn['Date/Time'])
 
     df = dfIn.resample(timeframe, on='Date/Time').agg(
         {'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).reset_index().dropna()
@@ -50,13 +53,13 @@ def plotOHLC(dfIn: pd.DataFrame):
 
     # Display the chart in Streamlit
     st.plotly_chart(fig, use_container_width=True)
-    dataframeContainer = st.expander("Check filtered dataframe")
-    dataframeContainer.write(df)
+    with st.expander("Check filtered dataframe"):
+        st.dataframe(df, use_container_width=True)
 
 
 st.set_page_config(page_icon="✂️", page_title="CSV Reader", layout="wide")
 
-c29, c30, c31 = st.columns([1, 6, 1])
+c29, c30, c31 = st.columns([1, 20, 1])
 
 with c30:
 
@@ -67,14 +70,12 @@ with c30:
     )
 
     if uploaded_file is not None:
-        file_container = st.expander("Check your uploaded .csv/.parquet")
         ohlcData = pd.read_parquet(uploaded_file) if Path(
             uploaded_file.name).suffix == '.parquet' else pd.read_csv(uploaded_file)
-
+        ohlcData['Date/Time'] = pd.to_datetime(ohlcData['Date/Time'])
         uploaded_file.seek(0)
 
         tickers = ohlcData['Ticker'].unique().tolist()
-
         # Check if session state object exists
         if "selectedTicker" not in st.session_state:
             st.session_state['selectedTicker'] = tickers[0]
@@ -87,21 +88,58 @@ with c30:
 
         oldTicker = st.session_state["oldTicker"]
 
-        def tickerCallback():
+        def updateTicker():
             st.session_state["oldTicker"] = st.session_state["selectedTicker"]
             st.session_state["selectedTicker"] = st.session_state.newTicker
 
-        st.session_state.selectedTicker = st.selectbox(
-            'Select a Ticker', tickers, key="newTicker",
-            on_change=tickerCallback)
+        def updateDateRange():
+            st.session_state['oldDateRange'] = st.session_state['selectedDateRange']
+            st.session_state['selectedDateRange'] = st.session_state.newDateRange
+
+        def updateTimeFrame():
+            st.session_state['oldTimeFrame'] = st.session_state.get(
+                'selectedTimeFrame', '1')
+            st.session_state['selectedTimeFrame'] = st.session_state.newTimeFrame
+
+        tickerColumn, dateRangeColumn, timeframeColumn = st.columns([6, 2, 2])
+        with tickerColumn:
+            st.session_state.selectedTicker = st.selectbox(
+                'Select a Ticker', tickers, key="newTicker",
+                on_change=updateTicker)
 
         print(f'Selected Ticker - {st.session_state.selectedTicker}')
 
-        ohlcData = ohlcData[ohlcData['Ticker'] ==
-                            st.session_state.selectedTicker]
-        # file_container.write(ohlcData)
-        plotOHLC(ohlcData)
+        dates = ohlcData['Date/Time'].agg(['min', 'max'])
 
+        with dateRangeColumn:
+            st.session_state.selectedDateRange = st.date_input(
+                label="Select date range",
+                min_value=dates['min'],
+                max_value=dates['max'],
+                value=dates['max'],
+                key="newDateRange",
+                on_change=updateDateRange
+            )
+
+        print(f'Selected date range - {st.session_state.selectedDateRange}')
+
+        if 'selectedDateRange' in st.session_state:
+            if isinstance(st.session_state.selectedDateRange, tuple) and len(st.session_state.selectedDateRange) == 2:
+                filteredData = ohlcData[(ohlcData['Date/Time'].dt.date >= st.session_state.selectedDateRange[0]) & (
+                    ohlcData['Date/Time'].dt.date <= st.session_state.selectedDateRange[1])]
+            else:
+                filteredData = ohlcData[ohlcData['Date/Time'].dt.date ==
+                                        st.session_state.selectedDateRange]
+
+        filteredData = filteredData[filteredData['Ticker'] ==
+                                    st.session_state.selectedTicker]
+
+        with timeframeColumn:
+            st.session_state.selectedTicker = st.selectbox(
+                'Select a Timeframe', [1, 3, 5, 10, 15, 30, 60], key="newTimeFrame",
+                on_change=updateTimeFrame)
+
+        plotOHLC(filteredData, st.session_state.selectedTicker)
     else:
         st.info(
             f"""
@@ -110,36 +148,5 @@ with c30:
         )
 
         st.stop()
-
-
-# gb = GridOptionsBuilder.from_dataframe(ohlcData)
-# # enables pivoting on all columns, however i'd need to change ag grid to allow export of pivoted/grouped data, however it select/filters groups
-# gb.configure_default_column(
-#     enablePivot=True, enableValue=True, enableRowGroup=True)
-# gb.configure_selection(selection_mode="multiple", use_checkbox=True)
-# gb.configure_side_bar()  # side_bar is clearly a typo :) should by sidebar
-# gridOptions = gb.build()
-
-# st.success(
-#     f"""
-#         💡 Tip! Hold the shift key when selecting rows to select multiple rows at once!
-#         """
-# )
-
-# response = AgGrid(
-#     ohlcData,
-#     gridOptions=gridOptions,
-#     enable_enterprise_modules=True,
-#     update_mode=GridUpdateMode.MODEL_CHANGED,
-#     data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-#     fit_columns_on_grid_load=False,
-# )
-
-# df = pd.DataFrame(response["selected_rows"])
-
-# st.subheader("Filtered data will appear below 👇 ")
-# st.text("")
-
-# st.table(df)
 
 st.text("")
