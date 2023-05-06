@@ -1,0 +1,6 @@
+[browser]
+gatherUsageStats = true
+
+[server]
+runOnSave = true
+
