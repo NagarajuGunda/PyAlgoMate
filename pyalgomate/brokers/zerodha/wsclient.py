@@ -98,7 +98,7 @@ class WebSocketClient:
             tokenId = tick['instrument_token']
             instrument = self.__tokenMappings[tokenId]
             ltp = tick['last_price']
-            volume = tick.get('volume_traded', None)
+            volume = tick.get('volume_traded', 0)
 
             if tokenId in self.__pending_subscriptions:
                 self.__onSubscriptionSucceeded(tokenId)
@@ -113,8 +113,8 @@ class WebSocketClient:
                                     bar.Frequency.TRADE,
                                     {
                 "Instrument": instrument,
-                "Open Interest": tick.get('oi', None),
-                "Date/Time": tick.get('last_trade_time', None)
+                "Open Interest": tick.get('oi', 0),
+                "Date/Time": tick.get('last_trade_time', datetime.datetime.now())
             })
 
             self.onTrade(basicBar)

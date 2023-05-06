@@ -60,7 +60,7 @@ class TradeBar(bar.Bar):
         return self.__trade.getPrice()
 
     def getVolume(self):
-        return self.__trade.getAmount()
+        return self.__trade.getAmount() if self.__trade.getAmount() is not None else 0
 
     def getAdjClose(self):
         return None
