@@ -62,6 +62,9 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             
         self.resampleBarFeed(pyalgotrade.bar.Frequency.MINUTE, self.on1MinBars)
 
+        if not os.path.exists("results"):
+            os.mkdir("results")
+
         if isinstance(self.getBroker(), BacktestingBroker):
             self.tradesCSV = f"results/{self.strategyName}_backtest.csv"
         else:
@@ -75,7 +78,6 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         self.dataColumns = ["Ticker", "Date/Time", "Open", "High",
                                 "Low", "Close", "Volume", "Open Interest"]
-        self.dataDf = pd.DataFrame(columns=self.dataColumns)
         if self.collectData is not None:
             self.dataFileName = "data.csv"
 
@@ -168,14 +170,11 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             df.to_csv(self.dataFileName, mode='a',
                       header=not os.path.exists(self.dataFileName), index=False)
 
-            # Append data
-            self.dataDf = pd.concat([self.dataDf, df], ignore_index=True)
-
-            dataDf = self.dataDf.copy()
+            dataDf = df.copy()
             dataDf['Date/Time'] = dataDf['Date/Time'].dt.strftime(
                 '%Y-%m-%d %H:%M:%S')
 
-            jsonData["ohlc"] = self.dataDf.to_json()
+            jsonData["ohlc"] = dataDf.to_json()
 
         if self.state != State.LIVE:
             combinedPremium = 0
@@ -187,29 +186,28 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                 combinedPremium += ltp
 
             jsonData["metrics"]["Combined Premium"] = combinedPremium
-
-            jsonData["optionChain"] = dict()
-            for instrument, optionGreek in self.__optionData.items():
-                optionGreekDict = dict([attr, getattr(optionGreek, attr)]
-                                       for attr in dir(optionGreek) if not attr.startswith('_'))
-                optionContract = optionGreekDict.pop('optionContract')
-                optionContractDict = dict([attr, getattr(optionContract, attr)] for attr in dir(
-                    optionContract) if not attr.startswith('_'))
-                optionContractDict['expiry'] = optionContractDict['expiry'].strftime(
-                    '%Y-%m-%d')
-                optionGreekDict.update(optionContractDict)
-                jsonData["optionChain"][instrument] = optionGreekDict
-
             jsonData["trades"] = self.tradesDf.to_json()
+
+        jsonData["optionChain"] = dict()
+        for instrument, optionGreek in self.__optionData.items():
+            optionGreekDict = dict([attr, getattr(optionGreek, attr)]
+                                    for attr in dir(optionGreek) if not attr.startswith('_'))
+            optionContract = optionGreekDict.pop('optionContract')
+            optionContractDict = dict([attr, getattr(optionContract, attr)] for attr in dir(
+                optionContract) if not attr.startswith('_'))
+            optionContractDict['expiry'] = optionContractDict['expiry'].strftime(
+                '%Y-%m-%d')
+            optionGreekDict.update(optionContractDict)
+            jsonData["optionChain"][instrument] = optionGreekDict
 
         for callback in self._observers:
             callback(self.strategyName, jsonData)
 
     def log(self, message, level=logging.INFO):
         if level == logging.DEBUG:
-            self.logger.debug(f"{self.strategyName} {message}")
+            self.logger.debug(f"{self.strategyName} {self.getCurrentDateTime()} {message}")
         else:
-            self.logger.info(f"{self.strategyName} {message}")
+            self.logger.info(f"{self.strategyName} {self.getCurrentDateTime()} {message}")
 
     def getPnL(self, order: Order):
         if order is None or not self.haveLTP(order.getInstrument()):
@@ -254,7 +252,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
     def onEnterOk(self, position: position):
         execInfo = position.getEntryOrder().getExecutionInfo()
         action = "Buy" if position.getEntryOrder().isBuy() else "Sell"
-        self.log(f"{execInfo.getDateTime()} ===== {action} Position opened: {position.getEntryOrder().getInstrument()} at <{execInfo.getPrice()}> with quantity<{execInfo.getQuantity()}> =====")
+        self.log(f"===== {action} Position opened: {position.getEntryOrder().getInstrument()} at <{execInfo.getDateTime()}> with price <{execInfo.getPrice()}> and quantity <{execInfo.getQuantity()}> =====")
 
         self.openPositions[position.getInstrument()] = position.getEntryOrder()
 
@@ -286,7 +284,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
     def onExitOk(self, position: position):
         execInfo = position.getExitOrder().getExecutionInfo()
         self.log(
-            f"{execInfo.getDateTime()} ===== Exited {position.getEntryOrder().getInstrument()} at <{execInfo.getPrice()}> with quantity<{execInfo.getQuantity()}> =====")
+            f"===== Exited {position.getEntryOrder().getInstrument()} at {execInfo.getDateTime()} with price <{execInfo.getPrice()}> and quantity <{execInfo.getQuantity()}> =====")
 
         if self.openPositions.get(position.getInstrument(), None) is None:
             self.log(
@@ -438,6 +436,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                 self.__optionContracts[instrument] = optionContract
 
     def getOptionSymbol(self, underlying, expiry, strike, type):
+        underlying = underlying.replace('NSE', 'NFO').replace('NIFTY BANK', 'BANKNIFTY')
+
         options = [opt for opt in self.__optionContracts.values(
         ) if opt.type == type and opt.expiry == expiry and opt.underlying == underlying and opt.strike == strike]
         return options[0].symbol if len(options) > 0 else None
