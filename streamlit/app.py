@@ -2,6 +2,7 @@ import zmq.asyncio
 import streamlit as st
 import asyncio
 import threading
+import os
 from streamlit.runtime.scriptrunner import add_script_run_ctx
 from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 from st_aggrid import GridOptionsBuilder, AgGrid, AgGridTheme, ColumnsAutoSizeMode
@@ -14,6 +15,7 @@ import datetime
 import plotly.graph_objs as go
 import re
 from streamlit_plotly_events import plotly_events
+import mydata
 
 st.set_page_config(layout="wide")
 
@@ -28,6 +30,11 @@ def get_data():
 def get_placeholder():
     return st.empty()
 
+def refreshData():
+    print('Refreshing mydata.py')
+    filePath = os.path.join(os.path.dirname(__file__), 'mydata.py')
+    with open(filePath, 'w') as f:
+        f.write("")
 
 def plotChart(df):
     # Add an index column to the DataFrame
@@ -43,7 +50,6 @@ def plotChart(df):
 
     st.plotly_chart(fig, use_container_width=True)
 
-
 async def subscribe():
     context = zmq.asyncio.Context.instance()
     subscriber = context.socket(zmq.SUB)
@@ -54,10 +60,10 @@ async def subscribe():
         print('Before Recv')
         message = await subscriber.recv_json()
         message = json.loads(message)
-        print('After Recv')
         lists = get_data()
         for strategy in message:
             strategyData = message[strategy]
+            print(strategyData.keys())
             if lists.get(strategy, None) is None:
                 lists[strategy] = {}
             for key in strategyData:
@@ -79,20 +85,25 @@ async def subscribe():
                     optionChainDict = strategyData[key]
                     df = pd.DataFrame.from_dict(
                         optionChainDict, orient='index')
-                    columnsList = optionChainDict[next(
-                        iter(optionChainDict))].keys()
-                    df.columns = [column.capitalize()
-                                  for column in columnsList]
-                    df = df[['Symbol', 'Strike', 'Expiry', 'Price',
-                             'Delta', 'Gamma', 'Theta', 'Vega', 'Iv']]
-                    lists[strategy]["optionChain"] = df
+                    if df.shape[1] > 1:
+                        columnsList = df.columns
+                        df.columns = [column.capitalize()
+                                    for column in columnsList]
+                        df = df[['Symbol', 'Strike', 'Expiry', 'Price',
+                                'Delta', 'Gamma', 'Theta', 'Vega', 'Iv']]
+                        lists[strategy]["optionChain"] = df
                 elif key == "trades":
                     lists[strategy]["trades"] = pd.read_json(strategyData[key])
                 elif key == "ohlc":
-                    lists[strategy]["ohlc"] = pd.read_json(strategyData[key])
+                    df = pd.read_json(strategyData[key])
+                    df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d %H:%M:%S')
+                    if lists[strategy].get("ohlc", None) is None:
+                        lists[strategy]["ohlc"] = df
+                    else:
+                        lists[strategy]["ohlc"] = pd.concat([lists[strategy]["ohlc"], df], ignore_index=True)
                 else:
                     lists[strategy][key] = strategyData[key]
-        displayData()
+        refreshData()
 
 
 def displayDataframe(data, key):
@@ -228,32 +239,77 @@ def plotOHLC(df):
     # Display the chart in Streamlit
     st.plotly_chart(fig, use_container_width=True)
 
+def plotOHLC1(dfIn: pd.DataFrame):
+    timeframe = '5min'
+
+    df = dfIn.copy()
+    # if df['Date/Time'].dtype == 'datetime64[ns]':
+    #     df['Date/Time'] = df['Date/Time'].dt.strftime("%Y/%m/%d %H:%M")
+
+    # dfIn['Date/Time'] = pd.to_datetime(dfIn['Date/Time'])
+    if df['Date/Time'].dtype != 'datetime64[ns]':
+        df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d %H:%M:%S')
+
+    df = dfIn.resample(timeframe, on='Date/Time').agg(
+        {'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).reset_index().dropna()
+    # Create the candlestick chart
+    fig = go.Figure(data=[go.Candlestick(x=df['Date/Time'],
+                                         open=df['Open'],
+                                         high=df['High'],
+                                         low=df['Low'],
+                                         close=df['Close'])])
+
+    # grab first and last observations from df.date and make a continuous date range from that
+    dt_all = pd.date_range(
+        start=df['Date/Time'].iloc[0], end=df['Date/Time'].iloc[-1], freq=timeframe)
+
+    # check which dates from your source that also accur in the continuous date range
+    dt_obs = [d.strftime("%Y-%m-%d %H:%M:%S") for d in df['Date/Time']]
+
+    # isolate missing timestamps
+    dt_breaks = [d for d in dt_all.strftime(
+        "%Y-%m-%d %H:%M:%S").tolist() if not d in dt_obs]
+    dt_breaks = pd.to_datetime(dt_breaks)
+
+    fig.update_xaxes(rangebreaks=[dict(dvalue=5*60*1000, values=dt_breaks)])
+
+    # Add title and axis labels
+    fig.update_layout(title=f'{dfIn.Ticker.values[0]}',
+                      xaxis_title='Date/Time',
+                      yaxis_title='Price')
+
+    # Display the chart in Streamlit
+    st.plotly_chart(fig, use_container_width=True)
+    dataframeContainer = st.expander("Check filtered dataframe")
+    dataframeContainer.write(df)
 
 def displayData():
     METRICS_PER_ROW = 3
     CHARTS_PER_ROW = 3
 
-    get_placeholder().empty()
-    with get_placeholder().container():
-        strategies = (key for key in get_data().copy())
-        selectedStrategy = st.selectbox(
-            'Select a strategy', strategies, key=f"{datetime.datetime.now()}")
-        if get_data().get(selectedStrategy, None) is None:
-            return
-        strategyData = get_data().copy()[selectedStrategy]
-        st.subheader(f'Last updated time: {strategyData["datetime"]}')
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(
-            ["Option Chain", "Trades", "Metrics", "Charts", "OHLC"])
+    #get_placeholder().empty()
+    # with st.empty():
+    strategies = (key for key in get_data().copy())
+    selectedStrategy = st.selectbox(
+        'Select a strategy', strategies, key=f"{datetime.datetime.now()}")
+    if get_data().get(selectedStrategy, None) is None:
+        return
+    strategyData = get_data().copy()[selectedStrategy]
+    st.subheader(f'Last updated time: {strategyData["datetime"]}')
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        ["Option Chain", "Trades", "Metrics", "Charts", "OHLC"])
 
-        with tab1:
+    with tab1:
+        if strategyData.get('optionChain', None) is not None:
+            st.dataframe(strategyData['optionChain'].reset_index(
+                drop=True), use_container_width=True)
+    with tab2:
+        if strategyData.get('trades', None) is not None:
+            mergedData = strategyData["trades"]
+
             if strategyData.get('optionChain', None) is not None:
-                st.dataframe(strategyData['optionChain'].reset_index(
-                    drop=True), use_container_width=True)
-        with tab2:
-            if strategyData.get('trades', None) is not None:
-                tradesData = strategyData["trades"]
                 optionChainData = strategyData["optionChain"]
-                mergedData = pd.merge(tradesData, optionChainData.rename(columns={
+                mergedData = pd.merge(mergedData, optionChainData.rename(columns={
                     "Symbol": "Instrument", "Price": "LTP"}), on="Instrument", how="inner")
                 reOrderedColumns = ["Instrument", "Buy/Sell", "Entry Date/Time", "Exit Date/Time", "Quantity", "Entry Price", "Exit Price", "LTP",
                                     "Strike", "Expiry", "Delta", "Gamma", "Theta", "Vega", "Iv"]
@@ -262,60 +318,89 @@ def displayData():
                 overallGreeks = mergedData[mergedData["Exit Price"].isnull(
                 )][["Delta", "Gamma", "Vega", "Theta", "Iv"]].aggregate("sum").to_json()
 
-                tab1, tab2 = st.tabs(["Trades", "Payoff"])
-                with tab1:
-                    st.dataframe(mergedData, use_container_width=True)
-                with tab2:
-                    if mergedData.shape[0] > 0:
-                        plotPayOff(
-                            mergedData[mergedData["Exit Price"].isnull()])
-        with tab3:
-            if strategyData.get('metrics', None) is not None:
-                metricsData = strategyData["metrics"]
-                col1, col2, col3 = st.columns(3)
-                for index, metric in enumerate(metricsData):
-                    with eval(f'col{(index % METRICS_PER_ROW) + 1}'):
-                        st.metric(
-                            label=metric, value=metricsData[metric], delta=metricsData[metric])
-        with tab4:
-            if strategyData.get('charts', None) is not None:
-                chartData = strategyData["charts"]
-                col1, col2, col3 = st.columns(3)
-                for index, chart in enumerate(chartData):
-                    with eval(f'col{(index % CHARTS_PER_ROW) + 1}'):
-                        plotChart(pd.DataFrame(
-                            chartData[chart], columns=[chart]))
+            tab1, tab2 = st.tabs(["Trades", "Payoff"])
+            with tab1:
+                st.dataframe(mergedData, use_container_width=True)
+            with tab2:
+                if mergedData.shape[0] > 0:
+                    plotPayOff(
+                        mergedData[mergedData["Exit Price"].isnull()])
+    with tab3:
+        if strategyData.get('metrics', None) is not None:
+            metricsData = strategyData["metrics"]
+            col1, col2, col3 = st.columns(3)
+            for index, metric in enumerate(metricsData):
+                with eval(f'col{(index % METRICS_PER_ROW) + 1}'):
+                    st.metric(
+                        label=metric, value=metricsData[metric], delta=metricsData[metric])
+    with tab4:
+        if strategyData.get('charts', None) is not None:
+            chartData = strategyData["charts"]
+            col1, col2, col3 = st.columns(3)
+            for index, chart in enumerate(chartData):
+                with eval(f'col{(index % CHARTS_PER_ROW) + 1}'):
+                    plotChart(pd.DataFrame(
+                        chartData[chart], columns=[chart]))
 
-        with tab5:
-            if strategyData.get('ohlc', None) is not None:
-                ohlcData = strategyData["ohlc"]
+    with tab5:
+        if strategyData.get('ohlc', None) is not None:
+            ohlcData = strategyData["ohlc"]
 
-                tickers = ohlcData['Ticker'].unique().tolist()
+            tickers = ohlcData['Ticker'].unique().tolist()
 
-                st.session_state.selectedTicker = st.selectbox(
-                    'Select a Ticker', tickers, key=f"{datetime.datetime.now()}")
+            # # Check if session state object exists
+            # if "selectedTicker" not in st.session_state:
+            #     st.session_state['selectedTicker'] = tickers[0]
+            # if 'oldTicker' not in st.session_state:
+            #     st.session_state['oldTicker'] = ""    
 
-                plotOHLC(ohlcData[ohlcData['Ticker'] ==
-                                  st.session_state.selectedTicker])
+            # # Check if value exists in the new options list. if it does retain the selection, else reset
+            # if st.session_state["selectedTicker"] not in tickers:
+            #     st.session_state["tickers"] = tickers[0]
+
+            # oldTicker = st.session_state["oldTicker"]
+            
+            # def tickerCallback():
+            #     st.session_state["oldTicker"] = st.session_state["selectedTicker"]
+            #     st.session_state["selectedTicker"] = st.session_state.newTicker
+            
+            st.session_state.selectedTicker = st.selectbox(
+                'Select a Ticker', tickers)
+                #on_change = tickerCallback)
+
+            plotOHLC(ohlcData[ohlcData['Ticker'] ==
+                                st.session_state.selectedTicker])
 
 
 def startSubscriber():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(subscribe())
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(subscribe())
+    except Exception as e:
+        print(f'There was an exception in startSubscriber. {e}')
+        startSubscriber()
 
 
-def run():
+
+def displayDataInLoop():
+    # while True:
+    #     print('Displaying data')
+    #     displayData()
+    #     time.sleep(1)
     displayData()
 
-    subscriberThread = threading.Thread(target=startSubscriber)
-    ctx = get_script_run_ctx()
-    add_script_run_ctx(subscriberThread)
-    subscriberThread.start()
-
+def run():
+    if 'subscriberThread' not in st.session_state:
+        subscriberThread = threading.Thread(target=startSubscriber)
+        ctx = get_script_run_ctx()
+        add_script_run_ctx(subscriberThread)
+        subscriberThread.start()
+        st.session_state.subscriberThread = subscriberThread
 
 def main():
     run()
+    displayData()
 
 
 if __name__ == "__main__":
