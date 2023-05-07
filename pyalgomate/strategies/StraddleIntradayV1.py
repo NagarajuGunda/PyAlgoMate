@@ -189,7 +189,7 @@ if __name__ == "__main__":
     start = datetime.datetime.now()
     feed = CustomCSVFeed.CustomCSVFeed()
     feed.addBarsFromParquets(dataFiles=[
-                             "pyalgomate/backtesting/data/2023/banknifty/*.parquet"], ticker=underlyingInstrument)
+                             "pyalgomate/backtesting/data/2022/*.parquet"], ticker=underlyingInstrument)
 
     print("")
     print(f"Time took in loading data <{datetime.datetime.now()-start}>")
