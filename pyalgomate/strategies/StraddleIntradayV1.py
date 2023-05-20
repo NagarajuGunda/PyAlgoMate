@@ -151,11 +151,11 @@ class StraddleIntradayV1(BaseOptionsGreeksStrategy):
                     entryPrice = entryOrder.getAvgFillPrice()
 
                     pnLPercentage = (
-                        pnl / entryPrice) * 100
+                        pnl / (entryPrice * self.quantity)) * 100
 
                     if pnLPercentage <= -self.buySL:
                         self.log(
-                            f'SL {self.buySL}% hit for {self.positionBuy.getInstrument()}. Exiting position!')
+                            f'SL {self.buySL}% hit for {self.positionBuy.getInstrument()}. Current PnL <{pnl}> and percentage <{pnLPercentage}>. Exiting position!')
                         self.state = State.PLACING_ORDERS
                         self.positionBuy.exitMarket()
                         self.positionBuy = None
@@ -167,7 +167,7 @@ class StraddleIntradayV1(BaseOptionsGreeksStrategy):
                     entryPrice = entryOrder.getAvgFillPrice()
                     if ltp > entryPrice:
                         self.log(
-                            f'LTP of {position.getInstrument()} has crossed SL <{entryPrice}>. Exiting position')
+                            f'LTP of {position.getInstrument()} has crossed SL <{entryPrice}>. Exiting position!')
                         self.state = State.PLACING_ORDERS
                         position.exitMarket()
                         self.positionCall = self.positionPut = None
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     start = datetime.datetime.now()
     feed = CustomCSVFeed.CustomCSVFeed()
     feed.addBarsFromParquets(dataFiles=[
-                             "pyalgomate/backtesting/data/2022/*.parquet"], ticker=underlyingInstrument)
+                             "pyalgomate/backtesting/data/test.parquet"], ticker=underlyingInstrument)
 
     print("")
     print(f"Time took in loading data <{datetime.datetime.now()-start}>")
@@ -197,7 +197,7 @@ if __name__ == "__main__":
 
     broker = BacktestingBroker(200000, feed)
     strat = StraddleIntradayV1(
-        feed=feed, broker=broker, underlying=underlyingInstrument, lotSize=25)
+        feed=feed, broker=broker, underlying=underlyingInstrument, lotSize=25, collectData=True)
 
     returnsAnalyzer = stratReturns.Returns()
     tradesAnalyzer = trades.Trades()

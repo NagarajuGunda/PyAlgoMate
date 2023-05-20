@@ -172,3 +172,32 @@ class RollingStraddleIntraday(BaseOptionsGreeksStrategy):
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
                 self.__reset__()
+
+
+if __name__ == "__main__":
+    from pyalgomate.backtesting import CustomCSVFeed
+    from pyalgomate.brokers import BacktestingBroker
+    from pyalgotrade.stratanalyzer import returns as stratReturns, drawdown, trades
+    import logging
+    logging.basicConfig(filename='RollingStraddleIntraday.log', level=logging.INFO)
+
+    underlyingInstrument = 'BANKNIFTY'
+
+    start = datetime.datetime.now()
+    feed = CustomCSVFeed.CustomCSVFeed()
+    feed.addBarsFromParquets(dataFiles=[
+                             "pyalgomate/backtesting/data/test.parquet"], ticker=underlyingInstrument)
+
+    print("")
+    print(f"Time took in loading data <{datetime.datetime.now()-start}>")
+    start = datetime.datetime.now()
+
+    broker = BacktestingBroker(200000, feed)
+    strat = RollingStraddleIntraday(
+        feed=feed, broker=broker, underlying=underlyingInstrument, lotSize=25)
+
+    strat.run()
+
+    print("")
+    print(
+        f"Time took in running the strategy <{datetime.datetime.now()-start}>")
