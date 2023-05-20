@@ -120,7 +120,7 @@ class OptionContract:
 
 
 class OptionGreeks:
-    def __init__(self, optionContract: OptionContract, price: float, delta: float, gamma: float, theta: float, vega: float, iv: float):
+    def __init__(self, optionContract: OptionContract, price: float, delta: float, gamma: float, theta: float, vega: float, iv: float, oi: float = 0):
         self.optionContract = optionContract
         self.price = price
         self.delta = delta
@@ -128,6 +128,7 @@ class OptionGreeks:
         self.theta = theta
         self.vega = vega
         self.iv = iv
+        self.oi = oi
 
     def __repr__(self):
-        return f'OptionGreeks(optionContract={self.optionContract}, price={self.price}, delta={self.delta}, gamma={self.gamma}, theta={self.theta}, vega={self.vega}, iv={self.iv}'
+        return f'OptionGreeks(optionContract={self.optionContract}, price={self.price}, delta={self.delta}, gamma={self.gamma}, theta={self.theta}, vega={self.vega}, iv={self.iv}, oi={self.oi}'
