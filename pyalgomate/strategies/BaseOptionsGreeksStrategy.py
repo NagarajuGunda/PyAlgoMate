@@ -343,6 +343,21 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             x.delta + abs(deltaValue) if optionType == 'p' else x.delta - abs(deltaValue)))
         return options[0] if len(options) > 0 else None
 
+    def getOTMStrikeGreeks(self, strike: int, optionType: str, expiry: datetime.date) -> list:
+        options = [opt for opt in self.__optionData.values(
+        ) if (opt.optionContract.type == optionType) and (opt.optionContract.expiry == expiry) and (opt.optionContract.strike > strike if optionType == 'c' else opt.optionContract.strike < strike)]
+        options.sort(key=lambda x: x.optionContract.strike,
+                     reverse=True if optionType == 'p' else False)
+        return options
+
+    def getITMStrikeGreeks(self, strike: int, optionType: str, expiry: datetime.date) -> list:
+        options = [opt for opt in self.__optionData.values(
+        ) if (opt.optionContract.type == optionType) and (opt.optionContract.expiry == expiry) and (opt.optionContract.strike < strike if optionType == 'c' else opt.optionContract.strike > strike)]
+        options.sort(key=lambda x: x.optionContract.strike,
+                     reverse=True if optionType == 'c' else False)
+        return options
+
+
     def getOverallDelta(self):
         delta = 0
         for instrument, openPosition in self.openPositions.copy().items():
@@ -364,6 +379,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         prices = []
         expiries = []
         types = []
+        ois = []
         for instrument, bar in bars.items():
             optionContract = self.getBroker().getOptionContract(instrument)
 
@@ -380,8 +396,9 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                 optionContracts.append(optionContract)
                 strikes.append(optionContract.strike)
                 prices.append(bar.getClose())
+                ois.append(bar.getExtraColumns().get("oi", 0))
                 if optionContract.expiry is None:
-                    expiry = utils.getNearestMonthlyExpiryDate(
+                    expiry = utils.getNearestWeeklyExpiryDate(
                         bar.getDateTime().date())
                 else:
                     expiry = optionContract.expiry
@@ -415,7 +432,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             vegaVal = greeks['vega'][i]
             ivVal = iv[i]
             self.__optionData[symbol] = OptionGreeks(
-                optionContract, prices[i], deltaVal, gammaVal, thetaVal, vegaVal, ivVal)
+                optionContract, prices[i], deltaVal, gammaVal, thetaVal, vegaVal, ivVal, ois[i])
 
     def getOptionData(self, bars) -> dict:
         self.__calculateGreeks(bars)
