@@ -36,15 +36,11 @@ def refreshData():
     with open(filePath, 'w') as f:
         f.write("")
 
-def plotChart(df):
-    # Add an index column to the DataFrame
-    df = df.reset_index().rename(columns={'index': 'index'})
+def plotChart(df, name):
+    value = pd.to_numeric(df['Value'])
+    color = np.where(value < 0, 'loss', 'profit')
 
-    y = df.columns[-1]
-    df[y] = pd.to_numeric(df[y])
-    df["color"] = np.where(df[y] < 0, 'loss', 'profit')
-
-    fig = px.area(df, x="index", y=y, color="color", color_discrete_map={'loss': 'orangered',
+    fig = px.area(df, x="Date/Time", y=value, title=name, color=color, color_discrete_map={'loss': 'orangered',
                                                                          'profit': 'lightgreen'})
     fig.for_each_trace(lambda trace: trace.update(fillcolor=trace.line.color))
 
@@ -76,11 +72,12 @@ async def subscribe():
                 elif key == "charts":
                     charts = strategyData[key]
                     if lists[strategy].get("charts", None) is None:
-                        lists[strategy]["charts"] = {}
+                        lists[strategy]["charts"] = pd.DataFrame(
+                            columns=['Date/Time', 'Name', 'Value'])
                     for chart in charts:
-                        if lists[strategy]["charts"].get(chart, None) is None:
-                            lists[strategy]["charts"][chart] = []
-                        lists[strategy]["charts"][chart].append(charts[chart])
+                        lists[strategy]["charts"] = pd.concat([lists[strategy]["charts"], pd.DataFrame({'Date/Time': [strategyData['datetime']],
+                                                                                                        'Name': [chart],
+                                                                                                        'Value': [charts[chart]]})], ignore_index=True)
                 elif key == 'optionChain':
                     optionChainDict = strategyData[key]
                     df = pd.DataFrame.from_dict(
@@ -138,7 +135,7 @@ def getOptionType(instrument):
 def plotPayOff(dataframe: pd.DataFrame):
     # Load the trades dataframe
     trades_df = dataframe
-    if trades_df.shape[0] == 0:
+    if trades_df.shape[0] == 0 or 'Strike' not in trades_df.columns:
         return
 
     # Define the strike price range for the options payoff chart
@@ -336,11 +333,11 @@ def displayData():
     with tab4:
         if strategyData.get('charts', None) is not None:
             chartData = strategyData["charts"]
+            charts = chartData['Name'].unique()
             col1, col2, col3 = st.columns(3)
-            for index, chart in enumerate(chartData):
+            for index, chart in enumerate(charts):
                 with eval(f'col{(index % CHARTS_PER_ROW) + 1}'):
-                    plotChart(pd.DataFrame(
-                        chartData[chart], columns=[chart]))
+                    plotChart(chartData[chartData['Name'] == chart], chart)
 
     with tab5:
         if strategyData.get('ohlc', None) is not None:
