@@ -78,9 +78,10 @@ class ThrishulStraddleIntradayV1(BaseOptionsGreeksStrategy):
                 self.log(
                     f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}. Closing all positions!')
                 self.closeAllPositions()
-        elif (self.state == State.LIVE) and (self.entryTime <= bars.getDateTime().time() < self.exitTime):
+        elif (self.state == State.LIVE) and (self.entryTime <= bars.getDateTime().time() < self.exitTime) and (self.haveLTP(self.underlying)):
             self.atmStrike = self.getATMStrike(
                 self.getLTP(self.underlying), self.strikeStep)
+            self.log('Initiating straddles')
             self.atmStraddle = self.initiateStraddle(
                 self.atmStrike, currentExpiry)
             self.upStraddle = self.initiateStraddle(

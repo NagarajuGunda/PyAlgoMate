@@ -33,7 +33,6 @@ class StraddleIntradayV2(BaseOptionsGreeksStrategy):
         self.lotSize = lotSize if lotSize is not None else 25
         self.lots = 1
         self.quantity = self.lotSize * self.lots
-        self.portfolioSL = 2000
         self.slPercentage = 30
 
         self.__reset__()
@@ -41,7 +40,7 @@ class StraddleIntradayV2(BaseOptionsGreeksStrategy):
     def __reset__(self):
         super().reset()
         # members that needs to be reset after exit time
-        self.maxSLCount = 2
+        self.initialMaxSLCount = self.maxSLCount = 3
         self.positions = []
 
     def onEnterOk(self, position: position):
@@ -62,7 +61,7 @@ class StraddleIntradayV2(BaseOptionsGreeksStrategy):
         if index < len(self.positions):
             self.positions.pop(index)
 
-        if self.maxSLCount > 0:
+        if self.maxSLCount == self.initialMaxSLCount - 1:
             if self.getCurrentDateTime().time() < self.exitTime:
                 self._enterShortStraddle(self.getCurrentDateTime().date())
         else:
@@ -137,13 +136,13 @@ class StraddleIntradayV2(BaseOptionsGreeksStrategy):
         elif self.state == State.ENTERED:
             for openPosition in self.positions:
                 if self.getLTP(openPosition['instrument']) > openPosition['stopLoss']:
-                    self.maxSLCount -= 1
                     if self.maxSLCount > 0:
                         self.log(
                             f"LTP of <{openPosition['instrument']}> has crossed stop loss <{openPosition['stopLoss']}>. Exiting position!")
                         for position in list(self.getActivePositions()):
                             if (position.getInstrument() == openPosition['instrument']) and (position.getEntryOrder().getId() == openPosition['entryOrderId']):
                                 self.state = State.PLACING_ORDERS
+                                self.maxSLCount -= 1
                                 position.exitMarket()
                                 openPosition['pop'] = True
                                 break
@@ -160,14 +159,14 @@ if __name__ == "__main__":
     from pyalgomate.backtesting import CustomCSVFeed
     from pyalgomate.brokers import BacktestingBroker
     import logging
-    logging.basicConfig(filename='StraddleIntraday.log', level=logging.INFO)
+    logging.basicConfig(filename='StraddleIntradayV2.log', level=logging.INFO)
 
     underlyingInstrument = 'BANKNIFTY'
 
     start = datetime.datetime.now()
     feed = CustomCSVFeed.CustomCSVFeed()
     feed.addBarsFromParquets(dataFiles=[
-                             "pyalgomate/backtesting/data/test.parquet"], ticker=underlyingInstrument)
+                             "pyalgomate/backtesting/data/2023/banknifty/*.parquet"], ticker=underlyingInstrument)
 
     print("")
     print(f"Time took in loading data <{datetime.datetime.now()-start}>")
