@@ -175,7 +175,7 @@ class CustomCSVBarFeed(BarFeed):
         df = pd.read_parquet(path)
         self.addBarsFromDataframe(df, ticker, timezone)
 
-    def addBarsFromParquets(self, dataFiles, ticker=None, timezone=None):
+    def addBarsFromParquets(self, dataFiles, ticker=None, startDate=None, endDate=None, timezone=None):
         df = None
         for files in dataFiles:
             for file in glob.glob(files):
@@ -187,6 +187,12 @@ class CustomCSVBarFeed(BarFeed):
 
         df = df.sort_values([self.__columnNames['ticker'], self.__columnNames['datetime']]).drop_duplicates(
             subset=[self.__columnNames['ticker'], self.__columnNames['datetime']], keep='first')
+
+        if startDate:
+            df = df[df[self.__columnNames['datetime']].dt.date >= startDate]
+            if not endDate:
+                endDate = startDate
+            df = df[df[self.__columnNames['datetime']].dt.date <= endDate]
 
         self.addBarsFromDataframe(df, ticker, timezone)
 
