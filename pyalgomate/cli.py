@@ -9,6 +9,14 @@ import pyalgomate.utils as utils
 # ZeroMQ Context
 context = zmq.Context()
 
+# Define the socket using the "Context"
+sock = context.socket(zmq.PUB)
+
+
+def valueChangedCallback(strategy, value):
+    jsonDump = json.dumps({strategy: value})
+    sock.send_json(jsonDump)
+
 
 @click.group()
 @click.pass_context
@@ -20,8 +28,13 @@ def cli(ctx):
 @cli.command(name='backtest')
 @click.option('--underlying', default='BANKNIFTY', help='Specify an underlying')
 @click.option('--data', prompt='Specify data file', multiple=True)
+@click.option('--port', help='Specify a zeroMQ port to send data to', default=5680, type=click.INT)
+@click.option('--send-to-ui', help='Specify if data needs to be sent to UI', default=False, type=click.BOOL)
 @click.pass_obj
-def runBacktest(strategyClass, underlying, data):
+def runBacktest(strategyClass, underlying, data, port, send_to_ui):
+    if send_to_ui:
+        sock.bind(f"tcp://127.0.0.1:{port}")
+
     from pyalgomate.backtesting import CustomCSVFeed
     from pyalgomate.brokers import BacktestingBroker
 
@@ -34,7 +47,8 @@ def runBacktest(strategyClass, underlying, data):
     start = datetime.datetime.now()
 
     broker = BacktestingBroker(200000, feed)
-    strat = strategyClass(feed=feed, broker=broker, underlying=underlying, lotSize=25)
+    strat = strategyClass(feed=feed, broker=broker, underlying=underlying, lotSize=25,
+                          callback=valueChangedCallback if send_to_ui is not None else None)
 
     strat.run()
 
@@ -47,27 +61,25 @@ def runBacktest(strategyClass, underlying, data):
 @click.option('--broker', prompt='Select a broker', type=click.Choice(['Finvasia', 'Zerodha']), help='Select a broker')
 @click.option('--mode', prompt='Select a trading mode', type=click.Choice(['paper', 'live']), help='Select a trading mode')
 @click.option('--underlying', help='Specify an underlying')
+@click.option('--collect-data', help='Specify if the data needs to be collected to data.csv', default=True, type=click.BOOL)
+@click.option('--port', help='Specify a zeroMQ port to send data to', default=5680, type=click.INT)
+@click.option('--send-to-ui', help='Specify if data needs to be sent to UI', default=True, type=click.BOOL)
+#@click.option('--register-options', help='Specify which expiry options to register', default=["Week"], type=click.STRING, multiple=True)
 @click.pass_obj
-def runLiveTrade(strategyClass, broker, mode, underlying):
+def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, send_to_ui):
     if not broker:
         raise click.UsageError('Please select a broker')
 
     if not mode:
         raise click.UsageError('Please select a mode')
 
+    if send_to_ui:
+        sock.bind(f"tcp://127.0.0.1:{port}")
+
     import yaml
     import pyotp
     import datetime
     import os
-
-    # Define the socket using the "Context"
-    sock = context.socket(zmq.PUB)
-    sock.bind("tcp://127.0.0.1:5680")
-
-    def valueChangedCallback(strategy, value):
-        jsonDump = json.dumps({strategy: value})
-        logger.debug(jsonDump)
-        sock.send_json(jsonDump)
 
     logger = logging.getLogger(__file__)
 
@@ -173,8 +185,8 @@ def runLiveTrade(strategyClass, broker, mode, underlying):
             broker = ZerodhaLiveBroker(api)
 
     strategy = strategyClass(feed=barFeed, broker=broker, underlying=underlyingInstrument,
-                       registeredOptionsCount=len(optionSymbols), lotSize=25,
-                       callback=valueChangedCallback, collectData=True)
+                             registeredOptionsCount=len(optionSymbols), lotSize=25,
+                             callback=valueChangedCallback if send_to_ui is not None else None, collectData=collect_data)
 
     strategy.run()
 
