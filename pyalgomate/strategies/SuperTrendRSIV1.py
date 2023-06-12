@@ -227,48 +227,5 @@ class SuperTrendRSIV1(BaseOptionsGreeksStrategy):
 
 
 if __name__ == "__main__":
-    from pyalgomate.backtesting import CustomCSVFeed
-    from pyalgomate.brokers import BacktestingBroker
-    from pyalgotrade.stratanalyzer import returns as stratReturns, drawdown, trades
-    import logging
-    logging.basicConfig(filename='SuperTrendRSIV1.log', level=logging.INFO)
-
-    underlyingInstrument = 'BANKNIFTY'
-
-    start = datetime.datetime.now()
-    feed = CustomCSVFeed.CustomCSVFeed()
-    feed.addBarsFromParquets(dataFiles=[
-                             "pyalgomate/backtesting/data/2023/banknifty/*.parquet"], ticker=underlyingInstrument)
-
-    print("")
-    print(f"Time took in loading data <{datetime.datetime.now()-start}>")
-    start = datetime.datetime.now()
-
-    broker = BacktestingBroker(200000, feed)
-    strat = SuperTrendRSIV1(
-        feed=feed, broker=broker, underlying=underlyingInstrument, lotSize=25)
-
-    returnsAnalyzer = stratReturns.Returns()
-    tradesAnalyzer = trades.Trades()
-    drawDownAnalyzer = drawdown.DrawDown()
-
-    strat.attachAnalyzer(returnsAnalyzer)
-    strat.attachAnalyzer(drawDownAnalyzer)
-    strat.attachAnalyzer(tradesAnalyzer)
-
-    strat.run()
-
-    print("")
-    print(
-        f"Time took in running the strategy <{datetime.datetime.now()-start}>")
-
-    print("")
-    print("Final portfolio value: ₹ %.2f" % strat.getResult())
-    print("Cumulative returns: %.2f %%" %
-          (returnsAnalyzer.getCumulativeReturns()[-1] * 100))
-    print("Max. drawdown: %.2f %%" % (drawDownAnalyzer.getMaxDrawDown() * 100))
-    print("Longest drawdown duration: %s" %
-          (drawDownAnalyzer.getLongestDrawDownDuration()))
-
-    print("")
-    print("Total trades: %d" % (tradesAnalyzer.getCount()))
+    from pyalgomate.cli import CliMain
+    CliMain(SuperTrendRSIV1)
