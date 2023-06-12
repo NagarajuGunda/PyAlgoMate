@@ -5,6 +5,7 @@ import json
 import logging
 import datetime
 import pyalgomate.utils as utils
+import inspect
 
 # ZeroMQ Context
 context = zmq.Context()
@@ -25,13 +26,26 @@ def cli(ctx):
     ctx.obj = strategyClass
 
 
+def checkDate(ctx, param, value):
+    try:
+        if value is None:
+            return value
+
+        _ = datetime.datetime.strptime(value, "%Y-%m-%d")
+        return value
+    except ValueError:
+        raise click.UsageError("Not a valid date: '{0}'.".format(value))
+
+
 @cli.command(name='backtest')
 @click.option('--underlying', default='BANKNIFTY', help='Specify an underlying')
 @click.option('--data', prompt='Specify data file', multiple=True)
 @click.option('--port', help='Specify a zeroMQ port to send data to', default=5680, type=click.INT)
 @click.option('--send-to-ui', help='Specify if data needs to be sent to UI', default=False, type=click.BOOL)
+@click.option('--from-date', help='Specify a from date', callback=checkDate,  default=None, type=click.STRING)
+@click.option('--to-date', help='Specify a to date', callback=checkDate, default=None, type=click.STRING)
 @click.pass_obj
-def runBacktest(strategyClass, underlying, data, port, send_to_ui):
+def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to_date):
     if send_to_ui:
         sock.bind(f"tcp://127.0.0.1:{port}")
 
@@ -40,13 +54,19 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui):
 
     start = datetime.datetime.now()
     feed = CustomCSVFeed.CustomCSVFeed()
-    feed.addBarsFromParquets(dataFiles=data, ticker=underlying)
+    feed.addBarsFromParquets(
+        dataFiles=data, ticker=underlying, startDate=datetime.datetime.strptime(from_date, "%Y-%m-%d").date() if from_date is not None else None, endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
 
     print("")
     print(f"Time took in loading data <{datetime.datetime.now()-start}>")
     start = datetime.datetime.now()
 
     broker = BacktestingBroker(200000, feed)
+
+    constructorArgs = inspect.signature(strategyClass.__init__).parameters
+    argNames = [param for param in constructorArgs]
+    click.echo(f"{strategyClass.__name__} takes {argNames}")
+
     strat = strategyClass(feed=feed, broker=broker, underlying=underlying, lotSize=25,
                           callback=valueChangedCallback if send_to_ui is not None else None)
 
@@ -64,9 +84,9 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui):
 @click.option('--collect-data', help='Specify if the data needs to be collected to data.csv', default=True, type=click.BOOL)
 @click.option('--port', help='Specify a zeroMQ port to send data to', default=5680, type=click.INT)
 @click.option('--send-to-ui', help='Specify if data needs to be sent to UI', default=True, type=click.BOOL)
-#@click.option('--register-options', help='Specify which expiry options to register', default=["Week"], type=click.STRING, multiple=True)
+@click.option('--register-options', help='Specify which expiry options to register. Allowed values are Weekly, NextWeekly, Monthly', default=["Weekly"], type=click.STRING, multiple=True)
 @click.pass_obj
-def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, send_to_ui):
+def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, send_to_ui, register_options):
     if not broker:
         raise click.UsageError('Please select a broker')
 
@@ -83,6 +103,8 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
 
     logger = logging.getLogger(__file__)
 
+    click.echo(f'broker <{broker}> mode <{mode}> underlying <{underlying}> collect-data <{collect_data}> port <{port}> send-to-ui <{send_to_ui}> register-options <{register_options}>')
+
     with open('cred.yml') as f:
         cred = yaml.load(f, Loader=yaml.FullLoader)
 
@@ -98,22 +120,22 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
         userToken = None
         tokenFile = 'shoonyakey.txt'
         if os.path.exists(tokenFile) and (datetime.datetime.fromtimestamp(os.path.getmtime(tokenFile)).date() == datetime.datetime.today().date()):
-            logger.info(f"Token has been created today already. Re-using it")
+            click.echo(f"Token has been created today already. Re-using it")
             with open(tokenFile, 'r') as f:
                 userToken = f.read()
-            logger.info(
+            click.echo(
                 f"userid {cred['user']} password ******** usertoken {userToken}")
             loginStatus = api.set_session(
                 userid=cred['user'], password=cred['pwd'], usertoken=userToken)
         else:
-            print(f"Logging in and persisting user token")
+            click.echo(f"Logging in and persisting user token")
             loginStatus = api.login(userid=cred['user'], password=cred['pwd'], twoFA=pyotp.TOTP(cred['factor2']).now(),
                                     vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
 
             with open(tokenFile, 'w') as f:
                 f.write(loginStatus.get('susertoken'))
 
-            logger.info(
+            click.echo(
                 f"{loginStatus.get('uname')}={loginStatus.get('stat')} token={loginStatus.get('susertoken')}")
 
         if loginStatus != None:
@@ -124,13 +146,20 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
 
             currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
                 datetime.datetime.now().date())
+            nextWeekExpiry = utils.getNextWeeklyExpiryDate(
+                datetime.datetime.now().date())
             monthlyExpiry = utils.getNearestMonthlyExpiryDate(
                 datetime.datetime.now().date())
-            monthlyExpiry = utils.getNextMonthlyExpiryDate(
-                datetime.datetime.now().date()) if monthlyExpiry == currentWeeklyExpiry else monthlyExpiry
 
-            optionSymbols = finvasia.broker.getOptionSymbols(
-                underlyingInstrument, currentWeeklyExpiry, ltp, 10)
+            if "Weekly" in register_options:
+                optionSymbols = finvasia.broker.getOptionSymbols(
+                    underlyingInstrument, currentWeeklyExpiry, ltp, 10)
+            if "NextWeekly" in register_options:
+                optionSymbols += finvasia.broker.getOptionSymbols(
+                    underlyingInstrument, nextWeekExpiry, ltp, 10)
+            if "Monthly" in register_options:
+                optionSymbols += finvasia.broker.getOptionSymbols(
+                    underlyingInstrument, monthlyExpiry, ltp, 10)
 
             optionSymbols = list(dict.fromkeys(optionSymbols))
 
@@ -165,13 +194,20 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
 
         currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
             datetime.datetime.now().date())
+        nextWeekExpiry = utils.getNextWeeklyExpiryDate(
+            datetime.datetime.now().date())
         monthlyExpiry = utils.getNearestMonthlyExpiryDate(
             datetime.datetime.now().date())
-        monthlyExpiry = utils.getNextMonthlyExpiryDate(
-            datetime.datetime.now().date()) if monthlyExpiry == currentWeeklyExpiry else monthlyExpiry
 
-        optionSymbols = zerodha.broker.getOptionSymbols(
-            underlyingInstrument, currentWeeklyExpiry, ltp, 10)
+        if "Weekly" in register_options:
+            optionSymbols = zerodha.broker.getOptionSymbols(
+                underlyingInstrument, currentWeeklyExpiry, ltp, 10)
+        if "NextWeekly" in register_options:
+            optionSymbols += zerodha.broker.getOptionSymbols(
+                underlyingInstrument, nextWeekExpiry, ltp, 10)
+        if "Monthly" in register_options:
+            optionSymbols += zerodha.broker.getOptionSymbols(
+                underlyingInstrument, monthlyExpiry, ltp, 10)
 
         optionSymbols = list(dict.fromkeys(optionSymbols))
 
@@ -179,14 +215,23 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
             api, [underlyingInstrument] + optionSymbols)
 
         barFeed = ZerodhaLiveFeed(api, tokenMappings)
+
         if mode == 'paper':
             broker = ZerodhaPaperTradingBroker(200000, barFeed)
         else:
             broker = ZerodhaLiveBroker(api)
 
-    strategy = strategyClass(feed=barFeed, broker=broker, underlying=underlyingInstrument,
-                             registeredOptionsCount=len(optionSymbols), lotSize=25,
-                             callback=valueChangedCallback if send_to_ui is not None else None, collectData=collect_data)
+    constructorArgs = inspect.signature(strategyClass.__init__).parameters
+    argNames = [param for param in constructorArgs]
+    click.echo(f"{strategyClass.__name__} takes {argNames}")
+
+    if "registeredOptionsCount" in argNames:
+        strategy = strategyClass(feed=barFeed, broker=broker, underlying=underlyingInstrument,
+                                 registeredOptionsCount=len(optionSymbols), lotSize=25,
+                                 callback=valueChangedCallback if send_to_ui is True else None, collectData=collect_data)
+    else:
+        strategy = strategyClass(feed=barFeed, broker=broker, underlying=underlyingInstrument, lotSize=25,
+                                 callback=valueChangedCallback if send_to_ui is True else None, collectData=collect_data)
 
     strategy.run()
 
