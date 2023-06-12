@@ -343,12 +343,18 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             x.delta + abs(deltaValue) if optionType == 'p' else x.delta - abs(deltaValue)))
         return options[0] if len(options) > 0 else None
 
-    def getOTMStrikeGreeks(self, strike: int, optionType: str, expiry: datetime.date) -> list:
+    def getNearestPremiumOption(self, optionType, premium, expiry):
+        options = [opt for opt in self.__optionData.values(
+        ) if opt.optionContract.type == optionType and opt.optionContract.expiry == expiry]
+        options.sort(key=lambda x: abs(x.price - premium))
+        return options[0] if len(options) > 0 else None
+
+    def getOTMStrikeGreeks(self, strike: int, optionType: str, expiry: datetime.date, numberOfOptions: int = -1) -> list:
         options = [opt for opt in self.__optionData.values(
         ) if (opt.optionContract.type == optionType) and (opt.optionContract.expiry == expiry) and (opt.optionContract.strike > strike if optionType == 'c' else opt.optionContract.strike < strike)]
         options.sort(key=lambda x: x.optionContract.strike,
                      reverse=True if optionType == 'p' else False)
-        return options
+        return options[:numberOfOptions]
 
     def getITMStrikeGreeks(self, strike: int, optionType: str, expiry: datetime.date) -> list:
         options = [opt for opt in self.__optionData.values(
@@ -431,6 +437,11 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             thetaVal = greeks['theta'][i]
             vegaVal = greeks['vega'][i]
             ivVal = iv[i]
+
+            if ois[i] <= 0:
+                if symbol in self.__optionData:
+                    ois[i] = self.__optionData[symbol].oi
+
             self.__optionData[symbol] = OptionGreeks(
                 optionContract, prices[i], deltaVal, gammaVal, thetaVal, vegaVal, ivVal, ois[i])
 
@@ -458,3 +469,6 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         options = [opt for opt in self.__optionContracts.values(
         ) if opt.type == type and opt.expiry == expiry and opt.underlying == underlying and opt.strike == strike]
         return options[0].symbol if len(options) > 0 else None
+    
+    def getOptionContracts(self):
+        return self.__optionContracts
