@@ -245,7 +245,7 @@ class ATMStraddleV1(BaseOptionsGreeksStrategy):
                 self.atmStrike = self.getATMStrike(
                     self.getLTP(self.getUnderlying()), 100)
 
-            if self.supertrend[self.underlying] is not None and len(self.supertrend[self.underlying]) > self.indicatorValuesToBeAvailable:
+            if self.underlying in self.supertrend and len(self.supertrend[self.underlying]) > self.indicatorValuesToBeAvailable:
                 currentExpiry = utils.getNearestWeeklyExpiryDate(
                     bars.getDateTime().date())
                 supertrendValue = self.supertrend[self.underlying][-1]
@@ -299,24 +299,5 @@ class ATMStraddleV1(BaseOptionsGreeksStrategy):
 
 
 if __name__ == "__main__":
-    from pyalgomate.backtesting import CustomCSVFeed
-    from pyalgomate.brokers import BacktestingBroker
-
-    underlyingInstrument = 'BANKNIFTY'
-
-    start = datetime.datetime.now()
-    feed = CustomCSVFeed.CustomCSVFeed()
-    feed.addBarsFromParquets(dataFiles=[
-                             "pyalgomate/backtesting/data/test.parquet"], ticker=underlyingInstrument)
-
-    print("")
-    print(f"Time took in loading data <{datetime.datetime.now()-start}>")
-    start = datetime.datetime.now()
-
-    broker = BacktestingBroker(200000, feed)
-    strat = ATMStraddleV1(feed=feed, broker=broker, lotSize=25)
-    strat.run()
-
-    print("")
-    print(
-        f"Time took in running the strategy <{datetime.datetime.now()-start}>")
+    from pyalgomate.cli import CliMain
+    CliMain(ATMStraddleV1)
