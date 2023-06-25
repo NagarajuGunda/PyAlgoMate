@@ -128,8 +128,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def reset(self):
         self.__optionData = dict()
-        self.openPositions = {}
-        self.closedPositions = {}
+        self.openPositions = set()
+        self.closedPositions = set()
         self.overallPnL = 0
         self.state = State.LIVE
 
@@ -178,7 +178,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         if self.state != State.LIVE:
             combinedPremium = 0
-            for instrument, openPosition in list(self.openPositions.items()):
+            for openPosition in self.openPositions.copy():
+                instrument = openPosition.getInstrument()
                 ltp = self.getLTP(instrument)
                 jsonData["metrics"][f"{instrument} PnL"] = jsonData["charts"][f"{instrument} PnL"] = self.getPnL(
                     openPosition)
@@ -209,7 +210,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         else:
             self.logger.info(f"{self.strategyName} {self.getCurrentDateTime()} {message}")
 
-    def getPnL(self, order: Order):
+    def getPnL(self, position: position):
+        order = position.getEntryOrder()
         if order is None or not self.haveLTP(order.getInstrument()):
             return 0
 
@@ -224,25 +226,21 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def getOverallPnL(self):
         pnl = 0
-        openPositions = self.openPositions.copy()
-        for instrument, openPosition in openPositions.items():
+        for openPosition in self.openPositions.copy():
             pnl += self.getPnL(openPosition)
 
-        closedPositions = self.closedPositions.copy()
-        for instrument, closedPositionByInstrument in closedPositions.items():
-            for closedPosition in closedPositionByInstrument:
-                entryOrder = closedPosition["entryOrder"]
-                exitOrder = closedPosition["exitOrder"]
-                entryPrice = entryOrder.getAvgFillPrice()
-                exitPrice = exitOrder.getAvgFillPrice()
+        for closedPosition in self.closedPositions.copy():
+            entryOrder = closedPosition.getEntryOrder()
+            exitOrder = closedPosition.getExitOrder()
+            entryPrice = entryOrder.getAvgFillPrice()
+            exitPrice = exitOrder.getAvgFillPrice()
 
-                if entryOrder.isBuy():
-                    pnl += (exitPrice * exitOrder.getQuantity()) - \
-                        (entryPrice * entryOrder.getQuantity())
-                else:
-                    pnl += (entryPrice * entryOrder.getQuantity()) - \
-                        (exitPrice * exitOrder.getQuantity())
-
+            if entryOrder.isBuy():
+                pnl += (exitPrice * exitOrder.getQuantity()) - \
+                    (entryPrice * entryOrder.getQuantity())
+            else:
+                pnl += (entryPrice * entryOrder.getQuantity()) - \
+                    (exitPrice * exitOrder.getQuantity())
         return pnl
 
     def onStart(self):
@@ -254,7 +252,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         action = "Buy" if position.getEntryOrder().isBuy() else "Sell"
         self.log(f"===== {action} Position opened: {position.getEntryOrder().getInstrument()} at <{execInfo.getDateTime()}> with price <{execInfo.getPrice()}> and quantity <{execInfo.getQuantity()}> =====")
 
-        self.openPositions[position.getInstrument()] = position.getEntryOrder()
+        self.openPositions.add(position)
 
         # Check if there is an order id already present in trade df for the same instrument
         if self.tradesDf[(self.tradesDf['Entry Order Id'] == position.getEntryOrder().getId())
@@ -281,30 +279,35 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             self.log(
                 f"Option greeks for {position.getInstrument()}\n{self.__optionData[position.getInstrument()]}", logging.DEBUG)
 
+    def getOpenPosition(self, id: int) -> position:
+        for position in self.openPositions.copy():
+            if position.getEntryOrder().getId() == id:
+                return position
+
+        return None
+
+    def isPendingOrdersCompleted(self):
+        for position in list(self.getActivePositions()):
+            if self.getOpenPosition(position.getEntryOrder().getId()) is None:
+                return False
+
+        return True
+
     def onExitOk(self, position: position):
         execInfo = position.getExitOrder().getExecutionInfo()
         self.log(
             f"===== Exited {position.getEntryOrder().getInstrument()} at {execInfo.getDateTime()} with price <{execInfo.getPrice()}> and quantity <{execInfo.getQuantity()}> =====")
 
-        if self.openPositions.get(position.getInstrument(), None) is None:
+        openPosition = self.getOpenPosition(position.getEntryOrder().getId())
+        if openPosition is None:
             self.log(
                 f"{execInfo.getDateTime()} - {position.getInstrument()} not found in open positions.")
             return
 
-        # Check if the symbol already exists in closedPositions
-        entryOrder = self.openPositions.pop(position.getInstrument())
-        if position.getInstrument() in self.closedPositions:
-            # Append the new exit and entry orders to the list of dictionaries for this symbol
-            self.closedPositions[position.getInstrument()].append({
-                "exitOrder": position.getExitOrder(),
-                "entryOrder": entryOrder
-            })
-        else:
-            # Create a new list of dictionaries for this symbol and append the new exit and entry orders
-            self.closedPositions[position.getInstrument()] = [{
-                "exitOrder": position.getExitOrder(),
-                "entryOrder": entryOrder
-            }]
+        self.openPositions.remove(openPosition)
+        self.closedPositions.add(openPosition)
+
+        entryOrder = openPosition.getEntryOrder()
 
         # Update the corresponding row in the tradesDf DataFrame with the exit information
         entryPrice = entryOrder.getAvgFillPrice()
@@ -313,8 +316,9 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         pnl = ((exitPrice - entryPrice) * entryOrder.getExecutionInfo().getQuantity()
                ) if entryOrder.isBuy() else ((entryPrice - exitPrice) * entryOrder.getExecutionInfo().getQuantity())
 
-        idx = self.tradesDf.loc[self.tradesDf['Instrument']
-                                == position.getInstrument()].index[-1]
+        idx = self.tradesDf.loc[(self.tradesDf['Instrument']
+                                == position.getInstrument()) & (self.tradesDf['Entry Order Id']
+                                == position.getEntryOrder().getId())].index[-1]
         self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Order Id', 'Exit Price', 'PnL', 'Date']] = [
             execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'), exitOrderId, exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d')]
         self.tradesDf.to_csv(self.tradesCSV, index=False)
@@ -366,7 +370,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def getOverallDelta(self):
         delta = 0
-        for instrument, openPosition in self.openPositions.copy().items():
+        for openPosition in self.openPositions.copy():
             delta += self.__optionData[openPosition.getInstrument()].delta if self.__optionData.get(
                 openPosition.getInstrument(), None) is not None else 0
 
