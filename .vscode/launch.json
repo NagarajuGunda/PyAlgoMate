@@ -29,6 +29,17 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "Python: Current File with Args",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false,            
+            "cwd": "${workspaceFolder}",
+            "env": {"PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"},
+            "args": ["backtest", "--data", "C:\\Personal\\Projects\\PyAlgoMate\\pyalgomate\\backtesting\\data\\09-05-23.parquet"]
         }
     ]
 }

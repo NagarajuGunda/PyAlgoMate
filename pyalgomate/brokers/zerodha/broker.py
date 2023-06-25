@@ -280,7 +280,7 @@ class ZerodhaLiveBroker(broker.Broker):
         logger.info(
             f'Retrieving {interval} timeframe historical data for {exchangeSymbol}')
         ret = self.__api.historical_data(
-            token, startTime, datetime.datetime.now(), interval=f'{interval}minute')
+            token, startTime, datetime.datetime.now(), interval=f'{interval if interval != "1" else ""}minute')
 
         if ret != None:
             df = pd.DataFrame(
@@ -453,7 +453,7 @@ class ZerodhaLiveBroker(broker.Broker):
             exchange = splitStrings[0] if len(splitStrings) > 1 else 'NSE'
             symbol = splitStrings[1] if len(
                 splitStrings) > 1 else order.getInstrument()
-            quantity = order.getQuantity()
+            quantity = int(order.getQuantity())
             price = order.getLimitPrice() if order.getType() in [
                 broker.Order.Type.LIMIT, broker.Order.Type.STOP_LIMIT] else 0
             stopPrice = order.getStopPrice() if order.getType() in [

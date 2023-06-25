@@ -118,14 +118,12 @@ class BreakoutV1(BaseOptionsGreeksStrategy):
                         position.exitMarket()
                 self.position = None
                 self.state = State.EXITED
-        elif self.state == State.PLACING_ORDERS:
             if len(list(self.getActivePositions())) == 0:
                 self.state = State.LIVE
                 return
-            for position in list(self.getActivePositions()):
-                if position.getInstrument() not in self.openPositions:
-                    return
-            self.state = State.ENTERED
+            if self.isPendingOrdersCompleted():
+                self.state = State.ENTERED
+                return
         elif self.state == State.ENTERED:
             ltp = self.getLTP(self.position.getInstrument())
             if ltp < self.positionSL:

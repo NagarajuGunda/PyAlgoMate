@@ -160,7 +160,7 @@ class WebSocketClient:
             self.__connected = False
 
         logger.info("Websocket disconnected")
-        self.__queue.put((WebSocketClient.Event.DISCONNECTED, None))
+        #self.__queue.put((WebSocketClient.Event.DISCONNECTED, None))
 
     def onError(self, exception):
         logger.error("Error: %s." % exception)
@@ -188,7 +188,10 @@ class WebSocketClient:
 
         if field == "tk":
             self.__onSubscriptionSucceeded(subscribeEvent)
-            return
+            #return
+
+        # if subscribeEvent.openInterest  > 0:
+        #     print(f'{subscribeEvent.instrument} OI <{subscribeEvent.openInterest}>')
 
         # dateTime = subscribeEvent.dateTime
         # instrument = subscribeEvent.instrument

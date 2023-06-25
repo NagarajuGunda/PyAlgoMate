@@ -162,16 +162,12 @@ class DeltaNeutralIntradayV2(BaseOptionsGreeksStrategy):
             if self.state != State.EXITED:
                 self.closeAllPositions()
         elif self.state == State.PLACING_ORDERS:
-            # Wait until both positions are entered
-            if self.positionCall is not None and self.positionPut is not None:
-                if self.positionCall.getInstrument() in self.openPositions and self.positionPut.getInstrument() in self.openPositions:
-                    if self.positionVega is not None:
-                        if self.positionVega.getInstrument() in self.openPositions:
-                            self.state = State.ENTERED
-                    else:
-                        self.state = State.ENTERED
-            elif self.positionCall is None and self.positionPut is None and self.positionVega is None:
+            if len(list(self.getActivePositions())) == 0:
                 self.state = State.LIVE
+                return
+            if self.isPendingOrdersCompleted():
+                self.state = State.ENTERED
+                return
         elif self.state == State.ENTERED:
             shouldDoAdjustments, callOptionGreeks, putOptionGreeks = self.shouldDoAdjustments(optionData)
 

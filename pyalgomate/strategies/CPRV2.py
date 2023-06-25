@@ -113,10 +113,9 @@ class CPRV2(BaseOptionsGreeksStrategy):
             if len(list(self.getActivePositions())) == 0:
                 self.state = State.LIVE
                 return
-            for position in list(self.getActivePositions()):
-                if position.getInstrument() not in self.openPositions:
-                    return
-            self.state = State.ENTERED
+            if self.isPendingOrdersCompleted():
+                self.state = State.ENTERED
+                return
 
     def onBars(self, bars):
         self.log(f"Bar date times - {bars.getDateTime()}", logging.DEBUG)

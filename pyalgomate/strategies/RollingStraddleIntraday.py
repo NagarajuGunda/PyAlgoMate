@@ -148,12 +148,12 @@ class RollingStraddleIntraday(BaseOptionsGreeksStrategy):
             if bars.getDateTime().time() >= self.entryTime and bars.getDateTime().time() < self.exitTime:
                 self.takePositions(currentExpiry)
         elif self.state == State.PLACING_ORDERS:
-            # Wait until both positions are entered
-            for position in self.getActivePositions().copy():
-                if not position.getEntryOrder().isFilled():
-                    return
-
-            self.state = State.ENTERED
+            if len(list(self.getActivePositions())) == 0:
+                self.state = State.LIVE
+                return
+            if self.isPendingOrdersCompleted():
+                self.state = State.ENTERED
+                return
         elif self.state == State.ENTERED:
             if self.canExitAllPositions(bars.getDateTime().time()):
                 self.closeAllPositions()

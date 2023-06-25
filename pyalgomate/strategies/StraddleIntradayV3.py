@@ -147,10 +147,12 @@ class StraddleIntradayV3(BaseOptionsGreeksStrategy):
                 f'Entry time <{self.entryTime}> is greater than current time<{bars.getDateTime()}>.')
             self._enterShortStraddle(bars.getDateTime().date())
         elif self.state == State.PLACING_ORDERS:
-            for position in list(self.getActivePositions()):
-                if position.getInstrument() not in self.openPositions:
-                    return
-            self.state = State.ENTERED
+            if len(list(self.getActivePositions())) == 0:
+                self.state = State.LIVE
+                return
+            if self.isPendingOrdersCompleted():
+                self.state = State.ENTERED
+                return
         elif self.state == State.ENTERED:
             if (self.adjustsmentsDone is False) and (self.overallPnL <= -self.adjustmentSL):
                 self.log(

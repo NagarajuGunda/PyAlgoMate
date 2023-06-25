@@ -66,10 +66,12 @@ class IronFlyV1(BaseOptionsGreeksStrategy):
                     f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}. Closing all positions!')
                 self.closeAllPositions()
         elif self.state == State.PLACING_ORDERS:
-            for position in list(self.getActivePositions()):
-                if position.getInstrument() not in self.openPositions:
-                    return
-            self.state = State.ENTERED
+            if len(list(self.getActivePositions())) == 0:
+                self.state = State.LIVE
+                return
+            if self.isPendingOrdersCompleted():
+                self.state = State.ENTERED
+                return
         elif (self.state == State.LIVE) and (self.entryTime <= bars.getDateTime().time() < self.exitTime):
             ltp = self.getLTP(self.underlying)
 

@@ -100,10 +100,12 @@ class StraddleIntradayV1(BaseOptionsGreeksStrategy):
                 f"Date/Time {bars.getDateTime()}. Taking initial positions!")
             self.state = State.PLACING_ORDERS
         elif self.state == State.PLACING_ORDERS:
-            for position in list(self.getActivePositions()):
-                if position.getInstrument() not in self.openPositions:
-                    return
-            self.state = State.ENTERED
+            if len(list(self.getActivePositions())) == 0:
+                self.state = State.LIVE
+                return
+            if self.isPendingOrdersCompleted():
+                self.state = State.ENTERED
+                return
         elif self.state == State.ENTERED:
             if self.positionCall is not None and self.positionPut is not None:
                 # Cut off position if threshold has reached and move SL to cost for opposite position
