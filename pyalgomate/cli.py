@@ -14,6 +14,28 @@ context = zmq.Context()
 sock = context.socket(zmq.PUB)
 
 
+def createStrategyInstance(strategyClass, argsDict):
+    # Get the parameters of the strategy class
+    parameters = inspect.signature(strategyClass).parameters
+
+    # Prepare the arguments for the constructor
+    constructorArgs = {}
+    for paramName, param in parameters.items():
+        if paramName in argsDict:
+            # Use the provided value if available
+            constructorArgs[paramName] = argsDict[paramName]
+        elif param.default != inspect.Parameter.empty:
+            # Use the default value if available
+            constructorArgs[paramName] = param.default
+        else:
+            # Parameter is required but not provided, raise an exception or handle the case as needed
+            raise ValueError(
+                f"Missing value for required parameter: {paramName}")
+
+    # Create an instance of the strategy class with the prepared arguments
+    return strategyClass(**constructorArgs)
+
+
 def valueChangedCallback(strategy, value):
     jsonDump = json.dumps({strategy: value})
     sock.send_json(jsonDump)
@@ -38,7 +60,7 @@ def checkDate(ctx, param, value):
 
 
 @cli.command(name='backtest')
-@click.option('--underlying', default='BANKNIFTY', help='Specify an underlying')
+@click.option('--underlying', default=['BANKNIFTY'], multiple=True, help='Specify an underlying')
 @click.option('--data', prompt='Specify data file', multiple=True)
 @click.option('--port', help='Specify a zeroMQ port to send data to', default=5680, type=click.INT)
 @click.option('--send-to-ui', help='Specify if data needs to be sent to UI', default=False, type=click.BOOL)
@@ -51,6 +73,12 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to
 
     from pyalgomate.backtesting import CustomCSVFeed
     from pyalgomate.brokers import BacktestingBroker
+
+    underlyings = underlying
+    if len(underlying) == 1:
+        underlying = underlying[0]
+    elif len(underlying) == 0:
+        underlying = None
 
     start = datetime.datetime.now()
     feed = CustomCSVFeed.CustomCSVFeed()
@@ -67,10 +95,17 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to
     argNames = [param for param in constructorArgs]
     click.echo(f"{strategyClass.__name__} takes {argNames}")
 
-    strat = strategyClass(feed=feed, broker=broker, underlying=underlying, lotSize=25,
-                          callback=valueChangedCallback if send_to_ui is not None else None)
+    argsDict = {
+        'feed': feed,
+        'broker': broker,
+        'underlying': underlying,
+        'underlyings': underlyings,
+        'lotSize': 25,
+        'callback': valueChangedCallback if send_to_ui else None
+    }
 
-    strat.run()
+    strategy = createStrategyInstance(strategyClass, argsDict)
+    strategy.run()
 
     print("")
     print(
@@ -80,7 +115,7 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to
 @cli.command(name='trade')
 @click.option('--broker', prompt='Select a broker', type=click.Choice(['Finvasia', 'Zerodha']), help='Select a broker')
 @click.option('--mode', prompt='Select a trading mode', type=click.Choice(['paper', 'live']), help='Select a trading mode')
-@click.option('--underlying', help='Specify an underlying')
+@click.option('--underlying', multiple=True, help='Specify an underlying')
 @click.option('--collect-data', help='Specify if the data needs to be collected to data.csv', default=True, type=click.BOOL)
 @click.option('--port', help='Specify a zeroMQ port to send data to', default=5680, type=click.INT)
 @click.option('--send-to-ui', help='Specify if data needs to be sent to UI', default=True, type=click.BOOL)
@@ -104,6 +139,12 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
     logger = logging.getLogger(__file__)
 
     click.echo(f'broker <{broker}> mode <{mode}> underlying <{underlying}> collect-data <{collect_data}> port <{port}> send-to-ui <{send_to_ui}> register-options <{register_options}>')
+
+    underlyings = underlying
+    if len(underlying) == 1:
+        underlying = underlying[0]
+    elif len(underlying) == 0:
+        underlying = None
 
     with open('cred.yml') as f:
         cred = yaml.load(f, Loader=yaml.FullLoader)
@@ -225,14 +266,18 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
     argNames = [param for param in constructorArgs]
     click.echo(f"{strategyClass.__name__} takes {argNames}")
 
-    if "registeredOptionsCount" in argNames:
-        strategy = strategyClass(feed=barFeed, broker=broker, underlying=underlyingInstrument,
-                                 registeredOptionsCount=len(optionSymbols), lotSize=25,
-                                 callback=valueChangedCallback if send_to_ui is True else None, collectData=collect_data)
-    else:
-        strategy = strategyClass(feed=barFeed, broker=broker, underlying=underlyingInstrument, lotSize=25,
-                                 callback=valueChangedCallback if send_to_ui is True else None, collectData=collect_data)
+    argsDict = {
+        'feed': barFeed,
+        'broker': broker,
+        'underlying': underlyingInstrument,
+        'underlyings': underlyings,
+        'registeredOptionsCount': len(optionSymbols),
+        'lotSize': 25,
+        'callback': valueChangedCallback if send_to_ui else None,
+        'collectData': collect_data
+    }
 
+    strategy = createStrategyInstance(strategyClass, argsDict)
     strategy.run()
 
 
