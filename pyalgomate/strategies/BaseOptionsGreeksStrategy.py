@@ -288,7 +288,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def isPendingOrdersCompleted(self):
         for position in list(self.getActivePositions()):
-            if self.getOpenPosition(position.getEntryOrder().getId()) is None:
+            if position.getEntryOrder() is None or self.getOpenPosition(position.getEntryOrder().getId()) is None:
                 return False
 
         return True
