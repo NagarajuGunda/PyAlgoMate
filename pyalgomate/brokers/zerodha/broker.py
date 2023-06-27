@@ -85,7 +85,7 @@ class ZerodhaPaperTradingBroker(BacktestingBroker):
             year = int(m.group(2)) + 2000
             expiry = utils.getNearestMonthlyExpiryDate(
                 datetime.date(year, month, 1))
-            return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", m.group(1))
+            return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", m.group(1).replace('NFO:BANKNIFTY', 'NSE:NIFTY BANK').replace('NFO:NIFTY', 'NSE:NIFTY INDEX'))
 
         m = re.match(r"([A-Z\:]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
 
@@ -246,7 +246,7 @@ class ZerodhaLiveBroker(broker.Broker):
             year = int(m.group(2)) + 2000
             expiry = utils.getNearestMonthlyExpiryDate(
                 datetime.date(year, month, 1))
-            return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", m.group(1))
+            return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", m.group(1).replace('NFO:BANKNIFTY', 'NSE:NIFTY BANK').replace('NFO:NIFTY', 'NSE:NIFTY INDEX'))
 
         m = re.match(r"([A-Z\:]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
 
