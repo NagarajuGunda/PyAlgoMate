@@ -74,10 +74,9 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to
     from pyalgomate.backtesting import CustomCSVFeed
     from pyalgomate.brokers import BacktestingBroker
 
-    underlyings = underlying
-    if len(underlying) == 1:
-        underlying = underlying[0]
-    elif len(underlying) == 0:
+    underlyings = list(underlying)
+
+    if len(underlyings) == 0:
         underlying = None
 
     start = datetime.datetime.now()
@@ -140,11 +139,7 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
 
     click.echo(f'broker <{broker}> mode <{mode}> underlying <{underlying}> collect-data <{collect_data}> port <{port}> send-to-ui <{send_to_ui}> register-options <{register_options}>')
 
-    underlyings = underlying
-    if len(underlying) == 1:
-        underlying = underlying[0]
-    elif len(underlying) == 0:
-        underlying = None
+    underlyings = list(underlying)
 
     with open('cred.yml') as f:
         cred = yaml.load(f, Loader=yaml.FullLoader)
@@ -180,11 +175,6 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
                 f"{loginStatus.get('uname')}={loginStatus.get('stat')} token={loginStatus.get('susertoken')}")
 
         if loginStatus != None:
-            underlyingInstrument = 'NSE|NIFTY BANK' if underlying is None else underlying
-
-            ltp = api.get_quotes('NSE', getFinvasiaToken(
-                api, underlyingInstrument))['lp']
-
             currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
                 datetime.datetime.now().date())
             nextWeekExpiry = utils.getNextWeeklyExpiryDate(
@@ -192,20 +182,29 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
             monthlyExpiry = utils.getNearestMonthlyExpiryDate(
                 datetime.datetime.now().date())
 
-            if "Weekly" in register_options:
-                optionSymbols = finvasia.broker.getOptionSymbols(
-                    underlyingInstrument, currentWeeklyExpiry, ltp, 10)
-            if "NextWeekly" in register_options:
-                optionSymbols += finvasia.broker.getOptionSymbols(
-                    underlyingInstrument, nextWeekExpiry, ltp, 10)
-            if "Monthly" in register_options:
-                optionSymbols += finvasia.broker.getOptionSymbols(
-                    underlyingInstrument, monthlyExpiry, ltp, 10)
+            if len(underlyings) == 0:
+                underlyings = ['NSE|NIFTY BANK']
+
+            optionSymbols = []
+
+            for underlying in underlyings:
+                ltp = api.get_quotes('NSE', getFinvasiaToken(
+                    api, underlying))['lp']
+
+                if "Weekly" in register_options:
+                    optionSymbols += finvasia.broker.getOptionSymbols(
+                        underlying, currentWeeklyExpiry, ltp, 10)
+                if "NextWeekly" in register_options:
+                    optionSymbols += finvasia.broker.getOptionSymbols(
+                        underlying, nextWeekExpiry, ltp, 10)
+                if "Monthly" in register_options:
+                    optionSymbols += finvasia.broker.getOptionSymbols(
+                        underlying, monthlyExpiry, ltp, 10)
 
             optionSymbols = list(dict.fromkeys(optionSymbols))
 
             tokenMappings = getFinvasiaTokenMappings(
-                api, ["NSE|NIFTY INDEX", underlyingInstrument] + optionSymbols)
+                api, underlyings + optionSymbols)
 
             barFeed = LiveTradeFeed(api, tokenMappings)
 
@@ -228,11 +227,6 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
         profile = api.profile()
         print(f"Welcome {profile.get('user_name')}")
 
-        underlyingInstrument = 'NSE:NIFTY BANK' if underlying is None else underlying
-
-        ltp = api.quote(underlyingInstrument)[
-            underlyingInstrument]["last_price"]
-
         currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
             datetime.datetime.now().date())
         nextWeekExpiry = utils.getNextWeeklyExpiryDate(
@@ -240,20 +234,29 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
         monthlyExpiry = utils.getNearestMonthlyExpiryDate(
             datetime.datetime.now().date())
 
-        if "Weekly" in register_options:
-            optionSymbols = zerodha.broker.getOptionSymbols(
-                underlyingInstrument, currentWeeklyExpiry, ltp, 10)
-        if "NextWeekly" in register_options:
-            optionSymbols += zerodha.broker.getOptionSymbols(
-                underlyingInstrument, nextWeekExpiry, ltp, 10)
-        if "Monthly" in register_options:
-            optionSymbols += zerodha.broker.getOptionSymbols(
-                underlyingInstrument, monthlyExpiry, ltp, 10)
+        if len(underlyings) == 0:
+            underlyings = ['NSE:NIFTY BANK']
+
+        optionSymbols = []
+
+        for underlying in underlyings:
+            ltp = api.quote(underlying)[
+                underlying]["last_price"]
+
+            if "Weekly" in register_options:
+                optionSymbols += zerodha.broker.getOptionSymbols(
+                    underlying, currentWeeklyExpiry, ltp, 10)
+            if "NextWeekly" in register_options:
+                optionSymbols += zerodha.broker.getOptionSymbols(
+                    underlying, nextWeekExpiry, ltp, 10)
+            if "Monthly" in register_options:
+                optionSymbols += zerodha.broker.getOptionSymbols(
+                    underlying, monthlyExpiry, ltp, 10)
 
         optionSymbols = list(dict.fromkeys(optionSymbols))
 
         tokenMappings = getZerodhaTokensList(
-            api, [underlyingInstrument] + optionSymbols)
+            api, underlyings + optionSymbols)
 
         barFeed = ZerodhaLiveFeed(api, tokenMappings)
 
@@ -269,7 +272,7 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
     argsDict = {
         'feed': barFeed,
         'broker': broker,
-        'underlying': underlyingInstrument,
+        'underlying': underlyings[0],
         'underlyings': underlyings,
         'registeredOptionsCount': len(optionSymbols),
         'lotSize': 25,
