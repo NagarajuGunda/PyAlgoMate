@@ -98,7 +98,7 @@ class PaperTradingBroker(BacktestingBroker):
         year = int(m.group(4)) + 2000
         expiry = datetime.date(
             year, datetime.datetime.strptime(month, '%b').month, day)
-        return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", m.group(1))
+        return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", m.group(1).replace('NFO|BANKNIFTY', 'NSE|NIFTY BANK').replace('NFO|NIFTY', 'NSE|NIFTY INDEX'))
 
     pass
 
@@ -376,7 +376,7 @@ class LiveBroker(broker.Broker):
         year = int(m.group(4)) + 2000
         expiry = datetime.date(
             year, datetime.datetime.strptime(month, '%b').month, day)
-        return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", m.group(1))
+        return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", m.group(1).replace('NFO|BANKNIFTY', 'NSE|NIFTY BANK').replace('NFO|NIFTY', 'NSE|NIFTY INDEX'))
 
     def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
         startTime = startTime.replace(hour=0, minute=0, second=0, microsecond=0)
