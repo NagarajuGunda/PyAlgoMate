@@ -24,7 +24,7 @@ listOfNseHolidays = set([
     pendulum.Date(2023, 4, 14),  # Dr.Baba Saheb Ambedkar Jayanti
     pendulum.Date(2023, 4, 21),  # Id-ul-Fitr
     pendulum.Date(2023, 5, 1),  # Maharashtra Day
-    pendulum.Date(2023, 6, 28),  # Id-ul-adha (Bakri Id)
+    pendulum.Date(2023, 6, 29),  # Id-ul-adha (Bakri Id)
     pendulum.Date(2023, 8, 15),  # Independence Day
     pendulum.Date(2023, 9, 19),  # Ganesh Chaturthi
     pendulum.Date(2023, 10, 2),  # Mahatma Gandhi Jayanti
