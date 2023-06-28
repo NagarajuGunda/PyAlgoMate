@@ -397,11 +397,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                 underlyingPrice = self.getUnderlyingPrice(
                     optionContract.underlying)
                 if underlyingPrice is None:
-                    underlyingPrice = self.getUnderlyingPrice(
-                        "NSE|NIFTY BANK" if optionContract.underlying == "NFO|BANKNIFTY" else "NSE|NIFTY INDEX")
-                    if underlyingPrice is None:
                         return
-                    optionContract.underlying = "NSE|NIFTY BANK" if optionContract.underlying == "NFO|BANKNIFTY" else "NSE|NIFTY INDEX"
                 underlyingPrices.append(underlyingPrice)
                 optionContracts.append(optionContract)
                 strikes.append(optionContract.strike)
@@ -468,8 +464,6 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                 self.__optionContracts[instrument] = optionContract
 
     def getOptionSymbol(self, underlying, expiry, strike, type):
-        underlying = underlying.replace('NSE', 'NFO').replace('NIFTY BANK', 'BANKNIFTY')
-
         options = [opt for opt in self.__optionContracts.values(
         ) if opt.type == type and opt.expiry == expiry and opt.underlying == underlying and opt.strike == strike]
         return options[0].symbol if len(options) > 0 else None
