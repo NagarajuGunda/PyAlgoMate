@@ -6,6 +6,7 @@ import logging
 import datetime
 import pyalgomate.utils as utils
 import inspect
+from pyalgomate.telegram import TelegramBot
 
 # ZeroMQ Context
 context = zmq.Context()
@@ -118,9 +119,10 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to
 @click.option('--collect-data', help='Specify if the data needs to be collected to data.csv', default=True, type=click.BOOL)
 @click.option('--port', help='Specify a zeroMQ port to send data to', default=5680, type=click.INT)
 @click.option('--send-to-ui', help='Specify if data needs to be sent to UI', default=True, type=click.BOOL)
+@click.option('--send-to-telegram', help='Specify if messages needs to be sent to telegram', default=True, type=click.BOOL)
 @click.option('--register-options', help='Specify which expiry options to register. Allowed values are Weekly, NextWeekly, Monthly', default=["Weekly"], type=click.STRING, multiple=True)
 @click.pass_obj
-def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, send_to_ui, register_options):
+def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, send_to_ui, send_to_telegram, register_options):
     if not broker:
         raise click.UsageError('Please select a broker')
 
@@ -142,7 +144,7 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
     underlyings = list(underlying)
 
     with open('cred.yml') as f:
-        cred = yaml.load(f, Loader=yaml.FullLoader)
+        creds = yaml.load(f, Loader=yaml.FullLoader)
 
     if broker == 'Finvasia':
         from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
@@ -150,9 +152,10 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
         import pyalgomate.brokers.finvasia as finvasia
         from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
 
+        cred = creds[broker]
+
         api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
                          websocket='wss://api.shoonya.com/NorenWSTP/')
-
         userToken = None
         tokenFile = 'shoonyakey.txt'
         if os.path.exists(tokenFile) and (datetime.datetime.fromtimestamp(os.path.getmtime(tokenFile)).date() == datetime.datetime.today().date()):
@@ -219,6 +222,8 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
         from pyalgomate.brokers.zerodha.feed import ZerodhaLiveFeed
         from pyalgomate.brokers.zerodha.broker import ZerodhaPaperTradingBroker, ZerodhaLiveBroker
 
+        cred = creds[broker]
+
         api = KiteExt()
         twoFA = pyotp.TOTP(cred['factor2']).now()
         api.login_with_credentials(
@@ -265,6 +270,12 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
         else:
             broker = ZerodhaLiveBroker(api)
 
+    if send_to_telegram:
+        telegramBot = TelegramBot(
+            creds['Telegram']['token'], creds['Telegram']['chatid'])
+    else:
+        telegramBot = None
+
     constructorArgs = inspect.signature(strategyClass.__init__).parameters
     argNames = [param for param in constructorArgs]
     click.echo(f"{strategyClass.__name__} takes {argNames}")
@@ -277,7 +288,8 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
         'registeredOptionsCount': len(optionSymbols),
         'lotSize': 25,
         'callback': valueChangedCallback if send_to_ui else None,
-        'collectData': collect_data
+        'collectData': collect_data,
+        'telegramBot': telegramBot
     }
 
     strategy = createStrategyInstance(strategyClass, argsDict)

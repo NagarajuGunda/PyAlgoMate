@@ -15,7 +15,7 @@ import pyalgomate.utils as utils
 from pyalgomate.strategies import OptionGreeks
 from pyalgomate.strategy.position import LongOpenPosition, ShortOpenPosition
 from py_vollib_vectorized import vectorized_implied_volatility, get_all_greeks
-
+from pyalgomate.telegram import TelegramBot
 
 class State(object):
     LIVE = 1
@@ -44,12 +44,14 @@ class Expiry(object):
 
 class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
-    def __init__(self, feed, broker, strategyName, logger: logging.Logger, callback=None, resampleFrequency=None, collectData=None):
+    def __init__(self, feed, broker, strategyName, logger: logging.Logger, callback=None, resampleFrequency=None, collectData=None,
+                 telegramBot:TelegramBot=None):
         super(BaseOptionsGreeksStrategy, self).__init__(feed, broker)
         self.marketEndTime = datetime.time(hour=15, minute=30)
         self.strategyName = strategyName
         self.logger = logger
         self.collectData = collectData
+        self.telegramBot = telegramBot
         self._observers = []
         self.__optionContracts = dict()
         self.reset()
@@ -209,6 +211,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             self.logger.debug(f"{self.strategyName} {self.getCurrentDateTime()} {message}")
         else:
             self.logger.info(f"{self.strategyName} {self.getCurrentDateTime()} {message}")
+            if self.telegramBot:
+                self.telegramBot.sendMessage(f"{self.strategyName} {self.getCurrentDateTime()} {message}")
 
     def getPnL(self, position: position):
         order = position.getEntryOrder()

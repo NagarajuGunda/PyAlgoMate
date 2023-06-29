@@ -21,3 +21,4 @@ kiteconnect
 py_vollib_vectorized
 talipp
 click
+python-telegram-bot
