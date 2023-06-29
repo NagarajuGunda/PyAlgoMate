@@ -82,8 +82,10 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to
 
     start = datetime.datetime.now()
     feed = CustomCSVFeed.CustomCSVFeed()
-    feed.addBarsFromParquets(
-        dataFiles=data, ticker=underlying, startDate=datetime.datetime.strptime(from_date, "%Y-%m-%d").date() if from_date is not None else None, endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
+    
+    for underlying in underlyings:
+        feed.addBarsFromParquets(
+            dataFiles=data, ticker=underlying, startDate=datetime.datetime.strptime(from_date, "%Y-%m-%d").date() if from_date is not None else None, endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
 
     print("")
     print(f"Time took in loading data <{datetime.datetime.now()-start}>")
@@ -98,7 +100,7 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to
     argsDict = {
         'feed': feed,
         'broker': broker,
-        'underlying': underlying,
+        'underlying': underlyings[0] if underlyings is not None else None,
         'underlyings': underlyings,
         'lotSize': 25,
         'callback': valueChangedCallback if send_to_ui else None
