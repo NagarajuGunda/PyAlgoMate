@@ -15,6 +15,7 @@ import pyalgomate.utils as utils
 from pyalgomate.strategies import OptionGreeks
 from pyalgomate.strategy.position import LongOpenPosition, ShortOpenPosition
 from py_vollib_vectorized import vectorized_implied_volatility, get_all_greeks
+from pyalgotrade.barfeed import csvfeed
 from pyalgomate.telegram import TelegramBot
 
 class State(object):
@@ -67,7 +68,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         if not os.path.exists("results"):
             os.mkdir("results")
 
-        if isinstance(self.getBroker(), BacktestingBroker):
+        if isinstance(self.getFeed(), csvfeed.BarFeed):
             self.tradesCSV = f"results/{self.strategyName}_backtest.csv"
         else:
             self.tradesCSV = f"results/{self.strategyName}_trades.csv"

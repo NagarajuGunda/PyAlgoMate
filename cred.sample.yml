@@ -1,13 +1,13 @@
 Finvasia:
-    user    : 'FA******'
-    pwd     : '********'
-    factor2 : 'Two Factor code'
-    vc      : 'FA******_U'
-    apikey  : 'Api Key'
-    imei    : 'abc1234'
+  user    : 'FA******'
+  pwd     : '********'
+  factor2 : 'Two Factor code'
+  vc      : 'FA******_U'
+  apikey  : 'Api Key'
+  imei    : 'abc1234'
 
 Zerodha:
 
 Telegram:
-    token: ':'
+  token: ':'
   chatid: '-XXXXXXXX'
