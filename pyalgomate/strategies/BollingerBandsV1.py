@@ -161,7 +161,7 @@ class BollingerBandsV1(BaseOptionsGreeksStrategy):
                         return
 
                     self.log(
-                        f'Found a bullish setup. Initiating a Ratro Backspread')
+                        f'Found a bullish setup. Initiating a Ratio Backspread')
                     self.state = State.PLACING_ORDERS
                     self.positionBearish.append(self.enterLong(
                         otmGreeks.optionContract.symbol, 2 * self.quantity))
@@ -190,7 +190,7 @@ class BollingerBandsV1(BaseOptionsGreeksStrategy):
                         return
 
                     self.log(
-                        f'Found a bearish setup. Initiating a Ratro Backspread')
+                        f'Found a bearish setup. Initiating a Ratio Backspread')
                     self.state = State.PLACING_ORDERS
                     self.positionBearish.append(self.enterLong(
                         otmGreeks.optionContract.symbol, 2 * self.quantity))
