@@ -77,13 +77,16 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to
 
     underlyings = list(underlying)
 
-    if len(underlyings) == 0:
-        underlying = None
-
     start = datetime.datetime.now()
     feed = CustomCSVFeed.CustomCSVFeed()
-    
-    for underlying in underlyings:
+
+    if len(underlyings) > 0:
+        underlying = underlyings[0]
+        for underlying in underlyings:
+            feed.addBarsFromParquets(
+                dataFiles=data, ticker=underlying, startDate=datetime.datetime.strptime(from_date, "%Y-%m-%d").date() if from_date is not None else None, endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
+    else:
+        underlying = 'BANKNIFTY'
         feed.addBarsFromParquets(
             dataFiles=data, ticker=underlying, startDate=datetime.datetime.strptime(from_date, "%Y-%m-%d").date() if from_date is not None else None, endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
 
@@ -100,7 +103,7 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to
     argsDict = {
         'feed': feed,
         'broker': broker,
-        'underlying': underlyings[0] if underlyings is not None else None,
+        'underlying': underlying,
         'underlyings': underlyings,
         'lotSize': 25,
         'callback': valueChangedCallback if send_to_ui else None
