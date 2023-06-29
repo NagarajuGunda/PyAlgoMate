@@ -31,7 +31,7 @@
             "justMyCode": false
         },
         {
-            "name": "Python: Current File with Args",
+            "name": "Python: Current File with Args - Backtest",
             "type": "python",
             "request": "launch",
             "program": "${file}",
@@ -39,7 +39,18 @@
             "justMyCode": false,            
             "cwd": "${workspaceFolder}",
             "env": {"PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"},
-            "args": ["backtest", "--data", "C:\\Personal\\Projects\\PyAlgoMate\\pyalgomate\\backtesting\\data\\09-05-23.parquet"]
+            "args": ["backtest", "--data", "C:\\Personal\\Projects\\PyAlgoMate\\pyalgomate\\backtesting\\data\\2023\\banknifty\\04.parquet", "--from-date", "2023-04-27", "--to-date", "2023-04-27", "--underlying", "BANKNIFTY", "--underlying", "NIFTY"]
+        },
+        {
+            "name": "Python: Current File with Args - Paper Trade",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false,            
+            "cwd": "${workspaceFolder}",
+            "env": {"PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"},
+            "args": ["trade", "--broker", "Finvasia", "--mode", "paper", "--underlying", "NSE|NIFTY BANK", "--underlying", "NSE|NIFTY INDEX"]
         }
     ]
 }
