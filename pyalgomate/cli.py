@@ -65,10 +65,18 @@ def checkDate(ctx, param, value):
 @click.option('--data', prompt='Specify data file', multiple=True)
 @click.option('--port', help='Specify a zeroMQ port to send data to', default=5680, type=click.INT)
 @click.option('--send-to-ui', help='Specify if data needs to be sent to UI', default=False, type=click.BOOL)
+@click.option('--send-to-telegram', help='Specify if messages needs to be sent to telegram', default=False, type=click.BOOL)
 @click.option('--from-date', help='Specify a from date', callback=checkDate,  default=None, type=click.STRING)
 @click.option('--to-date', help='Specify a to date', callback=checkDate, default=None, type=click.STRING)
 @click.pass_obj
-def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to_date):
+def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_telegram, from_date, to_date):
+    import yaml
+
+    if len(underlying) == 0:
+        underlying = ['BANKNIFTY']
+
+    underlyings = list(underlying)
+
     if send_to_ui:
         sock.bind(f"tcp://127.0.0.1:{port}")
 
@@ -80,21 +88,28 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to
     start = datetime.datetime.now()
     feed = CustomCSVFeed.CustomCSVFeed()
 
-    if len(underlyings) > 0:
-        underlying = underlyings[0]
-        for underlying in underlyings:
-            feed.addBarsFromParquets(
-                dataFiles=data, ticker=underlying, startDate=datetime.datetime.strptime(from_date, "%Y-%m-%d").date() if from_date is not None else None, endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
-    else:
-        underlying = 'BANKNIFTY'
+    for underlying in underlyings:
         feed.addBarsFromParquets(
-            dataFiles=data, ticker=underlying, startDate=datetime.datetime.strptime(from_date, "%Y-%m-%d").date() if from_date is not None else None, endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
+            dataFiles=data,
+            ticker=underlying,
+            startDate=datetime.datetime.strptime(
+                from_date, "%Y-%m-%d").date() if from_date is not None else None,
+            endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
 
     print("")
     print(f"Time took in loading data <{datetime.datetime.now()-start}>")
     start = datetime.datetime.now()
 
     broker = BacktestingBroker(200000, feed)
+
+    with open('cred.yml') as f:
+        creds = yaml.load(f, Loader=yaml.FullLoader)
+
+    if send_to_telegram:
+        telegramBot = TelegramBot(
+            creds['Telegram']['token'], creds['Telegram']['chatid'])
+    else:
+        telegramBot = None
 
     constructorArgs = inspect.signature(strategyClass.__init__).parameters
     argNames = [param for param in constructorArgs]
@@ -103,10 +118,11 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to
     argsDict = {
         'feed': feed,
         'broker': broker,
-        'underlying': underlying,
+        'underlying': underlyings[0],
         'underlyings': underlyings,
         'lotSize': 25,
-        'callback': valueChangedCallback if send_to_ui else None
+        'callback': valueChangedCallback if send_to_ui else None,
+        'telegramBot': telegramBot
     }
 
     strategy = createStrategyInstance(strategyClass, argsDict)
@@ -115,16 +131,21 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, from_date, to
     print("")
     print(
         f"Time took in running the strategy <{datetime.datetime.now()-start}>")
+    
+    if telegramBot:
+        telegramBot.stop()  # Signal the stop event
+        telegramBot.waitUntilFinished()
+        telegramBot.delete()  # Delete the TelegramBot instance
 
 
 @cli.command(name='trade')
 @click.option('--broker', prompt='Select a broker', type=click.Choice(['Finvasia', 'Zerodha']), help='Select a broker')
 @click.option('--mode', prompt='Select a trading mode', type=click.Choice(['paper', 'live']), help='Select a trading mode')
 @click.option('--underlying', multiple=True, help='Specify an underlying')
-@click.option('--collect-data', help='Specify if the data needs to be collected to data.csv', default=True, type=click.BOOL)
+@click.option('--collect-data', help='Specify if the data needs to be collected to data.csv', default=False, type=click.BOOL)
 @click.option('--port', help='Specify a zeroMQ port to send data to', default=5680, type=click.INT)
-@click.option('--send-to-ui', help='Specify if data needs to be sent to UI', default=True, type=click.BOOL)
-@click.option('--send-to-telegram', help='Specify if messages needs to be sent to telegram', default=True, type=click.BOOL)
+@click.option('--send-to-ui', help='Specify if data needs to be sent to UI', default=False, type=click.BOOL)
+@click.option('--send-to-telegram', help='Specify if messages needs to be sent to telegram', default=False, type=click.BOOL)
 @click.option('--register-options', help='Specify which expiry options to register. Allowed values are Weekly, NextWeekly, Monthly', default=["Weekly"], type=click.STRING, multiple=True)
 @click.pass_obj
 def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, send_to_ui, send_to_telegram, register_options):
@@ -142,9 +163,7 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
     import datetime
     import os
 
-    logger = logging.getLogger(__file__)
-
-    click.echo(f'broker <{broker}> mode <{mode}> underlying <{underlying}> collect-data <{collect_data}> port <{port}> send-to-ui <{send_to_ui}> register-options <{register_options}>')
+    click.echo(f'broker <{broker}> mode <{mode}> underlying <{underlying}> collect-data <{collect_data}> port <{port}> send-to-ui <{send_to_ui}> send-to-telegram <{send_to_telegram}> register-options <{register_options}>')
 
     underlyings = list(underlying)
 
@@ -299,6 +318,11 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
 
     strategy = createStrategyInstance(strategyClass, argsDict)
     strategy.run()
+
+    if telegramBot:
+        telegramBot.stop()  # Signal the stop event
+        telegramBot.waitUntilFinished()
+        telegramBot.delete()  # Delete the TelegramBot instance
 
 
 def CliMain(cls):
