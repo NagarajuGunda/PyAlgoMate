@@ -55,6 +55,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.telegramBot = telegramBot
         self._observers = []
         self.__optionContracts = dict()
+        self.mae = dict()
+        self.mfe = dict()
         self.reset()
 
         # build option contracts
@@ -77,7 +79,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             self.tradesDf = pd.read_csv(self.tradesCSV, index_col=False)
         else:
             self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Entry Order Id', 'Exit Date/Time', 'Exit Order Id',
-                                                  'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL', 'Date'])
+                                                  'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL', 'Date', 'MAE', 'MFE'])
 
         self.dataColumns = ["Ticker", "Date/Time", "Open", "High",
                                 "Low", "Close", "Volume", "Open Interest"]
@@ -124,6 +126,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                     self.getBroker()._unregisterOrder(order)
                 self.getBroker().notifyOrderEvent(broker.OrderEvent(
                     order, broker.OrderEvent.Type.FILLED, orderExecutionInfo))
+                self.mae[openPosition['Entry Order Id']] = openPosition['MAE']
+                self.mae[openPosition['Entry Order Id']] = openPosition['MFE']
 
             if len(openPositions) > 0:
                 # Sleep so that the order notifications are acknowledged
@@ -156,6 +160,22 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def on1MinBars(self, bars):
         self.log(f"On Resampled Bars - Date/Time - {bars.getDateTime()}", logging.DEBUG)
+
+        # Calculate MAE and MFE
+        for position in self.openPositions.copy():
+            pnl = self.getPnL(position)
+            orderId = position.getEntryOrder().getId()
+
+            if pnl < 0:
+                if orderId in self.mae and pnl < self.mae[orderId]:
+                        self.mae[orderId] = pnl
+                else:
+                    self.mae[orderId] = pnl
+            else:
+                if orderId in self.mfe and pnl > self.mfe[orderId]:
+                        self.mfe[orderId] = pnl
+                else:
+                    self.mfe[orderId] = pnl
 
         jsonData = {
             "datetime": bars.getDateTime().strftime('%Y-%m-%d %H:%M:%S'),
@@ -264,17 +284,21 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                          & (self.tradesDf['Instrument'] == position.getInstrument())
                          ].shape[0] == 0:
             # Append a new row to the tradesDf DataFrame with the trade information
-            newRow = {'Entry Date/Time': execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'),
-                    'Entry Order Id': position.getEntryOrder().getId(),
-                    'Exit Date/Time': None,
-                    'Exit Order Id': None,
-                    'Instrument': position.getInstrument(),
-                    'Buy/Sell': "Buy" if position.getEntryOrder().isBuy() else "Sell",
-                    'Quantity': execInfo.getQuantity(),
-                    'Entry Price': position.getEntryOrder().getAvgFillPrice(),
-                    'Exit Price': None,
-                    'PnL': None,
-                    'Date': None}
+            newRow = {
+                'Entry Date/Time': execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'),
+                'Entry Order Id': position.getEntryOrder().getId(),
+                'Exit Date/Time': None,
+                'Exit Order Id': None,
+                'Instrument': position.getInstrument(),
+                'Buy/Sell': "Buy" if position.getEntryOrder().isBuy() else "Sell",
+                'Quantity': execInfo.getQuantity(),
+                'Entry Price': position.getEntryOrder().getAvgFillPrice(),
+                'Exit Price': None,
+                'PnL': None,
+                'Date': None,
+                'MAE': None,
+                'MFE': None
+                }
             self.tradesDf = pd.concat([self.tradesDf, pd.DataFrame(
                 [newRow], columns=self.tradesDf.columns)], ignore_index=True)
 
@@ -313,19 +337,22 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.closedPositions.add(openPosition)
 
         entryOrder = openPosition.getEntryOrder()
+        entryOrderId = position.getEntryOrder().getId()
 
         # Update the corresponding row in the tradesDf DataFrame with the exit information
         entryPrice = entryOrder.getAvgFillPrice()
         exitPrice = position.getExitOrder().getAvgFillPrice()
         exitOrderId = position.getExitOrder().getId()
+        mae = self.mae.get(entryOrderId, None)
+        mfe = self.mfe.get(entryOrderId, None)
         pnl = ((exitPrice - entryPrice) * entryOrder.getExecutionInfo().getQuantity()
                ) if entryOrder.isBuy() else ((entryPrice - exitPrice) * entryOrder.getExecutionInfo().getQuantity())
 
         idx = self.tradesDf.loc[(self.tradesDf['Instrument']
                                 == position.getInstrument()) & (self.tradesDf['Entry Order Id']
-                                == position.getEntryOrder().getId())].index[-1]
-        self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Order Id', 'Exit Price', 'PnL', 'Date']] = [
-            execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'), exitOrderId, exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d')]
+                                == entryOrderId)].index[-1]
+        self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Order Id', 'Exit Price', 'PnL', 'Date', 'MAE', 'MFE']] = [
+            execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'), exitOrderId, exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d'), mae, mfe]
         self.tradesDf.to_csv(self.tradesCSV, index=False)
 
         self.log(
