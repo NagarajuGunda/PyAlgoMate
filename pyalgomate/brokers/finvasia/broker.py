@@ -71,9 +71,38 @@ def getFinvasiaTokenMappings(api, exchangeSymbols):
     return tokenMappings
 
 
+def getHistoricalData(api, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
+    startTime = startTime.replace(hour=0, minute=0, second=0, microsecond=0)
+    splitStrings = exchangeSymbol.split('|')
+    exchange = splitStrings[0]
+
+    logger.info(
+        f'Retrieving {interval} timeframe historical data for {exchangeSymbol}')
+    ret = api.get_time_price_series(exchange=exchange, token=getFinvasiaToken(
+        api, exchangeSymbol), starttime=startTime.timestamp(), interval=interval)
+    if ret != None:
+        df = pd.DataFrame(
+            ret)[['time', 'into', 'inth', 'intl', 'intc', 'v', 'oi']]
+        df = df.rename(columns={'time': 'Date/Time', 'into': 'Open', 'inth': 'High',
+                                'intl': 'Low', 'intc': 'Close', 'v': 'Volume', 'oi': 'Open Interest'})
+        df[['Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']] = df[[
+            'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']].astype(float)
+        df = df.sort_values('Date/Time')
+        logger.info(f'Retrieved {df.shape[0]} rows of historical data')
+        return df
+    else:
+        return pd.DataFrame(columns=['Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest'])
+
 class PaperTradingBroker(BacktestingBroker):
     """A Finvasia paper trading broker.
-    """
+    """    
+    def __init__(self, cash, barFeed, fee=0.0025):
+        super().__init__(cash, barFeed, fee)
+        
+        self.__api = barFeed.getApi()
+
+    def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
+        return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
         symbol = 'NFO|NIFTY'
@@ -379,29 +408,7 @@ class LiveBroker(broker.Broker):
         return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", m.group(1).replace('NFO|BANKNIFTY', 'NSE|NIFTY BANK').replace('NFO|NIFTY', 'NSE|NIFTY INDEX'))
 
     def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
-        startTime = startTime.replace(hour=0, minute=0, second=0, microsecond=0)
-        splitStrings = exchangeSymbol.split('|')
-        exchange = splitStrings[0]
-
-        logger.info(
-            f'Retrieving {interval} timeframe historical data for {exchangeSymbol}')
-        ret = self.__api.get_time_price_series(exchange=exchange, token=getFinvasiaToken(
-            self.__api, exchangeSymbol), starttime=startTime.timestamp(), interval=interval)
-
-        if ret != None:
-            df = pd.DataFrame(
-                ret)[['time', 'into', 'inth', 'intl', 'intc', 'v', 'oi']]
-            df = df.rename(columns={'time': 'Date/Time', 'into': 'Open', 'inth': 'High',
-                                    'intl': 'Low', 'intc': 'Close', 'v': 'Volume', 'oi': 'Open Interest'})
-            
-            df[['Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']] = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']].astype(float)
-
-            df = df.sort_values('Date/Time')
-            
-            logger.info(f'Retrieved {df.shape[0]} rows of historical data')
-            return df
-        else:
-            return pd.DataFrame(columns=['Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest'])
+        return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
 
     def __init__(self, api: ShoonyaApi):
         super(LiveBroker, self).__init__()
