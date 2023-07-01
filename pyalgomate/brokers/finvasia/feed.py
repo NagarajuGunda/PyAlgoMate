@@ -233,6 +233,9 @@ class LiveTradeFeed(MyBarFeed):
         self.__stopped = False
         self.__orderBookUpdateEvent = observer.Event()
 
+    def getApi(self):
+        return self.__api
+
     # Factory method for testing purposes.
     def buildWebSocketClientThread(self):
         return wsclient.WebSocketClientThread(self.__api, self.__channels)
