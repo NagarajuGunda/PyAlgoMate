@@ -8,38 +8,35 @@ class TelegramBot:
         self.bot = Bot(token=botToken)
         self.channelId = channelId
         self.messageQueue = asyncio.Queue()
-        self.loop = None
+        self.loop = asyncio.get_event_loop()
         self.sendThread = threading.Thread(target=self._runLoop)
         self.sendThread.daemon = True
-        # Event to signal when the worker thread is ready
         self.readyEvent = threading.Event()
-        self.stopEvent = threading.Event()  # Event to signal the stop signal
+        self.stopEvent = threading.Event()
         self.sendThread.start()
 
     def sendMessage(self, message):
-        self.readyEvent.wait()  # Wait until the worker thread is ready
+        self.readyEvent.wait()
+        self.loop.call_soon_threadsafe(self._pushMessage, message)
+
+    def _pushMessage(self, message):
         asyncio.run_coroutine_threadsafe(
             self.messageQueue.put(message), self.loop)
 
     def _runLoop(self):
-        self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.loop.run_until_complete(self._sendMessages())
 
     async def _sendMessages(self):
-        self.readyEvent.set()  # Signal that the worker thread is ready
+        self.readyEvent.set()
         while True:
             message = await self.messageQueue.get()
-            # Add a delay of 1 second between each message send
-            await asyncio.sleep(1)
-            try:
-                await self._safeSend(message)
-            except Exception as e:
-                print(f"Error sending message: {str(e)}")
+            await asyncio.sleep(4)  # Add a delay between each message send
+            await self._safeSend(message)
             self.messageQueue.task_done()
 
             if self.stopEvent.is_set() and self.messageQueue.empty():
-                break  # Exit the loop if stop signal is received and queue is empty
+                break
 
     async def _safeSend(self, message):
         try:
@@ -48,7 +45,7 @@ class TelegramBot:
             print(f"Error sending message: {str(e)}")
 
     def stop(self):
-        self.stopEvent.set()  # Set the stop signal
+        self.stopEvent.set()
 
     def delete(self):
         self.stop()
@@ -60,10 +57,9 @@ class TelegramBot:
 
 
 if __name__ == "__main__":
-    bot = TelegramBot(
-        "botid", "-chatid")
+    bot = TelegramBot("botid", "-chatid")
     bot.sendMessage("Hello, world!")
-    bot.stop()  # Signal the stop event
+    bot.stop()
     bot.waitUntilFinished()
-    bot.delete()  # Delete the TelegramBot instance
+    bot.delete()
     print("All messages sent. TelegramBot instance deleted. Exiting the process.")
