@@ -231,9 +231,9 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         if level == logging.DEBUG:
             self.logger.debug(f"{self.strategyName} {self.getCurrentDateTime()} {message}")
         else:
-            self.logger.info(f"{self.strategyName} {self.getCurrentDateTime()} {message}")
+            self.logger.info(f"\n📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n\n{message}\n\n")
             if self.telegramBot:
-                self.telegramBot.sendMessage(f"{self.strategyName} {self.getCurrentDateTime()} {message}")
+                self.telegramBot.sendMessage(f"📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n{message}")
 
     def getPnL(self, position: position):
         order = position.getEntryOrder()
@@ -275,7 +275,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
     def onEnterOk(self, position: position):
         execInfo = position.getEntryOrder().getExecutionInfo()
         action = "Buy" if position.getEntryOrder().isBuy() else "Sell"
-        self.log(f"===== {action} Position opened: {position.getEntryOrder().getInstrument()} at <{execInfo.getDateTime()}> with price <{execInfo.getPrice()}> and quantity <{execInfo.getQuantity()}> =====")
+        message = f'{"🔴" if action == "Sell" else "🟢"} position opened\n\n🔑 Order ID: {position.getEntryOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getEntryOrder().getInstrument()}\n💰 Entry Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}\n✅ Position successfully initiated!'
+        self.log(f"{message}")
 
         self.openPositions.add(position)
 
@@ -324,8 +325,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def onExitOk(self, position: position):
         execInfo = position.getExitOrder().getExecutionInfo()
-        self.log(
-            f"===== Exited {position.getEntryOrder().getInstrument()} at {execInfo.getDateTime()} with price <{execInfo.getPrice()}> and quantity <{execInfo.getQuantity()}> =====")
+        message = f'🔔 Position Exit\n\n🔑 Order ID: {position.getExitOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getInstrument()}\n💰 Exit Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}'
+        self.log(f"{message}")
 
         openPosition = self.getOpenPosition(position.getEntryOrder().getId())
         if openPosition is None:
