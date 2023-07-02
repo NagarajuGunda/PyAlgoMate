@@ -67,9 +67,48 @@ def getZerodhaTokensList(api: KiteExt, instruments):
         tokenMappings[token] = instrument
     return tokenMappings
 
+
+def getHistoricalData(api, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
+    startTime = startTime.replace(
+        hour=0, minute=0, second=0, microsecond=0)
+    splitStrings = exchangeSymbol.split(':')
+    exchange = splitStrings[0]
+
+    tokensList = getZerodhaTokensList(api, [exchangeSymbol])
+    token = next(iter(tokensList))
+
+    logger.info(
+        f'Retrieving {interval} timeframe historical data for {exchangeSymbol}')
+    ret = api.historical_data(
+        token, startTime, datetime.datetime.now(), interval=f'{interval if interval != "1" else ""}minute')
+
+    if ret != None:
+        df = pd.DataFrame(
+            ret)[['date', 'open', 'high', 'low', 'close', 'volume']]
+        df['Open Interest'] = 0
+        df = df.rename(columns={'date': 'Date/Time', 'open': 'Open', 'high': 'High',
+                                'low': 'Low', 'close': 'Close', 'volume': 'Volume'})
+
+        df[['Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']] = df[[
+            'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']].astype(float)
+
+        df = df.sort_values('Date/Time')
+
+        logger.info(f'Retrieved {df.shape[0]} rows of historical data')
+        return df
+    else:
+        return pd.DataFrame(columns=['Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest'])
+
 class ZerodhaPaperTradingBroker(BacktestingBroker):
     """A Zerodha paper trading broker.
     """
+    def __init__(self, cash, barFeed, fee=0.0025):
+        super().__init__(cash, barFeed, fee)
+
+        self.__api = barFeed.getApi()
+
+    def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
+        return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
 
     def getOptionSymbol(self, underlyingInstrument, expiry: datetime.date, strikePrice, callOrPut):
         return getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut)
@@ -269,35 +308,7 @@ class ZerodhaLiveBroker(broker.Broker):
         return OptionContract(symbol, int(m.group(5)), expiry, "c" if m.group(6) == "C" else "p", m.group(1))
 
     def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
-        startTime = startTime.replace(
-            hour=0, minute=0, second=0, microsecond=0)
-        splitStrings = exchangeSymbol.split(':')
-        exchange = splitStrings[0]
-
-        tokensList = getZerodhaTokensList(self.__api, [exchangeSymbol])
-        token = next(iter(tokensList))
-
-        logger.info(
-            f'Retrieving {interval} timeframe historical data for {exchangeSymbol}')
-        ret = self.__api.historical_data(
-            token, startTime, datetime.datetime.now(), interval=f'{interval if interval != "1" else ""}minute')
-
-        if ret != None:
-            df = pd.DataFrame(
-                ret)[['date', 'open', 'high', 'low', 'close', 'volume']]
-            df['Open Interest'] = 0
-            df = df.rename(columns={'date': 'Date/Time', 'open': 'Open', 'high': 'High',
-                                    'low': 'Low', 'close': 'Close', 'volume': 'Volume'})
-
-            df[['Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']] = df[[
-                'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']].astype(float)
-
-            df = df.sort_values('Date/Time')
-
-            logger.info(f'Retrieved {df.shape[0]} rows of historical data')
-            return df
-        else:
-            return pd.DataFrame(columns=['Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest'])
+        return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
 
     def __init__(self, api: KiteExt):
         super(ZerodhaLiveBroker, self).__init__()
