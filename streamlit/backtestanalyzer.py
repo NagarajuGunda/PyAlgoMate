@@ -190,11 +190,44 @@ def showStats(initialCapital: int, tradesData: pd.DataFrame):
     st.write('')
 
 
-def plotScatter(tradesData):
+def plotScatterMAE(tradesData):
     tradesData[['MAE', 'MFE', 'PnL']] = tradesData[[
         'MAE', 'MFE', 'PnL']].fillna(0)
 
     mae = tradesData['MAE']
+    pnl = tradesData['PnL']
+
+    # Check for collinearity
+    correlation_matrix = tradesData[['MAE', 'MFE', 'PnL']].corr()
+    if correlation_matrix.iloc[0, 1] > 0.9:
+        st.error(
+            "High collinearity detected between MAE and MFE. Consider removing one of the variables.")
+        return
+
+    # Handle missing or invalid data
+    tradesData[['MAE', 'MFE', 'PnL']] = tradesData[[
+        'MAE', 'MFE', 'PnL']].fillna(0)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=mae,
+        y=pnl,
+        mode='markers',
+        name='MAE',
+        marker=dict(color=np.where(pnl < 0, 'red', 'green'))
+    ))
+    fig.update_layout(
+        title='MAE vs PnL',
+        xaxis_title='MAE',
+        yaxis_title='PnL'
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def plotScatterMFE(tradesData):
+    tradesData[['MAE', 'MFE', 'PnL']] = tradesData[[
+        'MAE', 'MFE', 'PnL']].fillna(0)
+
     mfe = tradesData['MFE']
     pnl = tradesData['PnL']
 
@@ -209,47 +242,19 @@ def plotScatter(tradesData):
     tradesData[['MAE', 'MFE', 'PnL']] = tradesData[[
         'MAE', 'MFE', 'PnL']].fillna(0)
 
-    # Perform linear regression
-    X = np.column_stack((mae, mfe))
-    X = np.concatenate([np.ones((X.shape[0], 1)), X], axis=1)
-    y = pnl.values
-    beta_hat = np.linalg.inv(X.T @ X) @ X.T @ y
-    pnl_predicted = X @ beta_hat
-
     fig = go.Figure()
-
-    # Scatter plot
-    fig.add_trace(go.Scatter(
-        x=mae,
-        y=pnl,
-        mode='markers',
-        name='MAE',
-        marker=dict(color='blue')
-    ))
-
     fig.add_trace(go.Scatter(
         x=mfe,
         y=pnl,
         mode='markers',
         name='MFE',
-        marker=dict(color='green')
+        marker=dict(color=np.where(pnl < 0, 'red', 'green'))
     ))
-
-    # Regression line
-    fig.add_trace(go.Scatter(
-        x=[mae.min(), mae.max()],
-        y=[pnl_predicted.min(), pnl_predicted.max()],
-        mode='lines',
-        name='Regression Line',
-        line=dict(color='red')
-    ))
-
     fig.update_layout(
-        title='MAE/MFE vs PnL with Regression Line',
-        xaxis_title='MAE/MFE',
+        title='MFE vs PnL',
+        xaxis_title='MFE',
         yaxis_title='PnL'
     )
-
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -345,8 +350,12 @@ def main():
                 st.plotly_chart(fig, use_container_width=True)
 
             with st.empty():
-                st.header('MAE/MFE vs PnL')
-                plotScatter(tradesData)
+                st.header('MAE vs PnL')
+                plotScatterMAE(tradesData)
+
+            with st.empty():
+                st.header('MFE vs PnL')
+                plotScatterMFE(tradesData)
 
         with st.expander("Check dataframe"):
             st.dataframe(tradesData, use_container_width=True)
