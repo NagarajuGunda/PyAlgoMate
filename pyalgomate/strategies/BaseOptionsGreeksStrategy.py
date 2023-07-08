@@ -91,7 +91,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                     self.dataFileName, index=False)
 
     def buildOrdersFromActiveOrders(self):
-        if not isinstance(self.getBroker(), BacktestingBroker):
+        if not isinstance(self.getFeed(), csvfeed.BarFeed):
             today = datetime.date.today()
 
             mask = (self.tradesDf['Exit Order Id'].isnull()) & \
@@ -229,11 +229,14 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def log(self, message, level=logging.INFO):
         if level == logging.DEBUG:
-            self.logger.debug(f"{self.strategyName} {self.getCurrentDateTime()} {message}")
+            self.logger.debug(
+                f"{self.strategyName} {self.getCurrentDateTime()} {message}")
         else:
-            self.logger.info(f"\n📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n\n{message}\n\n")
+            self.logger.log(
+                level=level, msg=f"\n📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n\n{message}\n\n")
             if self.telegramBot:
-                self.telegramBot.sendMessage(f"📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n{message}")
+                self.telegramBot.sendMessage(
+                    f"📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n\n{message}")
 
     def getPnL(self, position: position):
         order = position.getEntryOrder()
