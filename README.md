@@ -53,6 +53,45 @@ This command will install all the necessary packages specified in the requiremen
 
 Congratulations! You have successfully set up PyAlgoMate and installed all the necessary dependencies. Now you're fully equipped to explore the wide range of features offered by PyAlgoMate. It is designed to assist you in writing effective trading strategies, conducting thorough backtesting, and executing trades. PyAlgoMate provides a powerful framework to develop and implement your own trading strategies in Python. Let's dive in and leverage the capabilities of PyAlgoMate to enhance your trading experience!
 
+
+## PyAlgoMate Usage
+
+### Running a Backtest
+
+To perform a backtest using PyAlgoMate, it is recommended to use the command-line interface (CLI) method. Prior to executing the command, users need to set an environment variable called `PYTHONPATH` to ensure Python can locate the PyAlgoMate module. Follow the instructions below based on the operating system:
+
+#### On Unix/Linux
+```shell
+export PYTHONPATH=path_to_pyalgomate_directory
+```
+#### On Windows
+```shell
+set PYTHONPATH=path_to_pyalgomate_directory
+```
+
+After setting the `PYTHONPATH` variable, users can run a strategy file with CLI capability using the following command:
+
+```
+python pyalgomate/strategies/strategy.py backtest --data "path_to_parquet_file" --underlying BANKNIFTY
+```
+
+Replace `path_to_parquet_file` with the actual path to the Parquet file containing the relevant data. Alternatively, you can find sample data under the repository [NSEIndexOptionsData](https://github.com/NagarajuGunda/NSEIndexOptionsData).
+
+Specify the `--underlying` parameter with the appropriate underlying asset for the backtest.
+
+To explore the available options and parameters supported by the CLI, use the `--help` flag with the strategy file, as shown below:
+
+```
+python pyalgomate/strategies/strategy.py --help
+python pyalgomate/strategies/strategy.py backtest --help
+```
+
+These commands will provide information on the available options and their usage.
+
+Please note that the README will be updated as the project progresses, including additional instructions and improvements. We apologize for any inconvenience caused and appreciate your understanding as we enhance the usability of the library.
+
+For further assistance or any questions, please reach out. Happy exploring and trading with PyAlgoMate!
+
 ## Contributing
 
 If you find any issues or have suggestions for improvements, contributions to PyAlgoMate are welcome. Please open a GitHub issue or submit a pull request with your proposed changes.
