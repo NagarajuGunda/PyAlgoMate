@@ -114,9 +114,3 @@ class BacktestingBroker(backtesting.Broker):
             raise Exception("Only BUY/SELL orders are supported")
 
         return super(BacktestingBroker, self).createLimitOrder(action, instrument, limitPrice, quantity)
-
-    def createStopOrder(self, action, instrument, stopPrice, quantity):
-        raise Exception("Stop orders are not supported")
-
-    def createStopLimitOrder(self, action, instrument, stopPrice, limitPrice, quantity):
-        raise Exception("Stop limit orders are not supported")
