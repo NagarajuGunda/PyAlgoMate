@@ -263,22 +263,34 @@ def main():
     col1, col, col2 = st.columns([1, 8, 1])
 
     with col:
-        uploadedFile = st.file_uploader(
+        uploadedFiles = st.file_uploader(
             "",
             key="1",
             help="To activate 'wide mode', go to the hamburger menu > Settings > turn on 'wide mode'",
+            accept_multiple_files=True
         )
-        if uploadedFile is None:
+        if len(uploadedFiles) == 0:
             st.info("👆 Upload a backtest csv file first.")
             st.stop()
 
-        tradesData = pd.read_csv(uploadedFile)
+        # List to store the dataframes
+        dataframes = []
+
+        for uploaded_file in uploadedFiles:
+            # Read each CSV file as a dataframe
+            df = pd.read_csv(uploaded_file)
+            # Append the dataframe to the list
+            dataframes.append(df)
+
+        tradesData = pd.concat(dataframes)
+        tradesData.sort_values(by="Entry Date/Time", inplace=True)
+        tradesData.reset_index(drop=True, inplace=True)
+
         tradesData["Entry Date/Time"] = pd.to_datetime(
             tradesData["Entry Date/Time"])
         tradesData["Exit Date/Time"] = pd.to_datetime(
             tradesData["Exit Date/Time"])
         tradesData["Date"] = pd.to_datetime(tradesData["Date"])
-        uploadedFile.seek(0)
 
         groupCol, initialCapitalCol, fromDateCol, toDateCol = st.columns([
                                                                          1, 1, 2, 2])
