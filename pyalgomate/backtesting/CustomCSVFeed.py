@@ -190,8 +190,7 @@ class CustomCSVBarFeed(BarFeed):
 
         if startDate:
             df = df[df[self.__columnNames['datetime']].dt.date >= startDate]
-            if not endDate:
-                endDate = startDate
+        if endDate:
             df = df[df[self.__columnNames['datetime']].dt.date <= endDate]
 
         self.addBarsFromDataframe(df, ticker, timezone)
