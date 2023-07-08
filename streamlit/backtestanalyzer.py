@@ -1,8 +1,9 @@
-from pathlib import Path
 import pandas as pd
+import numpy as np
 import plotly.graph_objs as go
+import plotly.express as px
 import streamlit as st
-import datetime
+
 
 # Calculate Winning and Losing Streaks
 
@@ -189,6 +190,69 @@ def showStats(initialCapital: int, tradesData: pd.DataFrame):
     st.write('')
 
 
+def plotScatter(tradesData):
+    tradesData[['MAE', 'MFE', 'PnL']] = tradesData[[
+        'MAE', 'MFE', 'PnL']].fillna(0)
+
+    mae = tradesData['MAE']
+    mfe = tradesData['MFE']
+    pnl = tradesData['PnL']
+
+    # Check for collinearity
+    correlation_matrix = tradesData[['MAE', 'MFE', 'PnL']].corr()
+    if correlation_matrix.iloc[0, 1] > 0.9:
+        st.error(
+            "High collinearity detected between MAE and MFE. Consider removing one of the variables.")
+        return
+
+    # Handle missing or invalid data
+    tradesData[['MAE', 'MFE', 'PnL']] = tradesData[[
+        'MAE', 'MFE', 'PnL']].fillna(0)
+
+    # Perform linear regression
+    X = np.column_stack((mae, mfe))
+    X = np.concatenate([np.ones((X.shape[0], 1)), X], axis=1)
+    y = pnl.values
+    beta_hat = np.linalg.inv(X.T @ X) @ X.T @ y
+    pnl_predicted = X @ beta_hat
+
+    fig = go.Figure()
+
+    # Scatter plot
+    fig.add_trace(go.Scatter(
+        x=mae,
+        y=pnl,
+        mode='markers',
+        name='MAE',
+        marker=dict(color='blue')
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=mfe,
+        y=pnl,
+        mode='markers',
+        name='MFE',
+        marker=dict(color='green')
+    ))
+
+    # Regression line
+    fig.add_trace(go.Scatter(
+        x=[mae.min(), mae.max()],
+        y=[pnl_predicted.min(), pnl_predicted.max()],
+        mode='lines',
+        name='Regression Line',
+        line=dict(color='red')
+    ))
+
+    fig.update_layout(
+        title='MAE/MFE vs PnL with Regression Line',
+        xaxis_title='MAE/MFE',
+        yaxis_title='PnL'
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
 def main():
     st.set_page_config(page_title="Backtest Analyzer", layout="wide")
     col1, col, col2 = st.columns([1, 8, 1])
@@ -215,7 +279,7 @@ def main():
 
         with groupCol:
             selectedGroupCriteria = st.selectbox(
-                'Group by', ('Date', 'Day', 'Expiry'))
+                'Group by', ('Date', 'Day', 'Trade', 'Expiry'))
 
         initialCapital = st.text_input('Initial Capital', placeholder='200000')
         if initialCapital is not None and initialCapital != '':
@@ -233,45 +297,56 @@ def main():
                     tradesData['Date'].dt.strftime('%A'))
                 xAxisTitle = 'Day'
                 showStats(initialCapital, tradesData)
-            elif selectedGroupCriteria == 'Expiry':
-                groupBy = tradesData.groupby('Expiry')
-                xAxisTitle = 'Expiry'
-                showStats(initialCapital, tradesData)
             else:
                 groupBy = None
+                xAxisTitle = selectedGroupCriteria
+                showStats(initialCapital, tradesData)
 
             if groupBy is not None:
                 pnl = groupBy['PnL'].sum()
                 groupByDate = tradesData.groupby(
                     'Date')['PnL'].sum().reset_index()
-
-                pnlTab, cumulativePnLTab, drawdownTab = st.tabs(
-                    ['PnL', 'Cumulative PnL', 'Drawdown'])
-
-                with pnlTab:
-                    color = ['green' if x > 0 else 'red' for x in pnl]
-                    fig = go.Figure(
-                        data=[go.Bar(x=pnl.index, y=pnl.values, marker={'color': color})])
-                    fig.update_layout(title='PnL over time',
-                                      xaxis_title=xAxisTitle, yaxis_title='PnL')
-                    st.plotly_chart(fig, use_container_width=True)
-
                 cumulativePnL = groupByDate['PnL'].cumsum()
-                with cumulativePnLTab:
-                    fig = go.Figure(
-                        data=[go.Scatter(x=groupByDate['Date'], y=cumulativePnL)])
-                    fig.update_layout(title='Cumulative PnL over time',
-                                      xaxis_title='Date', yaxis_title='Cumulative PnL')
-                    st.plotly_chart(fig, use_container_width=True)
-
+                cumulativePnL.index = groupByDate['Date']
+            else:
+                pnl = tradesData['PnL']
+                pnl.index = tradesData['Entry Date/Time']
+                cumulativePnL = tradesData['PnL'].cumsum()
+                cumulativePnL.index = tradesData['Entry Date/Time']
                 runningMaxPnL = cumulativePnL.cummax()
-                drawdown = cumulativePnL - runningMaxPnL
-                with drawdownTab:
-                    fig = go.Figure(
-                        data=[go.Scatter(x=groupByDate['Date'], y=drawdown)])
-                    fig.update_layout(
-                        title='Drawdown', xaxis_title='Date', yaxis_title='Drawdown')
-                    st.plotly_chart(fig, use_container_width=True)
+
+            runningMaxPnL = cumulativePnL.cummax()
+            drawdown = cumulativePnL - runningMaxPnL
+            drawdown.index = cumulativePnL.index
+
+            with st.empty():
+                st.header('PnL')
+                color = ['green' if x > 0 else 'red' for x in pnl]
+                fig = go.Figure(
+                    data=[go.Bar(x=pnl.index, y=pnl.values, marker={'color': color})])
+                fig.update_layout(title='PnL over time',
+                                  xaxis_title=xAxisTitle, yaxis_title='PnL')
+                st.plotly_chart(fig, use_container_width=True)
+
+            with st.empty():
+                st.header('Cumulative PnL')
+                fig = go.Figure(
+                    data=[go.Scatter(x=cumulativePnL.index, y=cumulativePnL)])
+                fig.update_layout(title='Cumulative PnL over time',
+                                  xaxis_title='Date', yaxis_title='Cumulative PnL')
+                st.plotly_chart(fig, use_container_width=True)
+
+            with st.empty():
+                st.header('Drawdown')
+                fig = go.Figure(
+                    data=[go.Scatter(x=drawdown.index, y=drawdown)])
+                fig.update_layout(
+                    title='Drawdown', xaxis_title='Date', yaxis_title='Drawdown')
+                st.plotly_chart(fig, use_container_width=True)
+
+            with st.empty():
+                st.header('MAE/MFE vs PnL')
+                plotScatter(tradesData)
 
         with st.expander("Check dataframe"):
             st.dataframe(tradesData, use_container_width=True)
