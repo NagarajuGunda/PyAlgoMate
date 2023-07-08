@@ -108,7 +108,7 @@ def box(col, key, value, percentage=None, color='green'):
         )
 
 
-def showStats(initialCapital: int, tradesData: pd.DataFrame):
+def showStats(initialCapital: int, numOfFiles: int, tradesData: pd.DataFrame):
     overallPnL = tradesData['PnL'].sum()
     averageProfit = tradesData['PnL'].mean()
     maxProfit = tradesData['PnL'].max()
@@ -182,11 +182,12 @@ def showStats(initialCapital: int, tradesData: pd.DataFrame):
     maxWinningStreak, maxLosingStreak = GetStreaks(tradesData)
     expectancy = GetExpectancy(tradesData)
 
-    col1, col2, col3 = st.columns(3, gap='small')
-    box(col1, 'Max Winning Streak', f'{maxWinningStreak}')
-    box(col2, 'Max Losing Streak',
+    col1, col2, col3, col4 = st.columns(4, gap='small')
+    box(col1, 'Number of Strategies', f'{numOfFiles}')
+    box(col2, 'Max Winning Streak', f'{maxWinningStreak}')
+    box(col3, 'Max Losing Streak',
         f'{maxLosingStreak}', color='red')
-    box(col3, 'Expectancy', f'{expectancy:.2f}')
+    box(col4, 'Expectancy', f'{expectancy:.2f}')
     st.write('')
 
 
@@ -324,16 +325,16 @@ def main():
             if selectedGroupCriteria == 'Date':
                 groupBy = tradesData.groupby('Date')
                 xAxisTitle = 'Date'
-                showStats(initialCapital, groupBy['PnL'].sum().reset_index())
+                showStats(initialCapital, len(uploadedFiles), groupBy['PnL'].sum().reset_index())
             elif selectedGroupCriteria == 'Day':
                 groupBy = tradesData.groupby(
                     tradesData['Date'].dt.strftime('%A'))
                 xAxisTitle = 'Day'
-                showStats(initialCapital, tradesData)
+                showStats(initialCapital, len(uploadedFiles), tradesData)
             else:
                 groupBy = None
                 xAxisTitle = selectedGroupCriteria
-                showStats(initialCapital, tradesData)
+                showStats(initialCapital, len(uploadedFiles), tradesData)
 
             if groupBy is not None:
                 pnl = groupBy['PnL'].sum()
