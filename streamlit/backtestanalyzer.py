@@ -280,18 +280,33 @@ def main():
         tradesData["Date"] = pd.to_datetime(tradesData["Date"])
         uploadedFile.seek(0)
 
-        groupCol, dateRangeCol, daysCol = st.columns([1, 5, 3])
+        groupCol, initialCapitalCol, fromDateCol, toDateCol = st.columns([
+                                                                         1, 1, 2, 2])
 
         with groupCol:
             selectedGroupCriteria = st.selectbox(
                 'Group by', ('Date', 'Day', 'Trade', 'Expiry'))
 
-        initialCapital = st.text_input(
-            'Initial Capital', placeholder='200000')
-        if initialCapital is not None and initialCapital != '':
-            initialCapital = int(float(initialCapital))
-        else:
-            return
+        with initialCapitalCol:
+            initialCapital = st.text_input(
+                'Initial Capital', placeholder='200000')
+            if initialCapital is not None and initialCapital != '':
+                initialCapital = int(float(initialCapital))
+            else:
+                return
+
+        min_date = tradesData["Entry Date/Time"].min().date()
+        max_date = tradesData["Exit Date/Time"].max().date()
+        with fromDateCol:
+            selected_from_date = st.date_input("From Date", min_value=min_date, max_value=max_date,
+                                               value=min_date)
+
+        with toDateCol:
+            selected_to_date = st.date_input("To Date", min_value=min_date, max_value=max_date,
+                                             value=max_date)
+
+        tradesData = tradesData[(tradesData['Entry Date/Time'].dt.date >= selected_from_date) &
+                                (tradesData['Exit Date/Time'].dt.date <= selected_to_date)]
 
         if selectedGroupCriteria is not None:
             if selectedGroupCriteria == 'Date':
@@ -324,7 +339,7 @@ def main():
             runningMaxPnL = cumulativePnL.cummax()
             drawdown = cumulativePnL - runningMaxPnL
             drawdown.index = cumulativePnL.index
-            
+
             color = ['green' if x > 0 else 'red' for x in pnl]
             fig = go.Figure(
                 data=[go.Bar(x=pnl.index, y=pnl.values, marker={'color': color})])
