@@ -1,4 +1,5 @@
 # PyAlgoMate
+[![Python package](https://github.com/NagarajuGunda/PyAlgoMate/actions/workflows/python-package.yml/badge.svg)](https://github.com/NagarajuGunda/PyAlgoMate/actions/workflows/python-package.yml)
 
 PyAlgoMate is a Python library for event-driven algorithmic trading, developed as an extension of PyAlgoTrade (https://github.com/gbeced/pyalgotrade).
 
