@@ -167,12 +167,14 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             orderId = position.getEntryOrder().getId()
 
             if pnl < 0:
-                if orderId in self.mae and pnl < self.mae[orderId]:
+                if orderId in self.mae:
+                    if pnl < self.mae[orderId]:
                         self.mae[orderId] = pnl
                 else:
                     self.mae[orderId] = pnl
             else:
-                if orderId in self.mfe and pnl > self.mfe[orderId]:
+                if orderId in self.mfe:
+                    if pnl > self.mfe[orderId]:
                         self.mfe[orderId] = pnl
                 else:
                     self.mfe[orderId] = pnl
