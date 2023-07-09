@@ -211,8 +211,8 @@ def plotScatterMAE(tradesData):
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=mae,
-        y=pnl,
+        x=abs(mae),
+        y=abs(pnl),
         mode='markers',
         name='MAE',
         marker=dict(color=np.where(pnl < 0, 'red', 'green'))
@@ -246,7 +246,7 @@ def plotScatterMFE(tradesData):
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=mfe,
-        y=pnl,
+        y=abs(pnl),
         mode='markers',
         name='MFE',
         marker=dict(color=np.where(pnl < 0, 'red', 'green'))
