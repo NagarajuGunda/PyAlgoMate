@@ -102,12 +102,11 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
 
     broker = BacktestingBroker(200000, feed)
 
-    with open('cred.yml') as f:
-        creds = yaml.load(f, Loader=yaml.FullLoader)
-
     if send_to_telegram:
-        telegramBot = TelegramBot(
-            creds['Telegram']['token'], creds['Telegram']['chatid'])
+        with open('cred.yml') as f:
+            creds = yaml.load(f, Loader=yaml.FullLoader)
+            telegramBot = TelegramBot(
+                creds['Telegram']['token'], creds['Telegram']['chatid'])
     else:
         telegramBot = None
 
@@ -131,7 +130,7 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
     print("")
     print(
         f"Time took in running the strategy <{datetime.datetime.now()-start}>")
-    
+
     if telegramBot:
         telegramBot.stop()  # Signal the stop event
         telegramBot.waitUntilFinished()
