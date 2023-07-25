@@ -80,14 +80,13 @@ def getHistoricalData(api, exchangeSymbol: str, startTime: datetime.datetime, in
     logger.info(
         f'Retrieving {interval} timeframe historical data for {exchangeSymbol}')
     ret = api.historical_data(
-        token, startTime, datetime.datetime.now(), interval=f'{interval if interval != "1" else ""}minute')
+        token, startTime, datetime.datetime.now(), interval=f'{interval if interval != "1" else ""}minute', oi=True)
 
     if ret != None:
         df = pd.DataFrame(
-            ret)[['date', 'open', 'high', 'low', 'close', 'volume']]
-        df['Open Interest'] = 0
+            ret)[['date', 'open', 'high', 'low', 'close', 'volume', 'oi']]
         df = df.rename(columns={'date': 'Date/Time', 'open': 'Open', 'high': 'High',
-                                'low': 'Low', 'close': 'Close', 'volume': 'Volume'})
+                                'low': 'Low', 'close': 'Close', 'volume': 'Volume', 'oi': 'Open Interest'})
 
         df[['Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']] = df[[
             'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']].astype(float)
