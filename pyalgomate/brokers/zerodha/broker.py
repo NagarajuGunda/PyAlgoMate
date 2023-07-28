@@ -143,7 +143,7 @@ class ZerodhaPaperTradingBroker(BacktestingBroker):
 
         year = int(m.group(2)) + 2000
         expiry = datetime.date(year, month, day)
-        return OptionContract(symbol, int(m.group(5)), expiry, "c" if m.group(6) == "C" else "p", m.group(1))
+        return OptionContract(symbol, int(m.group(5)), expiry, "c" if m.group(6) == "C" else "p", m.group(1).replace('NFO:BANKNIFTY', 'NSE:NIFTY BANK').replace('NFO:NIFTY', 'NSE:NIFTY 50'))
 
     pass
 
@@ -304,7 +304,7 @@ class ZerodhaLiveBroker(broker.Broker):
 
         year = int(m.group(2)) + 2000
         expiry = datetime.date(year, month, day)
-        return OptionContract(symbol, int(m.group(5)), expiry, "c" if m.group(6) == "C" else "p", m.group(1))
+        return OptionContract(symbol, int(m.group(5)), expiry, "c" if m.group(6) == "C" else "p", m.group(1).replace('NFO:BANKNIFTY', 'NSE:NIFTY BANK').replace('NFO:NIFTY', 'NSE:NIFTY 50'))
 
     def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
         return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
