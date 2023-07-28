@@ -665,7 +665,7 @@ class LiveBroker(broker.Broker):
                                                   retention,
                                                   None)
             except Exception as e:
-                logger.critical(f'Could not place order for {symbol}')
+                logger.critical(f'Could not place order for {symbol}. Reason: {e}')
                 return
 
             logger.info(
