@@ -159,7 +159,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         return newRows
 
     def on1MinBars(self, bars):
-        self.log(f"On Resampled Bars - Date/Time - {bars.getDateTime()}", logging.DEBUG)
+        self.log(
+            f"On Resampled Bars - Date/Time - {bars.getDateTime()}", logging.DEBUG)
 
         # Calculate MAE and MFE
         for position in self.openPositions.copy():
@@ -201,6 +202,9 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
             jsonData["ohlc"] = dataDf.to_json()
 
+        if len(self._observers) == 0:
+            return
+
         if self.state != State.LIVE:
             combinedPremium = 0
             for openPosition in self.openPositions.copy():
@@ -217,12 +221,13 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         jsonData["optionChain"] = dict()
         for instrument, optionGreek in self.__optionData.items():
             optionGreekDict = dict([attr, getattr(optionGreek, attr)]
-                                    for attr in dir(optionGreek) if not attr.startswith('_'))
+                                   for attr in dir(optionGreek) if not attr.startswith('_'))
             optionContract = optionGreekDict.pop('optionContract')
             optionContractDict = dict([attr, getattr(optionContract, attr)] for attr in dir(
                 optionContract) if not attr.startswith('_'))
-            optionContractDict['expiry'] = optionContractDict['expiry'].strftime(
-                '%Y-%m-%d')
+            if 'expiry' in optionContractDict:
+                optionContractDict['expiry'] = optionContractDict['expiry'].strftime(
+                    '%Y-%m-%d')
             optionGreekDict.update(optionContractDict)
             jsonData["optionChain"][instrument] = optionGreekDict
 
