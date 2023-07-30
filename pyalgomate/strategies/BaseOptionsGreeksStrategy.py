@@ -45,13 +45,18 @@ class Expiry(object):
 
 class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
-    def __init__(self, feed, broker, strategyName, logger: logging.Logger, callback=None, resampleFrequency=None, collectData=None,
+    def __init__(self, feed, broker, strategyName, logger: logging.Logger, 
+                 callback=None, 
+                 resampleFrequency=None,
+                 collectData=None,
+                 collectTrades=True,
                  telegramBot:TelegramBot=None):
         super(BaseOptionsGreeksStrategy, self).__init__(feed, broker)
         self.marketEndTime = datetime.time(hour=15, minute=30)
         self.strategyName = strategyName
         self.logger = logger
         self.collectData = collectData
+        self.collectTrades = collectTrades
         self.telegramBot = telegramBot
         self._observers = []
         self.__optionContracts = dict()
@@ -75,7 +80,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         else:
             self.tradesCSV = f"results/{self.strategyName}_trades.csv"
 
-        if os.path.isfile(self.tradesCSV):
+        if self.collectTrades and os.path.isfile(self.tradesCSV):
             self.tradesDf = pd.read_csv(self.tradesCSV, index_col=False)
         else:
             self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Entry Order Id', 'Exit Date/Time', 'Exit Order Id',
@@ -313,7 +318,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             self.tradesDf = pd.concat([self.tradesDf, pd.DataFrame(
                 [newRow], columns=self.tradesDf.columns)], ignore_index=True)
 
-            self.tradesDf.to_csv(self.tradesCSV, index=False)
+            if self.collectTrades:
+                self.tradesDf.to_csv(self.tradesCSV, index=False)
 
         if self.__optionData.get(position.getInstrument(), None) is not None:
             self.log(
@@ -364,7 +370,9 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                                 == entryOrderId)].index[-1]
         self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Order Id', 'Exit Price', 'PnL', 'Date', 'MAE', 'MFE']] = [
             execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'), exitOrderId, exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d'), mae, mfe]
-        self.tradesDf.to_csv(self.tradesCSV, index=False)
+
+        if self.collectTrades:
+            self.tradesDf.to_csv(self.tradesCSV, index=False)
 
         self.log(
             f"Option greeks for {position.getInstrument()}\n{self.__optionData.get(position.getInstrument(), None) if self.__optionData is not None else None}", logging.DEBUG)
@@ -513,3 +521,6 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
     
     def getOptionContracts(self):
         return self.__optionContracts
+
+    def getTrades(self):
+        return self.tradesDf
