@@ -64,16 +64,6 @@ def main():
         ohlcData["Date/Time"] = pd.to_datetime(ohlcData["Date/Time"])
         uploadedFile.seek(0)
 
-        tickers = ohlcData["Ticker"].unique().tolist()
-
-        if "selectedTicker" not in st.session_state:
-            st.session_state["selectedTicker"] = tickers[0]
-        if "oldTicker" not in st.session_state:
-            st.session_state["oldTicker"] = ""
-
-        if st.session_state["selectedTicker"] not in tickers:
-            st.session_state["tickers"] = tickers[0]
-
         def updateTicker():
             st.session_state["oldTicker"] = st.session_state["selectedTicker"]
             st.session_state["selectedTicker"] = st.session_state.newTicker
@@ -87,16 +77,11 @@ def main():
                 "selectedTimeFrame", "1")
             st.session_state["selectedTimeFrame"] = st.session_state.newTimeFrame
 
-        tickerColumn, dateRangeColumn, timeframeColumn = st.columns([6, 2, 2])
-        with tickerColumn:
-            st.session_state["selectedTicker"] = st.selectbox(
-                "Select a Ticker",
-                tickers,
-                key="newTicker",
-                on_change=updateTicker
-            )
+        def updateStraddleCharts():
+            st.session_state["oldStraddleCharts"] = st.session_state['straddleCharts']
+            st.session_state["straddleCharts"] = st.session_state.newStraddleCharts
 
-        print(f"Selected Ticker - {st.session_state['selectedTicker']}")
+        tickerColumn, dateRangeColumn, timeframeColumn = st.columns([6, 2, 2])
 
         dates = ohlcData["Date/Time"].agg(["min", "max"])
         with dateRangeColumn:
@@ -121,9 +106,6 @@ def main():
                 filteredData = ohlcData[ohlcData["Date/Time"].dt.date ==
                                         st.session_state["selectedDateRange"]]
 
-        filteredData = filteredData[filteredData["Ticker"]
-                                    == st.session_state["selectedTicker"]]
-
         with timeframeColumn:
             st.session_state["selectedTimeFrame"] = st.selectbox(
                 "Select a Timeframe",
@@ -133,6 +115,48 @@ def main():
             )
 
         print(f'Selected timeframe - {st.session_state["selectedTimeFrame"]}')
+
+        st.session_state['straddleCharts'] = st.checkbox(
+            "Straddle charts", key='newStraddleCharts', on_change=updateStraddleCharts)
+
+        if st.session_state['straddleCharts']:
+            pattern = r'([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)'
+            filteredData['Ticker'] = filteredData[filteredData['Ticker'].str.match(
+                pattern)]['Ticker'].str.replace(pattern, r'\1 \2\3\4 \6 ATM', regex=True)
+
+            filteredData = filteredData[~filteredData.Ticker.isna()]
+
+            filteredData = filteredData.groupby(by=['Date/Time', 'Ticker']).agg({
+                'Open': 'sum',
+                'High': 'sum',
+                'Low': 'sum',
+                'Close': 'sum',
+                'Volume': 'sum',
+                'Open Interest': 'sum'
+            }).reset_index()
+
+        with tickerColumn:
+            tickers = filteredData["Ticker"].unique().tolist()
+
+            if "selectedTicker" not in st.session_state:
+                st.session_state["selectedTicker"] = tickers[0]
+            if "oldTicker" not in st.session_state:
+                st.session_state["oldTicker"] = ""
+
+            if st.session_state["selectedTicker"] not in tickers:
+                st.session_state["tickers"] = tickers[0] if len(tickers) > 0 else None
+
+            st.session_state["selectedTicker"] = st.selectbox(
+                "Select a Ticker",
+                tickers,
+                key="newTicker",
+                on_change=updateTicker
+            )
+
+        print(f"Selected Ticker - {st.session_state['selectedTicker']}")
+
+        filteredData = filteredData[filteredData["Ticker"]
+                                    == st.session_state["selectedTicker"]]
         plotCandlestickChart(
             filteredData, st.session_state["selectedTicker"], st.session_state["selectedTimeFrame"])
 
