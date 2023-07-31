@@ -153,17 +153,51 @@ def showStats(initialCapital: int, numOfFiles: int, tradesData: pd.DataFrame):
     drawdown = cumulativePnL - runningMaxPnL
     mdd = drawdown.min()
 
-    # Find the index of the maximum drawdown
-    mddIndex = drawdown.idxmin()
+    # Calculate drawdown durations and keep track of start and end dates
+    drawdown_durations = []
+    drawdown_start_dates = []
+    drawdown_end_dates = []
 
-    # Find the index of the peak before the maximum drawdown
-    peakIndex = cumulativePnL[:mddIndex].idxmax()
+    prev_drawdown_idx = None
+    for idx, pnl in enumerate(drawdown):
+        if pnl < 0:
+            if prev_drawdown_idx is None:
+                prev_drawdown_idx = idx
+        elif prev_drawdown_idx is not None:
+            drawdown_start_date = tradesData['Date'][prev_drawdown_idx]
+            drawdown_end_date = tradesData['Date'][idx - 1]
+            drawdown_duration = (drawdown_end_date -
+                                 drawdown_start_date).days + 1
+            drawdown_durations.append(drawdown_duration)
+            drawdown_start_dates.append(drawdown_start_date)
+            drawdown_end_dates.append(drawdown_end_date)
+            prev_drawdown_idx = None
 
-    # Compute the date range corresponding to the maximum drawdown
-    mddStartDate = tradesData['Date'][peakIndex]
-    mddEndDate = tradesData['Date'][mddIndex]
+    # Filter out None values from drawdown_start_dates and drawdown_end_dates
+    drawdown_start_dates = [
+        date for date in drawdown_start_dates if date is not None]
+    drawdown_end_dates = [
+        date for date in drawdown_end_dates if date is not None]
+
+    if not drawdown_start_dates or not drawdown_end_dates:  # Check if any drawdowns are found
+        longest_drawdown_duration = 0
+        longest_drawdown_start_date = None
+        longest_drawdown_end_date = None
+    else:
+        # Find the index of the longest drawdown duration
+        longest_drawdown_index = drawdown_durations.index(
+            max(drawdown_durations))
+
+        # Retrieve the longest drawdown duration and its corresponding start and end dates
+        longest_drawdown_duration = drawdown_durations[longest_drawdown_index]
+        longest_drawdown_start_date = drawdown_start_dates[longest_drawdown_index]
+        longest_drawdown_end_date = drawdown_end_dates[longest_drawdown_index]
+
+    # Retrieve the longest drawdown duration and its corresponding start and end dates
+    mddDays = longest_drawdown_duration
+    mddStartDate = longest_drawdown_start_date
+    mddEndDate = longest_drawdown_end_date
     mddDateRange = f"{mddStartDate.strftime('%d %b %Y')} - {mddEndDate.strftime('%d %b %Y')}"
-    mddDays = (mddEndDate - mddStartDate).days
 
     # Calculate the Return to MDD ratio
     averageYearlyProfit = tradesData.set_index(
@@ -325,7 +359,8 @@ def main():
             if selectedGroupCriteria == 'Date':
                 groupBy = tradesData.groupby('Date')
                 xAxisTitle = 'Date'
-                showStats(initialCapital, len(uploadedFiles), groupBy['PnL'].sum().reset_index())
+                showStats(initialCapital, len(uploadedFiles),
+                          groupBy['PnL'].sum().reset_index())
             elif selectedGroupCriteria == 'Day':
                 groupBy = tradesData.groupby(
                     tradesData['Date'].dt.strftime('%A'))
