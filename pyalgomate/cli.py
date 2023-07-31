@@ -194,11 +194,14 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
             loginStatus = api.login(userid=cred['user'], password=cred['pwd'], twoFA=pyotp.TOTP(cred['factor2']).now(),
                                     vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
 
-            with open(tokenFile, 'w') as f:
-                f.write(loginStatus.get('susertoken'))
+            if loginStatus:
+                with open(tokenFile, 'w') as f:
+                    f.write(loginStatus.get('susertoken'))
 
-            click.echo(
-                f"{loginStatus.get('uname')}={loginStatus.get('stat')} token={loginStatus.get('susertoken')}")
+                click.echo(
+                    f"{loginStatus.get('uname')}={loginStatus.get('stat')} token={loginStatus.get('susertoken')}")
+            else:
+                click.echo(f'Login failed!')
 
         if loginStatus != None:
             currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
@@ -238,6 +241,8 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
                 broker = PaperTradingBroker(200000, barFeed)
             else:
                 broker = LiveBroker(api)
+        else:
+            exit(1)
     elif broker == 'Zerodha':
         from pyalgomate.brokers.zerodha.kiteext import KiteExt
         import pyalgomate.brokers.zerodha as zerodha
