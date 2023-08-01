@@ -533,10 +533,10 @@ class ZerodhaLiveBroker(broker.Broker):
         return self._createOrder(broker.LimitOrder, action, instrument, quantity, limitPrice, None)
 
     def createStopOrder(self, action, instrument, stopPrice, quantity):
-        return self._createOrder(broker.LimitOrder, action, instrument, quantity, None, stopPrice)
+        return self._createOrder(broker.StopOrder, action, instrument, quantity, None, stopPrice)
 
     def createStopLimitOrder(self, action, instrument, stopPrice, limitPrice, quantity):
-        return self._createOrder(broker.LimitOrder, action, instrument, quantity, limitPrice, stopPrice)
+        return self._createOrder(broker.StopLimitOrder, action, instrument, quantity, limitPrice, stopPrice)
 
     def cancelOrder(self, order):
         activeOrder = self.__activeOrders.get(order.getId())
