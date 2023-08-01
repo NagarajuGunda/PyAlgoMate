@@ -1,7 +1,10 @@
 from pathlib import Path
 import pandas as pd
+import json
+import numpy as np
 import plotly.graph_objs as go
 import streamlit as st
+from streamlit_lightweight_charts import renderLightweightCharts
 
 
 def plotCandlestickChart(df, ticker, timeframe):
@@ -16,31 +19,134 @@ def plotCandlestickChart(df, ticker, timeframe):
           .reset_index()
           .dropna()
     )
-    fig = go.Figure(
-        data=[
-            go.Candlestick(
-                x=df["Date/Time"],
-                open=df["Open"],
-                high=df["High"],
-                low=df["Low"],
-                close=df["Close"]
-            )
-        ]
-    )
-    dtAll = pd.date_range(
-        start=df["Date/Time"].iloc[0], end=df["Date/Time"].iloc[-1], freq=timeframe)
-    dtObs = [d.strftime("%Y-%m-%d %H:%M:%S") for d in df["Date/Time"]]
-    dtBreaks = [d for d in dtAll.strftime(
-        "%Y-%m-%d %H:%M:%S").tolist() if d not in dtObs]
-    dtBreaks = pd.to_datetime(dtBreaks)
-    fig.update_xaxes(rangebreaks=[dict(dvalue=5 * 60 * 1000, values=dtBreaks)])
+    COLOR_BULL = 'rgba(38,166,154,0.9)'  # 26a69a
+    COLOR_BEAR = 'rgba(239,83,80,0.9)'  # #ef5350
 
-    # Add title and axis labels
-    fig.update_layout(title=ticker, xaxis_title="Date/Time",
-                      yaxis_title="Price")
+    # Some data wrangling to match required format
+    df = df.reset_index(drop=True)
+    df.columns = ['time', 'open', 'high', 'low', 'close',
+                  'volume']
+    df['time'] = df['time'].apply(lambda x: int(x.timestamp()))
 
-    # Display the chart in Streamlit
-    st.plotly_chart(fig, use_container_width=True)
+    # export to JSON format
+    candles = json.loads(df.to_json(orient="records"))
+    volume = json.loads(
+        df.rename(columns={"volume": "value", }).to_json(orient="records"))
+
+    chartMultipaneOptions = [
+        {
+            "height": 600,
+            "layout": {
+                "background": {
+                    "type": "solid",
+                    "color": 'white'
+                },
+                "textColor": "black"
+            },
+            "grid": {
+                "vertLines": {
+                    "color": "rgba(197, 203, 206, 0.5)"
+                },
+                "horzLines": {
+                    "color": "rgba(197, 203, 206, 0.5)"
+                }
+            },
+            "crosshair": {
+                "mode": 0
+            },
+            "priceScale": {
+                "borderColor": "rgba(197, 203, 206, 0.8)"
+            },
+            "timeScale": {
+                'timeVisible': True,
+                'secondsVisible': True,
+                "borderColor": "rgba(197, 203, 206, 0.8)",
+                "barSpacing": 15
+            },
+            "watermark": {
+                "visible": True,
+                "fontSize": 48,
+                "horzAlign": 'center',
+                "vertAlign": 'center',
+                "color": 'rgba(171, 71, 188, 0.3)',
+                "text": ticker,
+            }
+        },
+        {
+            "height": 100,
+            "layout": {
+                "background": {
+                    "type": 'solid',
+                    "color": 'transparent'
+                },
+                "textColor": 'black',
+            },
+            "grid": {
+                "vertLines": {
+                    "color": 'rgba(42, 46, 57, 0)',
+                },
+                "horzLines": {
+                    "color": 'rgba(42, 46, 57, 0.6)',
+                }
+            },
+            "timeScale": {
+                "visible": False,
+            },
+            "watermark": {
+                "visible": True,
+                "fontSize": 18,
+                "horzAlign": 'left',
+                "vertAlign": 'top',
+                "color": 'rgba(171, 71, 188, 0.7)',
+                "text": 'Volume',
+            }
+        }
+    ]
+
+    seriesCandlestickChart = [
+        {
+            "type": 'Candlestick',
+            "data": candles,
+            "options": {
+                "upColor": COLOR_BULL,
+                "downColor": COLOR_BEAR,
+                "borderVisible": False,
+                "wickUpColor": COLOR_BULL,
+                "wickDownColor": COLOR_BEAR
+            }
+        }
+    ]
+    seriesVolumeChart = [
+        {
+            "type": 'Histogram',
+            "data": volume,
+            "options": {
+                "priceFormat": {
+                    "type": 'volume',
+                },
+                "priceScaleId": ""  # set as an overlay setting,
+            },
+            "priceScale": {
+                "scaleMargins": {
+                    "top": 0,
+                    "bottom": 0,
+                },
+                "alignLabels": False
+            }
+        }
+    ]
+
+    renderLightweightCharts([
+        {
+            "chart": chartMultipaneOptions[0],
+            "series": seriesCandlestickChart
+        },
+        {
+            "chart": chartMultipaneOptions[1],
+            "series": seriesVolumeChart
+        }
+    ], 'multipane')
+
     with st.expander("Check filtered dataframe"):
         st.dataframe(df, use_container_width=True)
 
@@ -144,7 +250,8 @@ def main():
                 st.session_state["oldTicker"] = ""
 
             if st.session_state["selectedTicker"] not in tickers:
-                st.session_state["tickers"] = tickers[0] if len(tickers) > 0 else None
+                st.session_state["tickers"] = tickers[0] if len(
+                    tickers) > 0 else None
 
             st.session_state["selectedTicker"] = st.selectbox(
                 "Select a Ticker",

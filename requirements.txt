@@ -22,3 +22,4 @@ py_vollib_vectorized
 talipp
 click
 python-telegram-bot
+streamlit-lightweight-charts
