@@ -3,7 +3,7 @@ import numpy as np
 import plotly.graph_objs as go
 import streamlit as st
 from matplotlib.colors import LinearSegmentedColormap
-import calplot
+from thirdparty import calplot
 
 
 # Calculate Winning and Losing Streaks
