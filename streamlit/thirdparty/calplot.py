@@ -14,6 +14,7 @@ import pandas as pd
 from matplotlib.colors import ColorConverter, ListedColormap
 from matplotlib.patches import Polygon
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as path_effects
 
 def yearplot(data, year=None, how='sum',
              vmin=None, vmax=None,
@@ -200,6 +201,15 @@ def yearplot(data, year=None, how='sum',
     ax.set_yticks([6 - i + 0.5 for i in dayticks])
     ax.set_yticklabels([daylabels[i] for i in dayticks], rotation='horizontal',
                        va='center')
+
+    monthly_sum = by_day.groupby(pd.Grouper(freq='M')).sum()['data']
+    for month, week_start in zip(range(1, 13), ax.get_xticks()):
+        profit = round(monthly_sum[month - 1], 2)
+        text = ax.text(week_start, 0, profit,
+                       color='green' if profit >= 0 else 'red', ha='center', va='bottom', fontsize=7, fontname='Open Sans',
+                       fontweight='bold')
+        text.set_path_effects(
+            [path_effects.withStroke(linewidth=2, foreground='white')])
 
     # Text in mesh grid if format is specified.
     if textformat is not None:
