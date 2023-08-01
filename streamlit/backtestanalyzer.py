@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
 import plotly.graph_objs as go
-import plotly.express as px
 import streamlit as st
+from matplotlib.colors import LinearSegmentedColormap
+import calplot
 
 
 # Calculate Winning and Losing Streaks
@@ -197,7 +198,7 @@ def showStats(initialCapital: int, numOfFiles: int, tradesData: pd.DataFrame):
     mddDays = longest_drawdown_duration
     mddStartDate = longest_drawdown_start_date
     mddEndDate = longest_drawdown_end_date
-    mddDateRange = f"{mddStartDate.strftime('%d %b %Y')} - {mddEndDate.strftime('%d %b %Y')}"
+    mddDateRange = f"{mddStartDate.strftime('%d %b %Y') if mddStartDate is not None else ''} - {mddEndDate.strftime('%d %b %Y') if mddEndDate is not None else ''}"
 
     # Calculate the Return to MDD ratio
     averageYearlyProfit = tradesData.set_index(
@@ -292,6 +293,15 @@ def plotScatterMFE(tradesData):
     )
     st.plotly_chart(fig, use_container_width=True)
 
+
+def customCmap():
+    # Define the colors for the custom colormap
+    red = (0.86, 0.08, 0.24)   # RGB values for extreme red
+    white = (1.0, 1.0, 1.0)         # RGB values for white
+    green = (0.0, 1.0, 0.0) # RGB values for extreme green
+
+    # Create a custom color map using LinearSegmentedColormap
+    return LinearSegmentedColormap.from_list('custom_map', [red, white, green], N=256)
 
 def main():
     st.set_page_config(page_title="Backtest Analyzer", layout="wide")
@@ -410,6 +420,15 @@ def main():
                     title='Drawdown', xaxis_title='Date', yaxis_title='Drawdown')
                 st.plotly_chart(fig, use_container_width=True)
 
+            # Split pnl data by year
+            yearlyPnl = pnl.groupby(pnl.index.year)
+
+            # Iterate over each year and plot the heatmap
+            for year, data in yearlyPnl:
+                fig, _ = calplot.calplot(data, textfiller='-', cmap=customCmap())
+                st.pyplot(fig=fig, use_container_width=True)
+
+            col1, col2 = st.columns([1, 1])
             with col1:
                 plotScatterMAE(tradesData)
 
