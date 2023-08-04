@@ -52,6 +52,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                  collectTrades=True,
                  telegramBot:TelegramBot=None):
         super(BaseOptionsGreeksStrategy, self).__init__(feed, broker)
+        self.marketStartTime = datetime.time(hour=9, minute=15)
         self.marketEndTime = datetime.time(hour=15, minute=29)
         self.strategyName = strategyName
         self.logger = logger
