@@ -85,8 +85,11 @@ def getHistoricalData(api, exchangeSymbol: str, startTime: datetime.datetime, in
             ret)[['time', 'into', 'inth', 'intl', 'intc', 'v', 'oi']]
         df = df.rename(columns={'time': 'Date/Time', 'into': 'Open', 'inth': 'High',
                                 'intl': 'Low', 'intc': 'Close', 'v': 'Volume', 'oi': 'Open Interest'})
+        df['Ticker'] = exchangeSymbol
         df[['Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']] = df[[
             'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']].astype(float)
+        df['Date/Time'] = pd.to_datetime(df['Date/Time'], format="%d-%m-%Y %H:%M:%S")
+        df = df[['Ticker', 'Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']]
         df = df.sort_values('Date/Time')
         logger.info(f'Retrieved {df.shape[0]} rows of historical data')
         return df
