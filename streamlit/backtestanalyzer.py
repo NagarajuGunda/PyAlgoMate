@@ -425,7 +425,10 @@ def main():
 
             # Iterate over each year and plot the heatmap
             for year, data in yearlyPnl:
-                fig, _ = calplot.calplot(data, textfiller='-', cmap=customCmap())
+                fig, _ = calplot.calplot(data, textfiller='-',
+                                         cmap=customCmap(),
+                                         vmin=-max(data.max(), abs(data.min())),
+                                         vmax=max(data.max(), abs(data.min())))
                 st.pyplot(fig=fig, use_container_width=True)
 
             col1, col2 = st.columns([1, 1])
