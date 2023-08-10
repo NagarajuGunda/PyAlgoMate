@@ -6,6 +6,7 @@ import os
 from streamlit.runtime.scriptrunner import add_script_run_ctx
 from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 from st_aggrid import GridOptionsBuilder, AgGrid, AgGridTheme, ColumnsAutoSizeMode
+from streamlit_lightweight_charts import renderLightweightCharts
 
 import pandas as pd
 import numpy as np
@@ -220,65 +221,268 @@ def plotPayOff(dataframe: pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def plotOHLC(df):
-    # Create the candlestick chart
-    fig = go.Figure(data=[go.Candlestick(x=df['Date/Time'],
-                                         open=df['Open'],
-                                         high=df['High'],
-                                         low=df['Low'],
-                                         close=df['Close'])])
+def plotCandlestickChart(dfIn, ticker, timeframe):
+    if dfIn.empty:
+        st.write("No data found!")
+        return
 
-    # Add title and axis labels
-    fig.update_layout(title=f'Bar Chart',
-                      xaxis_title='Date',
-                      yaxis_title='Price')
+    timeframe = f"{timeframe}min"
+    df = (
+        dfIn.resample(timeframe, on="Date/Time")
+          .agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"})
+          .reset_index()
+          .dropna()
+    )
+    COLOR_BULL = 'rgba(38,166,154,0.9)'  # 26a69a
+    COLOR_BEAR = 'rgba(239,83,80,0.9)'  # #ef5350
 
-    # Display the chart in Streamlit
-    st.plotly_chart(fig, use_container_width=True)
+    # Some data wrangling to match required format
+    df = df.reset_index(drop=True)
+    df.columns = ['time', 'open', 'high', 'low', 'close',
+                  'volume']
+    df['time'] = df['time'].apply(lambda x: int(x.timestamp()))
 
-def plotOHLC1(dfIn: pd.DataFrame):
-    timeframe = '5min'
+    # export to JSON format
+    candles = json.loads(df.to_json(orient="records"))
+    volume = json.loads(
+        df.rename(columns={"volume": "value", }).to_json(orient="records"))
 
-    df = dfIn.copy()
-    # if df['Date/Time'].dtype == 'datetime64[ns]':
-    #     df['Date/Time'] = df['Date/Time'].dt.strftime("%Y/%m/%d %H:%M")
+    chartMultipaneOptions = [
+        {
+            "height": 600,
+            "layout": {
+                "background": {
+                    "type": "solid",
+                    "color": 'white'
+                },
+                "textColor": "black"
+            },
+            "grid": {
+                "vertLines": {
+                    "color": "rgba(197, 203, 206, 0.5)"
+                },
+                "horzLines": {
+                    "color": "rgba(197, 203, 206, 0.5)"
+                }
+            },
+            "crosshair": {
+                "mode": 0
+            },
+            "priceScale": {
+                "borderColor": "rgba(197, 203, 206, 0.8)"
+            },
+            "timeScale": {
+                'timeVisible': True,
+                'secondsVisible': True,
+                "borderColor": "rgba(197, 203, 206, 0.8)",
+                "barSpacing": 15
+            },
+            "watermark": {
+                "visible": True,
+                "fontSize": 48,
+                "horzAlign": 'center',
+                "vertAlign": 'center',
+                "color": 'rgba(171, 71, 188, 0.3)',
+                "text": ticker,
+            }
+        },
+        {
+            "height": 100,
+            "layout": {
+                "background": {
+                    "type": 'solid',
+                    "color": 'transparent'
+                },
+                "textColor": 'black',
+            },
+            "grid": {
+                "vertLines": {
+                    "color": 'rgba(42, 46, 57, 0)',
+                },
+                "horzLines": {
+                    "color": 'rgba(42, 46, 57, 0.6)',
+                }
+            },
+            "timeScale": {
+                "visible": False,
+            },
+            "watermark": {
+                "visible": True,
+                "fontSize": 18,
+                "horzAlign": 'left',
+                "vertAlign": 'top',
+                "color": 'rgba(171, 71, 188, 0.7)',
+                "text": 'Volume',
+            }
+        }
+    ]
 
-    # dfIn['Date/Time'] = pd.to_datetime(dfIn['Date/Time'])
-    if df['Date/Time'].dtype != 'datetime64[ns]':
-        df['Date/Time'] = pd.to_datetime(df['Date/Time'], format='%Y-%m-%d %H:%M:%S')
+    seriesCandlestickChart = [
+        {
+            "type": 'Candlestick',
+            "data": candles,
+            "options": {
+                "upColor": COLOR_BULL,
+                "downColor": COLOR_BEAR,
+                "borderVisible": False,
+                "wickUpColor": COLOR_BULL,
+                "wickDownColor": COLOR_BEAR
+            }
+        }
+    ]
+    seriesVolumeChart = [
+        {
+            "type": 'Histogram',
+            "data": volume,
+            "options": {
+                "priceFormat": {
+                    "type": 'volume',
+                },
+                "priceScaleId": ""  # set as an overlay setting,
+            },
+            "priceScale": {
+                "scaleMargins": {
+                    "top": 0,
+                    "bottom": 0,
+                },
+                "alignLabels": False
+            }
+        }
+    ]
 
-    df = dfIn.resample(timeframe, on='Date/Time').agg(
-        {'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).reset_index().dropna()
-    # Create the candlestick chart
-    fig = go.Figure(data=[go.Candlestick(x=df['Date/Time'],
-                                         open=df['Open'],
-                                         high=df['High'],
-                                         low=df['Low'],
-                                         close=df['Close'])])
+    renderLightweightCharts([
+        {
+            "chart": chartMultipaneOptions[0],
+            "series": seriesCandlestickChart
+        },
+        {
+            "chart": chartMultipaneOptions[1],
+            "series": seriesVolumeChart
+        }
+    ], 'multipane')
 
-    # grab first and last observations from df.date and make a continuous date range from that
-    dt_all = pd.date_range(
-        start=df['Date/Time'].iloc[0], end=df['Date/Time'].iloc[-1], freq=timeframe)
+    with st.expander("Check filtered dataframe"):
+        st.dataframe(dfIn, use_container_width=True)
 
-    # check which dates from your source that also accur in the continuous date range
-    dt_obs = [d.strftime("%Y-%m-%d %H:%M:%S") for d in df['Date/Time']]
 
-    # isolate missing timestamps
-    dt_breaks = [d for d in dt_all.strftime(
-        "%Y-%m-%d %H:%M:%S").tolist() if not d in dt_obs]
-    dt_breaks = pd.to_datetime(dt_breaks)
+def plotOHLC(ohlcData):
+    def updateTicker():
+            st.session_state["oldTicker"] = st.session_state["selectedTicker"]
+            st.session_state["selectedTicker"] = st.session_state.newTicker
 
-    fig.update_xaxes(rangebreaks=[dict(dvalue=5*60*1000, values=dt_breaks)])
+    def updateDateRange():
+        st.session_state["oldFromDate"] = st.session_state["selectedFromDate"]
+        st.session_state["selectedFromDate"] = st.session_state.newFromDate
+        st.session_state["oldToDate"] = st.session_state["selectedToDate"]
+        st.session_state["selectedToDate"] = st.session_state.newToDate
 
-    # Add title and axis labels
-    fig.update_layout(title=f'{dfIn.Ticker.values[0]}',
-                      xaxis_title='Date/Time',
-                      yaxis_title='Price')
+    def updateTimeFrame():
+        st.session_state["oldTimeFrame"] = st.session_state.get(
+            "selectedTimeFrame", "1")
+        st.session_state["selectedTimeFrame"] = st.session_state.newTimeFrame
 
-    # Display the chart in Streamlit
-    st.plotly_chart(fig, use_container_width=True)
-    dataframeContainer = st.expander("Check filtered dataframe")
-    dataframeContainer.write(df)
+    def updateStraddleCharts():
+        st.session_state["oldStraddleCharts"] = st.session_state['straddleCharts']
+        st.session_state["straddleCharts"] = st.session_state.newStraddleCharts
+
+    tickerColumn, fromDateColumn, toDateColumn, timeframeColumn = st.columns([6, 2, 2, 2])
+
+    dates = ohlcData["Date/Time"].agg(["min", "max"])
+    with fromDateColumn:
+        st.session_state["selectedFromDate"] = st.date_input(
+            label="Select From Date",
+            min_value=dates["min"],
+            max_value=dates["max"],
+            value=dates["min"],
+            key="newFromDate",
+            on_change=updateDateRange
+        )
+    with toDateColumn:
+        st.session_state["selectedToDate"] = st.date_input(
+            label="Select To Date",
+            min_value=dates["min"],
+            max_value=dates["max"],
+            value=dates["max"],
+            key="newToDate",
+            on_change=updateDateRange
+        )
+    print(f"Selected date range : {st.session_state['selectedFromDate']} - {st.session_state['selectedToDate']}")
+    filteredData = pd.DataFrame()
+    if "selectedFromDate" in st.session_state:
+        if isinstance(st.session_state["selectedFromDate"], tuple) and len(st.session_state["selectedFromDate"]) == 2:
+            filteredData = ohlcData[
+                (ohlcData["Date/Time"].dt.date >=
+                    st.session_state["selectedFromDate"][0])
+                & (ohlcData["Date/Time"].dt.date <= st.session_state["selectedFromDate"][1])
+            ]
+        else:
+            filteredData = ohlcData[ohlcData["Date/Time"].dt.date >=
+                                    st.session_state["selectedFromDate"]]
+    if "selectedToDate" in st.session_state:
+        if isinstance(st.session_state["selectedToDate"], tuple) and len(st.session_state["selectedToDate"]) == 2:
+            filteredData = ohlcData[
+                (ohlcData["Date/Time"].dt.date >=
+                    st.session_state["selectedToDate"][0])
+                & (ohlcData["Date/Time"].dt.date <= st.session_state["selectedToDate"][1])
+            ]
+        else:
+            filteredData = ohlcData[ohlcData["Date/Time"].dt.date <=
+                                    st.session_state["selectedToDate"]]
+
+    with timeframeColumn:
+        st.session_state["selectedTimeFrame"] = st.selectbox(
+            "Select a Timeframe",
+            [1, 3, 5, 10, 15, 30, 60],
+            key="newTimeFrame",
+            on_change=updateTimeFrame
+        )
+
+    print(f'Selected timeframe - {st.session_state["selectedTimeFrame"]}')
+
+    st.session_state['straddleCharts'] = st.checkbox(
+        "Straddle charts", key='newStraddleCharts', on_change=updateStraddleCharts)
+
+    if st.session_state['straddleCharts']:
+        pattern = r'([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)'
+        filteredData['Ticker'] = filteredData[filteredData['Ticker'].str.match(
+            pattern)]['Ticker'].str.replace(pattern, r'\1 \2\3\4 \6 ATM', regex=True)
+
+        filteredData = filteredData[~filteredData.Ticker.isna()]
+
+        filteredData = filteredData.groupby(by=['Date/Time', 'Ticker']).agg({
+            'Open': 'sum',
+            'High': 'sum',
+            'Low': 'sum',
+            'Close': 'sum',
+            'Volume': 'sum',
+            'Open Interest': 'sum'
+        }).reset_index()
+
+    with tickerColumn:
+        tickers = filteredData["Ticker"].unique().tolist()
+
+        if "selectedTicker" not in st.session_state:
+            st.session_state["selectedTicker"] = tickers[0]
+        if "oldTicker" not in st.session_state:
+            st.session_state["oldTicker"] = ""
+
+        if st.session_state["selectedTicker"] not in tickers:
+            st.session_state["tickers"] = tickers[0] if len(
+                tickers) > 0 else None
+
+        st.session_state["selectedTicker"] = st.selectbox(
+            "Select a Ticker",
+            tickers,
+            key="newTicker",
+            on_change=updateTicker
+        )
+
+    print(f"Selected Ticker - {st.session_state['selectedTicker']}")
+
+    filteredData = filteredData[filteredData["Ticker"]
+                                == st.session_state["selectedTicker"]]
+    plotCandlestickChart(
+        filteredData, st.session_state["selectedTicker"], st.session_state["selectedTimeFrame"])
 
 def displayData():
     METRICS_PER_ROW = 3
@@ -343,30 +547,7 @@ def displayData():
         if strategyData.get('ohlc', None) is not None:
             ohlcData = strategyData["ohlc"]
 
-            tickers = ohlcData['Ticker'].unique().tolist()
-
-            # # Check if session state object exists
-            # if "selectedTicker" not in st.session_state:
-            #     st.session_state['selectedTicker'] = tickers[0]
-            # if 'oldTicker' not in st.session_state:
-            #     st.session_state['oldTicker'] = ""    
-
-            # # Check if value exists in the new options list. if it does retain the selection, else reset
-            # if st.session_state["selectedTicker"] not in tickers:
-            #     st.session_state["tickers"] = tickers[0]
-
-            # oldTicker = st.session_state["oldTicker"]
-            
-            # def tickerCallback():
-            #     st.session_state["oldTicker"] = st.session_state["selectedTicker"]
-            #     st.session_state["selectedTicker"] = st.session_state.newTicker
-            
-            st.session_state.selectedTicker = st.selectbox(
-                'Select a Ticker', tickers)
-                #on_change = tickerCallback)
-
-            plotOHLC(ohlcData[ohlcData['Ticker'] ==
-                                st.session_state.selectedTicker])
+            plotOHLC(ohlcData)
 
 
 def startSubscriber():
