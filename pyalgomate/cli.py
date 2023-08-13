@@ -335,11 +335,12 @@ def CliMain(cls):
         logging.root.removeHandler(handler)
 
     logging.basicConfig(filename=f'{cls.__name__}.log', level=logging.INFO)
+    logging.getLogger("requests").setLevel(logging.WARNING)
 
     try:
         global strategyClass
         strategyClass = cls
-        cli()
+        cli(standalone_mode=False)
     except click.UsageError as e:
         click.echo(f'Error: {str(e)}')
         click.echo(cli.get_help())
