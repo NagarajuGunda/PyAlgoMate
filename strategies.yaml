@@ -1,0 +1,19 @@
+Broker: Finvasia
+Strategies:
+  Strategy1:
+    Class: BreakoutV1
+    Path: pyalgomate/strategies/BreakoutV1.py
+    Mode: paper
+    Args:
+      - underlying: NSE|NIFTY BANK
+      - lotSize: 15
+      - collectData: True
+
+  Strategy2:
+    Class: ATMStraddleV1
+    Path: pyalgomate/strategies/ATMStraddleV1.py
+    Mode: paper
+    Args:
+      - underlying: NSE|NIFTY BANK
+      - lotSize: 15
+      - collectData: True
