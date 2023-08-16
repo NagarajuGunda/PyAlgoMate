@@ -60,7 +60,7 @@ def checkDate(ctx, param, value):
         raise click.UsageError("Not a valid date: '{0}'.".format(value))
 
 
-def backtest(strategyClass, df, underlyings, send_to_ui, telegramBot, results):
+def backtest(strategyClass, df, underlyings, send_to_ui, telegramBot):
     from pyalgomate.backtesting import CustomCSVFeed
     from pyalgomate.brokers import BacktestingBroker
 
@@ -84,7 +84,8 @@ def backtest(strategyClass, df, underlyings, send_to_ui, telegramBot, results):
 
     strategy = createStrategyInstance(strategyClass, argsDict)
     strategy.run()
-    results.append(strategy.getTrades())
+    
+    return strategy.getTrades()
 
 
 @cli.command(name='backtest')
@@ -150,17 +151,20 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
 
     workers = multiprocessing.cpu_count()
     print(f"Running with {workers} workers")
-    with ThreadPoolExecutor(max_workers=workers) as executor:
+    with ProcessPoolExecutor(max_workers=workers) as executor:
         futures = []
         for groupKey, groupDf in groups:
-            results = []
             future = executor.submit(
-                backtest, strategyClass, groupDf, underlyings, send_to_ui, telegramBot, results)
-            futures.append((future, results))
+                backtest, strategyClass, groupDf, underlyings, send_to_ui, telegramBot)
+            futures.append(future)
 
-        for future, results in futures:
-            future.result()
-            backtestResults.extend(results)
+        for future in futures:
+            results = future.result()
+            backtestResults.append(results)
+    
+    print("")
+    print(
+        f"Time took in running the strategy <{datetime.datetime.now()-start}>")
 
     tradesDf = pd.DataFrame()
     for backtestResult in backtestResults:
@@ -170,9 +174,6 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
     tradesDf.to_csv(f'results/{strategyClass.__name__}_backtest.csv', mode='a',
                     header=not os.path.exists(f'results/{strategyClass.__name__}_backtest.csv'), index=False)
 
-    print("")
-    print(
-        f"Time took in running the strategy <{datetime.datetime.now()-start}>")
 
     if telegramBot:
         telegramBot.stop()  # Signal the stop event
