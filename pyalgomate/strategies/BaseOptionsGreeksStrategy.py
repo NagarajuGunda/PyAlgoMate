@@ -45,11 +45,10 @@ class Expiry(object):
 
 class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
-    def __init__(self, feed, broker, strategyName, logger: logging.Logger, 
+    def __init__(self, feed, broker, strategyName, collectTrades, logger: logging.Logger, 
                  callback=None, 
                  resampleFrequency=None,
                  collectData=None,
-                 collectTrades=True,
                  telegramBot:TelegramBot=None):
         super(BaseOptionsGreeksStrategy, self).__init__(feed, broker)
         self.marketStartTime = datetime.time(hour=9, minute=15)

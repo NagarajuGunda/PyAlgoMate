@@ -60,6 +60,33 @@ def checkDate(ctx, param, value):
         raise click.UsageError("Not a valid date: '{0}'.".format(value))
 
 
+def backtest(strategyClass, df, underlyings, send_to_ui, telegramBot, results):
+    from pyalgomate.backtesting import CustomCSVFeed
+    from pyalgomate.brokers import BacktestingBroker
+
+    feed = CustomCSVFeed.CustomCSVFeed()
+
+    for underlying in underlyings:
+        feed.addBarsFromDataframe(df, underlying)
+
+    broker = BacktestingBroker(200000, feed)
+
+    argsDict = {
+        'feed': feed,
+        'broker': broker,
+        'underlying': underlyings[0],
+        'underlyings': underlyings,
+        'lotSize': 25,
+        'collectTrades': False,
+        'callback': valueChangedCallback if send_to_ui else None,
+        'telegramBot': telegramBot
+    }
+
+    strategy = createStrategyInstance(strategyClass, argsDict)
+    strategy.run()
+    results.append(strategy.getTrades())
+
+
 @cli.command(name='backtest')
 @click.option('--underlying', default=['BANKNIFTY'], multiple=True, help='Specify an underlying')
 @click.option('--data', prompt='Specify data file', multiple=True)
@@ -68,9 +95,13 @@ def checkDate(ctx, param, value):
 @click.option('--send-to-telegram', help='Specify if messages needs to be sent to telegram', default=False, type=click.BOOL)
 @click.option('--from-date', help='Specify a from date', callback=checkDate,  default=None, type=click.STRING)
 @click.option('--to-date', help='Specify a to date', callback=checkDate, default=None, type=click.STRING)
+@click.option('--parallelize', help='Specify if backtest in parallel', default=None, type=click.Choice(['Day', 'Month']))
 @click.pass_obj
-def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_telegram, from_date, to_date):
+def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_telegram, from_date, to_date, parallelize):
     import yaml
+    from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+    import multiprocessing
+    import pandas as pd
 
     if len(underlying) == 0:
         underlying = ['BANKNIFTY']
@@ -81,26 +112,8 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
         sock.bind(f"tcp://127.0.0.1:{port}")
 
     from pyalgomate.backtesting import CustomCSVFeed
-    from pyalgomate.brokers import BacktestingBroker
 
     underlyings = list(underlying)
-
-    start = datetime.datetime.now()
-    feed = CustomCSVFeed.CustomCSVFeed()
-
-    for underlying in underlyings:
-        feed.addBarsFromParquets(
-            dataFiles=data,
-            ticker=underlying,
-            startDate=datetime.datetime.strptime(
-                from_date, "%Y-%m-%d").date() if from_date is not None else None,
-            endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
-
-    print("")
-    print(f"Time took in loading data <{datetime.datetime.now()-start}>")
-    start = datetime.datetime.now()
-
-    broker = BacktestingBroker(200000, feed)
 
     if send_to_telegram:
         with open('cred.yml') as f:
@@ -114,18 +127,44 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
     argNames = [param for param in constructorArgs]
     click.echo(f"{strategyClass.__name__} takes {argNames}")
 
-    argsDict = {
-        'feed': feed,
-        'broker': broker,
-        'underlying': underlyings[0],
-        'underlyings': underlyings,
-        'lotSize': 25,
-        'callback': valueChangedCallback if send_to_ui else None,
-        'telegramBot': telegramBot
-    }
+    feed = CustomCSVFeed.CustomCSVFeed()
 
-    strategy = createStrategyInstance(strategyClass, argsDict)
-    strategy.run()
+    df = feed.getDataFrameFromParquets(dataFiles=data,
+                                       startDate=datetime.datetime.strptime(
+                                           from_date, "%Y-%m-%d").date() if from_date is not None else None,
+                                       endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
+
+    if parallelize == 'Day':
+        groups = df.groupby([df['Date/Time'].dt.year, df['Date/Time'].dt.month, df['Date/Time'].dt.date])
+    elif parallelize == 'Month':
+        groups = df.groupby([df['Date/Time'].dt.year, df['Date/Time'].dt.month])
+    else:
+        groups = [(None, df)]
+
+    start = datetime.datetime.now()
+
+    backtestResults = []
+
+    workers = multiprocessing.cpu_count()
+    print(f"Running with {workers} workers")
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = []
+        for groupKey, groupDf in groups:
+            results = []
+            future = executor.submit(
+                backtest, strategyClass, groupDf, underlyings, send_to_ui, telegramBot, results)
+            futures.append((future, results))
+
+        for future, results in futures:
+            future.result()
+            backtestResults.extend(results)
+
+    tradesDf = pd.DataFrame()
+    for backtestResult in backtestResults:
+        tradesDf = pd.concat([tradesDf, backtestResult], ignore_index=True)
+
+    tradesDf.sort_values(by=['Entry Date/Time'])
+    tradesDf.to_csv(f'results/{strategyClass.__name__}_backtest.csv', index=False)
 
     print("")
     print(
@@ -315,6 +354,7 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
         'underlyings': underlyings,
         'registeredOptionsCount': len(optionSymbols),
         'lotSize': 25,
+        'collectTrades': True,
         'callback': valueChangedCallback if send_to_ui else None,
         'collectData': collect_data,
         'telegramBot': telegramBot

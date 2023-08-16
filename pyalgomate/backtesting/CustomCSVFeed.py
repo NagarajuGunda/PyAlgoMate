@@ -176,6 +176,9 @@ class CustomCSVBarFeed(BarFeed):
         self.addBarsFromDataframe(df, ticker, timezone)
 
     def addBarsFromParquets(self, dataFiles, ticker=None, startDate=None, endDate=None, timezone=None):
+        self.addBarsFromDataframe(self.getDataFrameFromParquets(dataFiles, startDate, endDate), ticker, timezone)
+
+    def getDataFrameFromParquets(self, dataFiles, startDate=None, endDate=None):
         df = None
         for files in dataFiles:
             for file in glob.glob(files):
@@ -193,7 +196,7 @@ class CustomCSVBarFeed(BarFeed):
         if endDate:
             df = df[df[self.__columnNames['datetime']].dt.date <= endDate]
 
-        self.addBarsFromDataframe(df, ticker, timezone)
+        return df
 
     def addBarsFromCSV(self, path, timezone=None, skipMalformedBars=False):
         """Loads bars for a given instrument from a CSV formatted file.
