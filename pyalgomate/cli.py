@@ -102,6 +102,7 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
     from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
     import multiprocessing
     import pandas as pd
+    import os
 
     if len(underlying) == 0:
         underlying = ['BANKNIFTY']
@@ -135,9 +136,11 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
                                        endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
 
     if parallelize == 'Day':
-        groups = df.groupby([df['Date/Time'].dt.year, df['Date/Time'].dt.month, df['Date/Time'].dt.date])
+        groups = df.groupby(
+            [df['Date/Time'].dt.year, df['Date/Time'].dt.month, df['Date/Time'].dt.date])
     elif parallelize == 'Month':
-        groups = df.groupby([df['Date/Time'].dt.year, df['Date/Time'].dt.month])
+        groups = df.groupby(
+            [df['Date/Time'].dt.year, df['Date/Time'].dt.month])
     else:
         groups = [(None, df)]
 
@@ -164,7 +167,8 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
         tradesDf = pd.concat([tradesDf, backtestResult], ignore_index=True)
 
     tradesDf.sort_values(by=['Entry Date/Time'])
-    tradesDf.to_csv(f'results/{strategyClass.__name__}_backtest.csv', index=False)
+    tradesDf.to_csv(f'results/{strategyClass.__name__}_backtest.csv', mode='a',
+                    header=not os.path.exists(f'results/{strategyClass.__name__}_backtest.csv'), index=False)
 
     print("")
     print(
