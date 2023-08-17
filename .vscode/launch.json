@@ -39,7 +39,7 @@
             "justMyCode": false,            
             "cwd": "${workspaceFolder}",
             "env": {"PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"},
-            "args": ["backtest", "--data", "${workspaceFolder}/strategies/data/2023/banknifty/01.parquet", "--underlying", "BANKNIFTY", "--from-date", "2023-01-01", "--to-date", "2023-01-03"]
+            "args": ["backtest", "--data", "${workspaceFolder}/strategies/data/2023/banknifty/06.parquet", "--underlying", "BANKNIFTY", "--from-date", "2023-06-01", "--to-date", "2023-06-30", "--parallelize", "Day"]
         },
         {
             "name": "Python: Current File with Args - Finvasia Paper Trade",
