@@ -77,7 +77,6 @@ def backtest(strategyClass, df, underlyings, send_to_ui, telegramBot):
         'underlying': underlyings[0],
         'underlyings': underlyings,
         'lotSize': 25,
-        'collectTrades': False,
         'callback': valueChangedCallback if send_to_ui else None,
         'telegramBot': telegramBot
     }
@@ -150,7 +149,9 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
     backtestResults = []
 
     workers = multiprocessing.cpu_count()
-    print(f"Running with {workers} workers")
+    if parallelize:
+        print(f"Running with {workers} workers")
+
     with ProcessPoolExecutor(max_workers=workers) as executor:
         futures = []
         for groupKey, groupDf in groups:
@@ -359,7 +360,6 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
         'underlyings': underlyings,
         'registeredOptionsCount': len(optionSymbols),
         'lotSize': 25,
-        'collectTrades': True,
         'callback': valueChangedCallback if send_to_ui else None,
         'collectData': collect_data,
         'telegramBot': telegramBot

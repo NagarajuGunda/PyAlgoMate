@@ -45,7 +45,7 @@ class Expiry(object):
 
 class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
-    def __init__(self, feed, broker, strategyName, collectTrades, logger: logging.Logger, 
+    def __init__(self, feed, broker, strategyName, logger: logging.Logger, 
                  callback=None, 
                  resampleFrequency=None,
                  collectData=None,
@@ -56,7 +56,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.strategyName = strategyName
         self.logger = logger
         self.collectData = collectData
-        self.collectTrades = collectTrades
+        self.collectTrades = False if self.isBacktest() else True
         self.telegramBot = telegramBot
         self._observers = []
         self.__optionContracts = dict()
@@ -75,7 +75,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         if not os.path.exists("results"):
             os.mkdir("results")
 
-        if isinstance(self.getFeed(), csvfeed.BarFeed):
+        if self.isBacktest():
             self.tradesCSV = f"results/{self.strategyName}_backtest.csv"
         else:
             self.tradesCSV = f"results/{self.strategyName}_trades.csv"
@@ -95,8 +95,11 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                 pd.DataFrame(columns=self.dataColumns).to_csv(
                     self.dataFileName, index=False)
 
+    def isBacktest(self):
+        return isinstance(self.getFeed(), csvfeed.BarFeed)
+
     def buildOrdersFromActiveOrders(self):
-        if not isinstance(self.getFeed(), csvfeed.BarFeed):
+        if not self.isBacktest():
             today = datetime.date.today()
 
             mask = (self.tradesDf['Exit Order Id'].isnull()) & \
