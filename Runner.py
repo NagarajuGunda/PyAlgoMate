@@ -4,7 +4,9 @@ import yaml
 from importlib import import_module
 import threading
 import logging
+import signal
 import pyalgomate.utils as utils
+from pyalgomate.telegram import TelegramBot
 
 logging.basicConfig(filename=f'PyAlgoMate.log', level=logging.INFO)
 logging.getLogger("requests").setLevel(logging.WARNING)
@@ -162,6 +164,10 @@ def main():
     with open('cred.yml') as f:
         creds = yaml.load(f, Loader=yaml.FullLoader)
 
+    if 'Telegram' in creds and 'token' in creds['Telegram']:
+        telegramBot = TelegramBot(
+            creds['Telegram']['token'], creds['Telegram']['chatid'])
+
     strategies = []
 
     feed, api = getFeed(creds, config['Broker'])
@@ -169,8 +175,10 @@ def main():
     for strategyName, details in config['Strategies'].items():
         strategyClassName = details['Class']
         strategyPath = details['Path']
-        strategyArgs = details['Args']
         strategyMode = details['Mode']
+        strategyArgs = details['Args']
+        strategyArgs.append({'telegramBot': telegramBot})
+        strategyArgs.append({'strategyName': strategyName})
 
         module = import_module(
             strategyPath.replace('.py', '').replace('/', '.'))
@@ -191,6 +199,17 @@ def main():
         thread = threading.Thread(target=strategyObject.run)
         thread.start()
         threads.append(thread)
+
+    if telegramBot:
+        def handle_interrupt(signum, frame):
+            logger.info("Ctrl+C received. Stopping the bot...")
+            telegramBot.stop()
+            telegramBot.waitUntilFinished()
+            telegramBot.delete()
+            logger.info("Bot stopped. Exiting the process.")
+            exit(0)
+
+    signal.signal(signal.SIGINT, handle_interrupt)
 
     for thread in threads:
         thread.join()
