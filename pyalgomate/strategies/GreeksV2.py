@@ -8,13 +8,15 @@ import sys
 
 
 class GreeksV2(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, underlying, registeredOptionsCount=0, callback=None, resampleFrequency=None, lotSize=None, collectData=None):
+    def __init__(self, feed, broker, underlying, strategyName=None, registeredOptionsCount=0, 
+                 callback=None, resampleFrequency=None, lotSize=None, collectData=None, telegramBot=None):
         super(GreeksV2, self).__init__(feed, broker,
-                                       strategyName=__class__.__name__,
+                                       strategyName=strategyName if strategyName else __class__.__name__,
                                        logger=logging.getLogger(
                                            __file__),
                                        callback=callback,
-                                       collectData=collectData)
+                                       collectData=collectData,
+                                       telegramBot=telegramBot)
 
         self.entryTime = datetime.time(hour=9, minute=17)
         self.exitTime = datetime.time(hour=15, minute=15)

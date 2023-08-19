@@ -13,13 +13,15 @@ logger = logging.getLogger(__file__)
 
 
 class SuperTrendV1(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, underlying, registeredOptionsCount=None, callback=None, resampleFrequency=None, lotSize=None, collectData=None):
+    def __init__(self, feed, broker, underlying, strategyName=None, registeredOptionsCount=None,
+                 callback=None, resampleFrequency=None, lotSize=None, collectData=None, telegramBot=None):
         super(SuperTrendV1, self).__init__(feed, broker,
-                                           strategyName=__class__.__name__,
+                                           strategyName=strategyName if strategyName else __class__.__name__,
                                            logger=logging.getLogger(
                                                __file__),
                                            callback=callback,
-                                           collectData=collectData)
+                                           collectData=collectData,
+                                           telegramBot=telegramBot)
 
         self.entryTime = datetime.time(hour=9, minute=17)
         self.exitTime = datetime.time(hour=15, minute=15)
@@ -161,61 +163,5 @@ class SuperTrendV1(BaseOptionsGreeksStrategy):
 
 
 if __name__ == "__main__":
-    import yaml
-    import pyotp
-    import logging
-    import datetime
-    import os
-
-    from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
-    from pyalgomate.brokers.finvasia.broker import LiveBroker, getFinvasiaToken, getFinvasiaTokenMappings
-    import pyalgomate.brokers.finvasia as finvasia
-    from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
-
-    api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
-                     websocket='wss://api.shoonya.com/NorenWSTP/')
-
-    with open('cred.yml') as f:
-        cred = yaml.load(f, Loader=yaml.FullLoader)
-
-    userToken = None
-    tokenFile = 'shoonyakey.txt'
-    if os.path.exists(tokenFile) and (datetime.datetime.fromtimestamp(os.path.getmtime(tokenFile)).date() == datetime.datetime.today().date()):
-        logger.info(f"Token has been created today already. Re-using it")
-        with open(tokenFile, 'r') as f:
-            userToken = f.read()
-        logger.info(
-            f"userid {cred['user']} password ******** usertoken {userToken}")
-        loginStatus = api.set_session(
-            userid=cred['user'], password=cred['pwd'], usertoken=userToken)
-    else:
-        print(f"Logging in and persisting user token")
-        loginStatus = api.login(userid=cred['user'], password=cred['pwd'], twoFA=pyotp.TOTP(cred['factor2']).now(),
-                                vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
-
-        with open(tokenFile, 'w') as f:
-            f.write(loginStatus.get('susertoken'))
-
-        logger.info(
-            f"{loginStatus.get('uname')}={loginStatus.get('stat')} token={loginStatus.get('susertoken')}")
-
-    if loginStatus != None:
-        underlyingInstrument = 'NSE|NIFTY BANK'
-
-        token = getFinvasiaToken(
-            api, underlyingInstrument)
-        quotes = api.get_quotes('NSE', token)
-        ltp = quotes['lp']
-
-        currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-            datetime.datetime.now().date())
-
-        tokenMappings = getFinvasiaTokenMappings(
-            api, ["NSE|NIFTY INDEX", underlyingInstrument])
-
-        barFeed = LiveTradeFeed(api, tokenMappings)
-        broker = LiveBroker(api)
-
-        strategy = SuperTrendV1(
-            feed=barFeed, broker=broker, underlying=underlyingInstrument)
-        strategy.run()
+    from pyalgomate.cli import CliMain
+    CliMain(SuperTrendV1)
