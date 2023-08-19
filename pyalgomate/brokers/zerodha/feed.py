@@ -322,10 +322,12 @@ class ZerodhaLiveFeed(MyBarFeed):
 
     # This may raise.
     def start(self):
-        super(ZerodhaLiveFeed, self).start()
         if self.__thread is not None:
-            raise Exception("Already running")
-        elif not self.__initializeClient():
+            logger.info("Already running!")
+            return
+        
+        super(ZerodhaLiveFeed, self).start()
+        if not self.__initializeClient():
             self.__stopped = True
             raise Exception("Initialization failed")
 
