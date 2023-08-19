@@ -61,7 +61,7 @@ class InvalidStrategyFilter(BaseFilter):
 
 
 class TelegramBot:
-    def __init__(self, botToken, channelId):
+    def __init__(self, botToken, channelId, allowedUserIds):
         self.botToken = botToken
         self.bot = Bot(token=botToken)
         self.channelId = channelId
@@ -72,6 +72,8 @@ class TelegramBot:
         self.readyEvent = threading.Event()
         self.stopEvent = threading.Event()
         self.sendThread.start()
+        self.application = None
+        self.allowedUserIds = allowedUserIds
 
         self.strategies: List[object] = []
 
@@ -99,7 +101,7 @@ class TelegramBot:
             await self._safeSend(message)
             self.messageQueue.task_done()
 
-            if self.stopEvent.is_set() and self.messageQueue.empty():
+            if self.stopEvent.is_set():
                 break
 
     async def _safeSend(self, message):
@@ -109,6 +111,11 @@ class TelegramBot:
             logger.info(f"Error sending message: {str(e)}")
 
     def stop(self):
+        async def stopPolling(updater):
+            await updater.stop()
+
+        asyncio.run_coroutine_threadsafe(
+            stopPolling(self.application.updater), self.loop)
         self.stopEvent.set()
 
     def delete(self):
@@ -163,6 +170,15 @@ class TelegramBot:
         return SELECT_STRATEGY
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        user_id = update.message.from_user.id
+
+        # Check if the user ID is in the list of allowed user IDs
+        if user_id not in self.allowedUserIds:
+            await update.message.reply_text(
+                "Sorry, you are not authorized to access this bot."
+            )
+            return ConversationHandler.END
+
         """Start the conversation and ask user for input."""
         await update.message.reply_text(
             "Hi! I am PyAlgoMate Botter. How can I help you today?",
@@ -183,7 +199,7 @@ class TelegramBot:
     async def run(self):
         """Run the bot."""
         # Create the Application and pass it your bot's token.
-        application = Application.builder().token(self.botToken).build()
+        self.application = Application.builder().token(self.botToken).build()
 
         # Add conversation handler with the states CHOOSING, SELECT_STRATEGY
         conv_handler = ConversationHandler(
@@ -191,7 +207,8 @@ class TelegramBot:
             states={
                 CHOOSING: [
                     MessageHandler(
-                        filters.TEXT & ~(filters.COMMAND | filters.Regex("^Done$")),
+                        filters.TEXT & ~(filters.COMMAND |
+                                         filters.Regex("^Done$")),
                         self.choice_handler
                     ),
                 ],
@@ -209,11 +226,11 @@ class TelegramBot:
             fallbacks=[MessageHandler(filters.Regex("^Done$"), self.done)],
         )
 
-        application.add_handler(conv_handler)
+        self.application.add_handler(conv_handler)
 
-        await application.initialize()  # inits bot, update, persistence
-        await application.start()
-        await application.updater.start_polling()
+        await self.application.initialize()  # inits bot, update, persistence
+        await self.application.start()
+        await self.application.updater.start_polling()
 
 
 def main() -> None:

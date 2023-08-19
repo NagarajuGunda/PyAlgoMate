@@ -157,6 +157,22 @@ def getBroker(feed, api, broker, mode, capital=200000):
     return brokerInstance
 
 
+def runStrategy(strategy):
+    try:
+        strategy.run()
+    except Exception as e:
+        logger.critical(
+            f'Error occurred while running strategy {strategy.strategyName}. Exception: {e}')
+
+
+def threadTarget(strategy):
+    try:
+        runStrategy(strategy)
+    except Exception as e:
+        logger.error(
+            f'An exception occurred in thread for strategy {strategy.strategyName}. Exception: {e}')
+
+
 def main():
     with open("strategies.yaml", "r") as file:
         config = yaml.safe_load(file)
@@ -166,7 +182,7 @@ def main():
 
     if 'Telegram' in creds and 'token' in creds['Telegram']:
         telegramBot = TelegramBot(
-            creds['Telegram']['token'], creds['Telegram']['chatid'])
+            creds['Telegram']['token'], creds['Telegram']['chatid'], creds['Telegram']['allow'])
 
     strategies = []
 
@@ -196,16 +212,27 @@ def main():
     threads = []
 
     for strategyObject in strategies:
-        thread = threading.Thread(target=strategyObject.run)
+        thread = threading.Thread(target=threadTarget, args=(strategyObject,))
         thread.start()
         threads.append(thread)
 
     if telegramBot:
         def handle_interrupt(signum, frame):
             logger.info("Ctrl+C received. Stopping the bot...")
+
+            # Stop the strategies
+            for strategyObject in strategies:
+                strategyObject.stop()
+
             telegramBot.stop()
+
+            # Stop the threads
+            for thread in threads:
+                thread.join()
+
             telegramBot.waitUntilFinished()
             telegramBot.delete()
+
             logger.info("Bot stopped. Exiting the process.")
             exit(0)
 
