@@ -5,6 +5,8 @@ from importlib import import_module
 import threading
 import logging
 import signal
+import zmq
+import json
 import pyalgomate.utils as utils
 from pyalgomate.telegram import TelegramBot
 
@@ -173,6 +175,15 @@ def threadTarget(strategy):
             f'An exception occurred in thread for strategy {strategy.strategyName}. Exception: {e}')
 
 
+context = zmq.Context()
+sock = context.socket(zmq.PUB)
+
+
+def valueChangedCallback(strategy, value):
+    jsonDump = json.dumps({strategy: value})
+    sock.send_json(jsonDump)
+
+
 def main():
     with open("strategies.yaml", "r") as file:
         config = yaml.safe_load(file)
@@ -186,6 +197,10 @@ def main():
 
     strategies = []
 
+    if 'Streamlit' in config:
+        port = config['Streamlit']['Port']
+        sock.bind(f"tcp://127.0.0.1:{port}")
+
     feed, api = getFeed(creds, config['Broker'])
 
     for strategyName, details in config['Strategies'].items():
@@ -195,6 +210,7 @@ def main():
         strategyArgs = details['Args']
         strategyArgs.append({'telegramBot': telegramBot})
         strategyArgs.append({'strategyName': strategyName})
+        strategyArgs.append({'callback': valueChangedCallback})
 
         module = import_module(
             strategyPath.replace('.py', '').replace('/', '.'))
