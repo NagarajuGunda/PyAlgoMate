@@ -7,7 +7,13 @@ Finvasia:
   imei    : 'abc1234'
 
 Zerodha:
+  user    : 'USER'
+  pwd     : '********'
+  factor2 : 'Two Factor code'
 
 Telegram:
   token: ':'
   chatid: '-XXXXXXXX'
+  allow:
+    - 1234
+    - 5678

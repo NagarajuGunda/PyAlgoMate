@@ -64,6 +64,9 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.mfe = dict()
         self.reset()
 
+        if self.telegramBot:
+            self.telegramBot.addStrategy(self)
+
         # build option contracts
         self.buildOptionContracts()
 

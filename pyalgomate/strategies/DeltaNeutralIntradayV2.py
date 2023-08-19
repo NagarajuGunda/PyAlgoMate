@@ -5,19 +5,21 @@ import pandas as pd
 import pyalgomate.utils as utils
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import State, Expiry
+from pyalgomate.cli import CliMain
 
 logger = logging.getLogger(__file__)
 
 
 class DeltaNeutralIntradayV2(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, registeredOptionsCount=None, callback=None, resampleFrequency=None, lotSize=None, collectData=None):
+    def __init__(self, feed, broker, strategyName=None, registeredOptionsCount=None, callback=None, resampleFrequency=None, lotSize=None, collectData=None, telegramBot=None):
         super(DeltaNeutralIntradayV2, self).__init__(feed, broker,
-                                                   strategyName=__class__.__name__,
+                                                   strategyName=strategyName if strategyName else __class__.__name__,
                                                    logger=logging.getLogger(
                                                        __file__),
                                                    callback=callback,
                                                    resampleFrequency=resampleFrequency,
-                                                   collectData=collectData)
+                                                   collectData=collectData,
+                                                   telegramBot=telegramBot)
 
         self.entryTime = datetime.time(hour=9, minute=17)
         self.exitTime = datetime.time(hour=15, minute=15)
@@ -213,3 +215,7 @@ class DeltaNeutralIntradayV2(BaseOptionsGreeksStrategy):
         # Check if we are in the EXITED state
         elif self.state == State.EXITED:
             pass
+
+
+if __name__ == "__main__":
+    CliMain(DeltaNeutralIntradayV2)

@@ -12,13 +12,14 @@ After 2 PM, go in the direction of break of day high or low with stop of breakou
 
 
 class BreakoutV1(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, underlying, registeredOptionsCount=0, callback=None, resampleFrequency=None, lotSize=None, collectData=None):
+    def __init__(self, feed, broker, underlying, registeredOptionsCount=0, strategyName=None, callback=None, resampleFrequency=None, lotSize=None, collectData=None, telegramBot=None):
         super(BreakoutV1, self).__init__(feed, broker,
-                                         strategyName=__class__.__name__,
+                                         strategyName=strategyName if strategyName else __class__.__name__,
                                          logger=logging.getLogger(
                                              __file__),
                                          callback=callback,
-                                         collectData=collectData)
+                                         collectData=collectData,
+                                         telegramBot=telegramBot)
 
         self.entryTime = datetime.time(hour=14, minute=0)
         self.exitTime = datetime.time(hour=15, minute=15)

@@ -5,15 +5,19 @@ import pandas as pd
 import pyalgomate.utils as utils
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import State, Expiry
-
+from pyalgomate.cli import CliMain
 
 class StraddleIntradayV1(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, underlying=None, registeredOptionsCount=None, callback=None, resampleFrequency=None, lotSize=None, collectData=None):
+    def __init__(self, feed, broker, underlying=None, strategyName=None, registeredOptionsCount=None,
+                 callback=None, resampleFrequency=None, lotSize=None, collectData=None, telegramBot=None):
         super(StraddleIntradayV1, self).__init__(feed, broker,
-                                                 strategyName=__class__.__name__,
+                                                 strategyName=strategyName if strategyName else __class__.__name__,
                                                  logger=logging.getLogger(
                                                      __file__),
-                                                 callback=callback, resampleFrequency=resampleFrequency, collectData=collectData)
+                                                 callback=callback,
+                                                 resampleFrequency=resampleFrequency,
+                                                 collectData=collectData,
+                                                 telegramBot=telegramBot)
 
         self.entryTime = datetime.time(hour=9, minute=17)
         self.exitTime = datetime.time(hour=15, minute=15)
@@ -180,48 +184,4 @@ class StraddleIntradayV1(BaseOptionsGreeksStrategy):
 
 
 if __name__ == "__main__":
-    from pyalgomate.backtesting import CustomCSVFeed
-    from pyalgomate.brokers import BacktestingBroker
-    from pyalgotrade.stratanalyzer import returns as stratReturns, drawdown, trades
-    import logging
-    logging.basicConfig(filename='StraddleIntradayV1.log', level=logging.INFO)
-
-    underlyingInstrument = 'BANKNIFTY'
-
-    start = datetime.datetime.now()
-    feed = CustomCSVFeed.CustomCSVFeed()
-    feed.addBarsFromParquets(dataFiles=[
-                             "pyalgomate/backtesting/data/test.parquet"], ticker=underlyingInstrument)
-
-    print("")
-    print(f"Time took in loading data <{datetime.datetime.now()-start}>")
-    start = datetime.datetime.now()
-
-    broker = BacktestingBroker(200000, feed)
-    strat = StraddleIntradayV1(
-        feed=feed, broker=broker, underlying=underlyingInstrument, lotSize=25, collectData=True)
-
-    returnsAnalyzer = stratReturns.Returns()
-    tradesAnalyzer = trades.Trades()
-    drawDownAnalyzer = drawdown.DrawDown()
-
-    strat.attachAnalyzer(returnsAnalyzer)
-    strat.attachAnalyzer(drawDownAnalyzer)
-    strat.attachAnalyzer(tradesAnalyzer)
-
-    strat.run()
-
-    print("")
-    print(
-        f"Time took in running the strategy <{datetime.datetime.now()-start}>")
-
-    print("")
-    print("Final portfolio value: ₹ %.2f" % strat.getResult())
-    print("Cumulative returns: %.2f %%" %
-          (returnsAnalyzer.getCumulativeReturns()[-1] * 100))
-    print("Max. drawdown: %.2f %%" % (drawDownAnalyzer.getMaxDrawDown() * 100))
-    print("Longest drawdown duration: %s" %
-          (drawDownAnalyzer.getLongestDrawDownDuration()))
-
-    print("")
-    print("Total trades: %d" % (tradesAnalyzer.getCount()))
+    CliMain(StraddleIntradayV1)

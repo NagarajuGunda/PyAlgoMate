@@ -5,6 +5,7 @@ from pyalgotrade.strategy import position
 import pyalgomate.utils as utils
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import State
+from pyalgomate.cli import CliMain
 
 logger = logging.getLogger(__file__)
 
@@ -17,13 +18,15 @@ Exit at exitTime
 
 
 class StraddleIntradayV3(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, underlying, callback=None, lotSize=None, collectData=None):
+    def __init__(self, feed, broker, underlying, strategyName=None, callback=None,
+                 lotSize=None, collectData=None, telegramBot=None):
         super(StraddleIntradayV3, self).__init__(feed, broker,
-                                                 strategyName=__class__.__name__,
+                                                 strategyName=strategyName if strategyName else __class__.__name__,
                                                  logger=logging.getLogger(
                                                      __file__),
                                                  callback=callback,
-                                                 collectData=collectData)
+                                                 collectData=collectData,
+                                                 telegramBot=telegramBot)
 
         self.entryTime = datetime.time(hour=9, minute=30)
         self.exitTime = datetime.time(hour=15, minute=15)
@@ -163,28 +166,4 @@ class StraddleIntradayV3(BaseOptionsGreeksStrategy):
 
 
 if __name__ == "__main__":
-    from pyalgomate.backtesting import CustomCSVFeed
-    from pyalgomate.brokers import BacktestingBroker
-    import logging
-    logging.basicConfig(filename='StraddleIntradayV3.log',
-                        filemode='w', level=logging.INFO)
-
-    underlyingInstrument = 'BANKNIFTY'
-
-    start = datetime.datetime.now()
-    feed = CustomCSVFeed.CustomCSVFeed()
-    feed.addBarsFromParquets(dataFiles=[
-                             "pyalgomate/backtesting/data/test.parquet"], ticker=underlyingInstrument)
-
-    print("")
-    print(f"Time took in loading data <{datetime.datetime.now()-start}>")
-    start = datetime.datetime.now()
-
-    broker = BacktestingBroker(200000, feed)
-    strat = StraddleIntradayV3(
-        feed=feed, broker=broker, underlying=underlyingInstrument, lotSize=25)
-    strat.run()
-
-    print("")
-    print(
-        f"Time took in running the strategy <{datetime.datetime.now()-start}>")
+    CliMain(StraddleIntradayV3)

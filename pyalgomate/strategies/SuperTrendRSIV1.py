@@ -22,9 +22,10 @@ TimeFrame: 5 minute
 
 
 class SuperTrendRSIV1(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, underlying, callback=None, lotSize=None, collectData=None, telegramBot=None):
+    def __init__(self, feed, broker, underlying, strategyName=None, callback=None,
+                 lotSize=None, collectData=None, telegramBot=None):
         super(SuperTrendRSIV1, self).__init__(feed, broker,
-                                              strategyName=__class__.__name__,
+                                              strategyName=strategyName if strategyName else __class__.__name__,
                                               logger=logging.getLogger(
                                                   __file__),
                                               callback=callback,
