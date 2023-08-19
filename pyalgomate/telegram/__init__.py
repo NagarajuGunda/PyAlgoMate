@@ -114,9 +114,10 @@ class TelegramBot:
         async def stopPolling(updater):
             await updater.stop()
 
+        self.stopEvent.set()
+
         asyncio.run_coroutine_threadsafe(
             stopPolling(self.application.updater), self.loop)
-        self.stopEvent.set()
 
     def delete(self):
         self.stop()
@@ -127,6 +128,9 @@ class TelegramBot:
         self.sendThread.join()
 
     async def choice_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        if not await self.isUserAllowed(update):
+            return ConversationHandler.END
+
         """Handle user choices, including "Get PnL" and "Exit All Positions"."""
         text = update.message.text
         if text == "Get PnL":
@@ -145,6 +149,9 @@ class TelegramBot:
         return SELECT_STRATEGY
 
     async def strategy_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        if not await self.isUserAllowed(update):
+            return ConversationHandler.END
+
         selected_strategy = update.message.text
         action = context.user_data.get("selected_action")
 
@@ -166,17 +173,23 @@ class TelegramBot:
         return await self.start(update, context)
 
     async def invalid_strategy_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        if not await self.isUserAllowed(update):
+            return ConversationHandler.END
+
         await update.message.reply_text("Invalid strategy selection. Please choose a valid strategy.")
         return SELECT_STRATEGY
 
-    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    async def isUserAllowed(self, update: Update):
         user_id = update.message.from_user.id
-
-        # Check if the user ID is in the list of allowed user IDs
         if user_id not in self.allowedUserIds:
             await update.message.reply_text(
                 "Sorry, you are not authorized to access this bot."
             )
+            return False
+        return True
+
+    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        if not await self.isUserAllowed(update):
             return ConversationHandler.END
 
         """Start the conversation and ask user for input."""
