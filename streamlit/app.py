@@ -485,6 +485,10 @@ def plotOHLC(ohlcData):
         filteredData, st.session_state["selectedTicker"], st.session_state["selectedTimeFrame"])
 
 def displayData():
+    def updatedSelectedStrategy():
+        st.session_state["oldStrategy"] = st.session_state["selectedStrategy"]
+        st.session_state["selectedStrategy"] = st.session_state.newStrategy
+
     METRICS_PER_ROW = 3
     CHARTS_PER_ROW = 3
 
@@ -492,9 +496,10 @@ def displayData():
     # with st.empty():
     strategies = (key for key in get_data().copy())
     selectedStrategy = st.selectbox(
-        'Select a strategy', strategies, key=f"{datetime.datetime.now()}")
+        'Select a strategy', strategies, key="newStrategy", on_change=updatedSelectedStrategy)
     if get_data().get(selectedStrategy, None) is None:
         return
+    st.session_state["selectedStrategy"] = selectedStrategy
     strategyData = get_data().copy()[selectedStrategy]
     st.subheader(f'Last updated time: {strategyData["datetime"]}')
     tab1, tab2, tab3, tab4, tab5 = st.tabs(

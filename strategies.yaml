@@ -1,4 +1,7 @@
 Broker: Finvasia
+Streamlit:
+  Port: 5680
+
 Strategies:
   Strategy1:
     Class: BreakoutV1
