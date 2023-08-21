@@ -120,7 +120,7 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
         with open('cred.yml') as f:
             creds = yaml.load(f, Loader=yaml.FullLoader)
             telegramBot = TelegramBot(
-                creds['Telegram']['token'], creds['Telegram']['chatid'])
+                creds['Telegram']['token'], creds['Telegram']['chatid'], creds['Telegram']['allow'] if 'allow' in creds['Telegram'] else [])
     else:
         telegramBot = None
 
@@ -345,7 +345,7 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
 
     if send_to_telegram:
         telegramBot = TelegramBot(
-            creds['Telegram']['token'], creds['Telegram']['chatid'])
+            creds['Telegram']['token'], creds['Telegram']['chatid'], creds['Telegram']['allow'] if 'allow' in creds['Telegram'] else [])
     else:
         telegramBot = None
 
