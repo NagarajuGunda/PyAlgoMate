@@ -150,6 +150,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.closedPositions = set()
         self.overallPnL = 0
         self.state = State.LIVE
+        self.pnlDf = pd.DataFrame(columns=['Date/Time', 'PnL'])
 
     def getNewRows(self, bars):
         newRows = []
@@ -191,13 +192,18 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                 else:
                     self.mfe[orderId] = pnl
 
+        overallPnL = self.getOverallPnL()
+        self.pnlDf = pd.concat([self.pnlDf, pd.DataFrame([{'Date/Time': datetime.datetime.now(),
+                                                           'PnL': overallPnL}])],
+                               ignore_index=True)
+
         jsonData = {
             "datetime": bars.getDateTime().strftime('%Y-%m-%d %H:%M:%S'),
             "metrics": {
-                "pnl": self.overallPnL
+                "pnl": overallPnL
             },
             "charts": {
-                "pnl": self.overallPnL
+                "pnl": overallPnL
             },
             "state": State.toString(self.state)
         }
@@ -530,3 +536,6 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def getTrades(self):
         return self.tradesDf
+
+    def getPnLs(self):
+        return self.pnlDf

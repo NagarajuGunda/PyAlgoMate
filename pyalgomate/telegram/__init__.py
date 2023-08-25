@@ -2,6 +2,9 @@ import logging
 import asyncio
 import threading
 import signal
+import pandas as pd
+import numpy as np
+import plotly.express as px
 from typing import List, Dict
 
 from telegram import __version__ as TG_VER
@@ -36,10 +39,16 @@ logger = logging.getLogger(__name__)
 
 CHOOSING, SELECT_STRATEGY, TYPING_REPLY = range(3)
 
+GET_CURRENT_PNL = "Get Current PnL"
+GET_PNL_CHART = "Get PnL Charts"
+EXIT_ALL_POSITIONS = "Exit All Positions"
+DONE = "Done"
+
 reply_keyboard = [
-    ["Get PnL"],
-    ["Exit All Positions"],
-    ["Done"],
+    [GET_CURRENT_PNL],
+    [GET_PNL_CHART],
+    [EXIT_ALL_POSITIONS],
+    [DONE],
 ]
 markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
@@ -133,9 +142,11 @@ class TelegramBot:
 
         """Handle user choices, including "Get PnL" and "Exit All Positions"."""
         text = update.message.text
-        if text == "Get PnL":
-            return await self.select_strategy(update, context, "get_pnl")
-        elif text == "Exit All Positions":
+        if text == GET_CURRENT_PNL:
+            return await self.select_strategy(update, context, "get_current_pnl")
+        elif text == GET_PNL_CHART:
+            return await self.select_strategy(update, context, "get_pnl_chart")
+        elif text == EXIT_ALL_POSITIONS:
             return await self.select_strategy(update, context, "exit_all_positions")
         else:
             return await self.done(update, context)
@@ -162,9 +173,21 @@ class TelegramBot:
             return await self.unexpected_message_handler(update, context)
 
         # Now you have both the selected strategy and the action to perform
-        if action == "get_pnl":
-            pnl_message = f"PnL for {selected_strategy}: {strategy.getOverallPnL()}"
+        if action == "get_current_pnl":
+            pnl = strategy.getOverallPnL()
+            pnl_message = f"{'🟢' if pnl > 0  else '🔴'} ₹{pnl}"
             await update.message.reply_text(pnl_message, parse_mode="markdown")
+        elif action == "get_pnl_chart":
+            pnl = strategy.getOverallPnL()
+            pnlDf = strategy.getPnLs()
+            values = pd.to_numeric(pnlDf['PnL'])
+            color = np.where(values < 0, 'loss', 'profit')
+
+            fig = px.area(pnlDf, x="Date/Time", y=values, title=f"Current PnL:  ₹{round(pnl, 2)}",
+                          color=color, color_discrete_map={'loss': 'orangered', 'profit': 'lightgreen'})
+            fig.update_layout(title_x=0.5, title_xanchor='center', yaxis_title='PnL')
+
+            await update.message.reply_photo(photo=fig.to_image(format='png'), caption=f"{'🟢' if pnl >= 0  else '🔴'} Current PnL is: ₹{round(pnl, 2)}")
         elif action == "exit_all_positions":
             # strategy.exitAllPositions()
             exit_message = f"Exiting all positions for {selected_strategy}..."
