@@ -1,6 +1,8 @@
 import pendulum
 import datetime
 
+from pyalgomate.core import UnderlyingIndex
+
 listOfNseHolidays = set([
     pendulum.Date(2022, 1, 26),  # Republic Day
     pendulum.Date(2022, 3, 1),  # Maha Shivaratri
@@ -34,54 +36,56 @@ listOfNseHolidays = set([
     pendulum.Date(2023, 12, 25)   # Christmas
 ])
 
+expiryDays = {
+    UnderlyingIndex.NIFTY: {
+        (datetime.date(1900, 1, 1), datetime.date(2100, 1, 1)): {
+            "weekly": pendulum.THURSDAY
+        }
+    },
+    UnderlyingIndex.BANKNIFTY: {
+        (datetime.date(1900, 1, 1), datetime.date(2023, 9, 4)): {
+            "weekly": pendulum.THURSDAY
+        },
+        (datetime.date(2023, 9, 1), datetime.date(2100, 1, 1)): {
+            "weekly": pendulum.WEDNESDAY,
+            "monthly": pendulum.THURSDAY
+        }
+    },
+    UnderlyingIndex.FINNIFTY: {
+        (datetime.date(1900, 1, 1), datetime.date(2100, 1, 1)): {
+            "weekly": pendulum.TUESDAY
+        }
+    },
+    UnderlyingIndex.MIDCAPNIFTY: {
+        (datetime.date(1900, 1, 1), datetime.date(2100, 1, 1)): {
+            "weekly": pendulum.MONDAY
+        }
+    },
+    UnderlyingIndex.SENSEX: {
+        (datetime.date(1900, 1, 1), datetime.date(2100, 1, 1)): {
+            "weekly": pendulum.FRIDAY
+        }
+    },
+}
 
-def getNearestWeeklyExpiryDate(date: datetime.date = None):
-    currentData = pendulum.now().date() if date is None else pendulum.date(
-        date.year, date.month, date.day)
-    expiryDate = None
-    if (currentData.day_of_week is pendulum.THURSDAY):
-        expiryDate = currentData
+
+def _getExpiryDay(date: datetime.date, index: UnderlyingIndex):
+    expiryDay = expiryDays.get(index)
+
+    if expiryDay:
+        for date_range, settings in expiryDay.items():
+            start_date, end_date = date_range
+            if start_date <= date < end_date:
+                if "monthly" in settings:
+                    return settings["weekly"], settings["monthly"]
+                else:
+                    return settings["weekly"], settings["weekly"]
+        else:
+            raise ValueError("Index found, but no matching date range.")
     else:
-        expiryDate = currentData.next(pendulum.THURSDAY)
-    return __considerHolidayList(expiryDate)
+        raise ValueError("Invalid index")
 
 
-def getNextWeeklyExpiryDate(date: datetime.date = None):
-    currentData = pendulum.now().date() if date is None else pendulum.date(
-        date.year, date.month, date.day)
-    expiryDate = None
-    if (currentData.day_of_week is pendulum.THURSDAY):
-        expiryDate = currentData.next(pendulum.THURSDAY)
-    else:
-        expiryDate = currentData.next(
-            pendulum.THURSDAY).next(pendulum.THURSDAY)
-    return __considerHolidayList(expiryDate)
-
-
-def getNearestMonthlyExpiryDate(date: datetime.date = None):
-    currentData = pendulum.now().date() if date is None else pendulum.date(
-        date.year, date.month, date.day)
-    expiryDate = currentData.last_of('month', pendulum.THURSDAY)
-    if (currentData > expiryDate):
-        expiryDate = currentData.add(months=1).last_of(
-            'month', pendulum.THURSDAY)
-    return __considerHolidayList(expiryDate)
-
-
-def getNextMonthlyExpiryDate(date: datetime.date = None):
-    currentData = pendulum.now().date() if date is None else pendulum.date(
-        date.year, date.month, date.day)
-    expiryDate = currentData.last_of('month', pendulum.THURSDAY)
-    if (currentData > expiryDate):
-        expiryDate = currentData.add(months=2).last_of(
-            'month', pendulum.THURSDAY)
-    else:
-        expiryDate = currentData.add(months=1).last_of(
-            'month', pendulum.THURSDAY)
-    return __considerHolidayList(expiryDate)
-
-
-# utility method to be used only by this module
 def __considerHolidayList(expiryDate: pendulum.Date) -> datetime.date:
     ret = None
     if (expiryDate in listOfNseHolidays):
@@ -92,13 +96,80 @@ def __considerHolidayList(expiryDate: pendulum.Date) -> datetime.date:
     return datetime.date(ret.year, ret.month, ret.day)
 
 
+def __isLastWeek(date: datetime.date) -> bool:
+    return pendulum.date(date.year, date.month, date.day).add(weeks=1).month != date.month
+
+
+def getNearestWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingIndex = UnderlyingIndex.BANKNIFTY):
+    currentDate = pendulum.now().date() if date is None else pendulum.date(
+        date.year, date.month, date.day)
+    expiryDay, monthlyExpiryDay = _getExpiryDay(currentDate, index)
+
+    if (currentDate.day_of_week == expiryDay):
+        expiryDate = currentDate
+    else:
+        expiryDate = currentDate.next(expiryDay)
+
+    if __isLastWeek(expiryDate):
+        expiryDate = getNearestMonthlyExpiryDate(expiryDate, index)
+
+    return __considerHolidayList(expiryDate)
+
+
+def getNextWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingIndex = UnderlyingIndex.BANKNIFTY):
+    currentDate = pendulum.now().date() if date is None else pendulum.date(
+        date.year, date.month, date.day)
+    expiryDay, monthlyExpiryDay = _getExpiryDay(currentDate, index)
+    if (currentDate.day_of_week is expiryDay):
+        expiryDate = currentDate.next(expiryDay)
+    else:
+        expiryDate = currentDate.next(
+            expiryDay).next(expiryDay)
+
+    if __isLastWeek(expiryDate):
+        expiryDate = getNearestMonthlyExpiryDate(expiryDate, index)
+
+    return __considerHolidayList(expiryDate)
+
+
+def getNearestMonthlyExpiryDate(date: datetime.date = None, index: UnderlyingIndex = UnderlyingIndex.BANKNIFTY):
+    currentDate = pendulum.now().date() if date is None else pendulum.date(
+        date.year, date.month, date.day)
+    expiryDay, monthlyExpiryDay = _getExpiryDay(currentDate, index)
+    expiryDate = currentDate.last_of('month', monthlyExpiryDay)
+    if (currentDate > expiryDate):
+        expiryDate = currentDate.add(months=1).last_of(
+            'month', monthlyExpiryDay)
+    return __considerHolidayList(expiryDate)
+
+
+def getNextMonthlyExpiryDate(date: datetime.date = None, index: UnderlyingIndex = UnderlyingIndex.BANKNIFTY):
+    currentDate = pendulum.now().date() if date is None else pendulum.date(
+        date.year, date.month, date.day)
+    expiryDay, monthlyExpiryDay = _getExpiryDay(currentDate, index)
+    expiryDate = currentDate.last_of('month', monthlyExpiryDay)
+    if (currentDate > expiryDate):
+        expiryDate = currentDate.add(months=2).last_of(
+            'month', monthlyExpiryDay)
+    else:
+        expiryDate = currentDate.add(months=1).last_of(
+            'month', monthlyExpiryDay)
+
+    return __considerHolidayList(expiryDate)
+
+
 if __name__ == '__main__':
-    print('Today is\t\t\t'+str(pendulum.now().date()))
+    print(f"Today is\t\t\t{pendulum.now().date()}\n"
+          f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date())}\n"
+          f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date())}\n"
+          f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date())}\n"
+          f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date())}")
+    print()
     print('Nearest Weekly expiry is\t' +
-          str(getNearestWeeklyExpiryDate(datetime.date(2023, 2, 9))))
+          str(getNearestWeeklyExpiryDate(datetime.date(2023, 9, 27))))
     print('Next Weekly expiry is\t\t' +
-          str(getNextWeeklyExpiryDate(datetime.date(2023, 2, 9))))
+          str(getNextWeeklyExpiryDate(datetime.date(2023, 9, 27))))
     print('Nearest Monthly expiry is\t' +
-          str(getNearestMonthlyExpiryDate(datetime.date(2023, 2, 9))))
+          str(getNearestMonthlyExpiryDate(datetime.date(2023, 9, 27))))
     print('Next Month expiry is\t\t' +
-          str(getNextMonthlyExpiryDate(datetime.date(2023, 2, 9))))
+          str(getNextMonthlyExpiryDate(datetime.date(2023, 9, 27))))
