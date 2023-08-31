@@ -174,6 +174,16 @@ def showStats(initialCapital: int, numOfFiles: int, tradesData: pd.DataFrame):
             drawdown_end_dates.append(drawdown_end_date)
             prev_drawdown_idx = None
 
+    # Check if the last trade is still in a drawdown
+    if prev_drawdown_idx is not None:
+        drawdown_start_date = tradesData['Date'][prev_drawdown_idx]
+        drawdown_end_date = tradesData['Date'][len(drawdown) - 1]
+        drawdown_duration = (drawdown_end_date -
+                            drawdown_start_date).days + 1
+        drawdown_durations.append(drawdown_duration)
+        drawdown_start_dates.append(drawdown_start_date)
+        drawdown_end_dates.append(drawdown_end_date)
+
     # Filter out None values from drawdown_start_dates and drawdown_end_dates
     drawdown_start_dates = [
         date for date in drawdown_start_dates if date is not None]
