@@ -43,10 +43,10 @@ expiryDays = {
         }
     },
     UnderlyingIndex.BANKNIFTY: {
-        (datetime.date(1900, 1, 1), datetime.date(2023, 9, 4)): {
+        (datetime.date(1900, 1, 1), datetime.date(2023, 9, 2)): {
             "weekly": pendulum.THURSDAY
         },
-        (datetime.date(2023, 9, 4), datetime.date(2100, 1, 1)): {
+        (datetime.date(2023, 9, 2), datetime.date(2100, 1, 1)): {
             "weekly": pendulum.WEDNESDAY,
             "monthly": pendulum.THURSDAY
         }
