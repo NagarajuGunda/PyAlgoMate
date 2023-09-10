@@ -89,6 +89,9 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Entry Order Id', 'Exit Date/Time', 'Exit Order Id',
                                                   'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL', 'Date', 'MAE', 'MFE'])
 
+
+        self.pnlDf = pd.DataFrame(columns=['Date/Time', 'PnL'])
+
         self.dataColumns = ["Ticker", "Date/Time", "Open", "High",
                                 "Low", "Close", "Volume", "Open Interest"]
         if self.collectData is not None:
@@ -150,7 +153,6 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.closedPositions = set()
         self.overallPnL = 0
         self.state = State.LIVE
-        self.pnlDf = pd.DataFrame(columns=['Date/Time', 'PnL'])
 
     def getNewRows(self, bars):
         newRows = []
