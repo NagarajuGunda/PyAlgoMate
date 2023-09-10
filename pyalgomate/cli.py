@@ -76,13 +76,17 @@ def backtest(strategyClass, df, underlyings, send_to_ui, telegramBot):
         'broker': broker,
         'underlying': underlyings[0],
         'underlyings': underlyings,
-        'lotSize': 25,
+        'lotSize': 15,
         'callback': valueChangedCallback if send_to_ui else None,
         'telegramBot': telegramBot
     }
 
     strategy = createStrategyInstance(strategyClass, argsDict)
-    strategy.run()
+    try:
+        strategy.run()
+    except Exception as e:
+        click.echo(f'Exception occured while running {strategy.name}. Error <{e}>')
+
     
     return strategy.getTrades()
 
@@ -191,8 +195,9 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
 @click.option('--send-to-ui', help='Specify if data needs to be sent to UI', default=False, type=click.BOOL)
 @click.option('--send-to-telegram', help='Specify if messages needs to be sent to telegram', default=False, type=click.BOOL)
 @click.option('--register-options', help='Specify which expiry options to register. Allowed values are Weekly, NextWeekly, Monthly', default=["Weekly"], type=click.STRING, multiple=True)
+@click.option('--send-logs', help='Specify if logs needs to be sent to papertrail', default=False, type=click.BOOL)
 @click.pass_obj
-def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, send_to_ui, send_to_telegram, register_options):
+def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, send_to_ui, send_to_telegram, register_options, send_logs):
     if not broker:
         raise click.UsageError('Please select a broker')
 
@@ -207,12 +212,37 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
     import datetime
     import os
 
-    click.echo(f'broker <{broker}> mode <{mode}> underlying <{underlying}> collect-data <{collect_data}> port <{port}> send-to-ui <{send_to_ui}> send-to-telegram <{send_to_telegram}> register-options <{register_options}>')
+    click.echo(f'broker <{broker}> mode <{mode}> underlying <{underlying}> collect-data <{collect_data}> port <{port}> send-to-ui <{send_to_ui}> send-to-telegram <{send_to_telegram}> register-options <{register_options}> send-logs <{send_logs}>')
 
     underlyings = list(underlying)
 
     with open('cred.yml') as f:
         creds = yaml.load(f, Loader=yaml.FullLoader)
+
+    if send_logs:
+        import socket
+        from logging.handlers import SysLogHandler
+
+        if 'PaperTrail' not in creds:
+            click.echo('Error: PaperTrail creds not found.')
+            exit()
+
+        papertrailCreds = creds['PaperTrail']['address'].split(':')
+
+        class ContextFilter(logging.Filter):
+            hostname = socket.gethostname()
+            def filter(self, record):
+                record.hostname = ContextFilter.hostname
+                return True
+            
+        syslog = SysLogHandler(address=(papertrailCreds[0], int(papertrailCreds[1])))
+        syslog.addFilter(ContextFilter())
+        format = '%(asctime)s %(hostname)s PyAlgoMate: %(message)s'
+        formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
+        syslog.setFormatter(formatter)
+        logger = logging.getLogger()
+        logger.addHandler(syslog)
+        logger.setLevel(logging.INFO)
 
     if broker == 'Finvasia':
         from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
@@ -359,7 +389,7 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
         'underlying': underlyings[0],
         'underlyings': underlyings,
         'registeredOptionsCount': len(optionSymbols),
-        'lotSize': 25,
+        'lotSize': 15,
         'callback': valueChangedCallback if send_to_ui else None,
         'collectData': collect_data,
         'telegramBot': telegramBot

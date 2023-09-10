@@ -41,7 +41,7 @@
             "justMyCode": false,            
             "cwd": "${workspaceFolder}",
             "env": {"PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"},
-            "args": ["backtest", "--data", "${workspaceFolder}/strategies/data/2023/banknifty/06.parquet", "--underlying", "BANKNIFTY", "--from-date", "2023-06-01", "--to-date", "2023-06-30", "--parallelize", "Day"]
+            "args": ["backtest", "--data", "${workspaceFolder}/strategies/data/2022/banknifty/03.parquet", "--underlying", "BANKNIFTY", "--from-date", "2022-03-29", "--to-date", "2022-03-31"]
         },
         {
             "name": "Python: Current File with Args - Finvasia Paper Trade",
@@ -63,7 +63,7 @@
             "justMyCode": false,            
             "cwd": "${workspaceFolder}",
             "env": {"PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"},
-            "args": ["trade", "--broker", "Finvasia", "--mode", "live", "--underlying", "NSE|NIFTY BANK", "--send-to-telegram", "True", "--send-to-ui", "True"]
+            "args": ["trade", "--broker", "Finvasia", "--mode", "live", "--underlying", "NSE|NIFTY BANK", "--send-to-telegram", "True", "--send-logs", "True"]
         },
         {
             "name": "Python: Current File with Args - Zerodha Paper Trade",
