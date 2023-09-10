@@ -6,6 +6,9 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 from typing import List, Dict
+import matplotlib.pyplot as plt
+from pandas.plotting import table
+import io
 
 from telegram import __version__ as TG_VER
 
@@ -20,7 +23,7 @@ if __version_info__ < (20, 0, 0, "alpha", 1):
         f"{TG_VER} version of this example, "
         f"visit https://docs.python-telegram-bot.org/en/v{TG_VER}/examples.html"
     )
-from telegram import ReplyKeyboardMarkup, Update, Bot
+from telegram import ReplyKeyboardMarkup, Update, Bot, InputFile
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -39,14 +42,14 @@ logger = logging.getLogger(__name__)
 
 CHOOSING, SELECT_STRATEGY, TYPING_REPLY = range(3)
 
-GET_CURRENT_PNL = "Get Current PnL"
 GET_PNL_CHART = "Get PnL Charts"
+GET_TRADE_BOOK = "Get Trade Book"
 EXIT_ALL_POSITIONS = "Exit All Positions"
 DONE = "Done"
 
 reply_keyboard = [
-    [GET_CURRENT_PNL],
     [GET_PNL_CHART],
+    [GET_TRADE_BOOK],
     [EXIT_ALL_POSITIONS],
     [DONE],
 ]
@@ -142,10 +145,10 @@ class TelegramBot:
 
         """Handle user choices, including "Get PnL" and "Exit All Positions"."""
         text = update.message.text
-        if text == GET_CURRENT_PNL:
-            return await self.select_strategy(update, context, "get_current_pnl")
-        elif text == GET_PNL_CHART:
+        if text == GET_PNL_CHART:
             return await self.select_strategy(update, context, "get_pnl_chart")
+        elif text == GET_TRADE_BOOK:
+            return await self.select_strategy(update, context, "get_trade_book")
         elif text == EXIT_ALL_POSITIONS:
             return await self.select_strategy(update, context, "exit_all_positions")
         else:
@@ -173,11 +176,7 @@ class TelegramBot:
             return await self.unexpected_message_handler(update, context)
 
         # Now you have both the selected strategy and the action to perform
-        if action == "get_current_pnl":
-            pnl = strategy.getOverallPnL()
-            pnl_message = f"{'🟢' if pnl > 0  else '🔴'} ₹{pnl}"
-            await update.message.reply_text(pnl_message, parse_mode="markdown")
-        elif action == "get_pnl_chart":
+        if action == "get_pnl_chart":
             pnl = strategy.getOverallPnL()
             pnlDf = strategy.getPnLs()
             values = pd.to_numeric(pnlDf['PnL'])
@@ -185,9 +184,27 @@ class TelegramBot:
 
             fig = px.area(pnlDf, x="Date/Time", y=values, title=f"Current PnL:  ₹{round(pnl, 2)}",
                           color=color, color_discrete_map={'loss': 'orangered', 'profit': 'lightgreen'})
-            fig.update_layout(title_x=0.5, title_xanchor='center', yaxis_title='PnL')
+            fig.update_layout(
+                title_x=0.5, title_xanchor='center', yaxis_title='PnL')
 
             await update.message.reply_photo(photo=fig.to_image(format='png'), caption=f"{'🟢' if pnl >= 0  else '🔴'} Current PnL is: ₹{round(pnl, 2)}")
+        elif action == "get_trade_book":
+            try:
+                tradesDf = strategy.getTrades()
+
+                ax = plt.subplot(111, frame_on=False)
+                ax.xaxis.set_visible(False)
+                ax.yaxis.set_visible(False)
+                tab = table(ax, tradesDf, loc='center', cellLoc='center')
+                tabFigure = tab.get_figure()
+                imageBuffer = io.BytesIO()
+                tabFigure.savefig(imageBuffer, format='png',
+                                  bbox_inches='tight')
+                imageBuffer.seek(0)
+
+                await update.message.reply_photo(photo=InputFile(imageBuffer))
+            except Exception as e:
+                await update.message.reply_text(f'Exception occured while sending trade book. Error: {e}')
         elif action == "exit_all_positions":
             # strategy.exitAllPositions()
             exit_message = f"Exiting all positions for {selected_strategy}..."
