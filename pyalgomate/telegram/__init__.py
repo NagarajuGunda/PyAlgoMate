@@ -9,6 +9,7 @@ from typing import List, Dict
 import matplotlib.pyplot as plt
 from pandas.plotting import table
 import io
+import datetime
 
 from telegram import __version__ as TG_VER
 
@@ -187,22 +188,27 @@ class TelegramBot:
             fig.update_layout(
                 title_x=0.5, title_xanchor='center', yaxis_title='PnL')
 
-            await update.message.reply_photo(photo=fig.to_image(format='png'), caption=f"{'🟢' if pnl >= 0  else '🔴'} Current PnL is: ₹{round(pnl, 2)}")
+            await update.message.reply_photo(photo=fig.to_image(format='png', scale=6), caption=f"{'🟢' if pnl >= 0  else '🔴'} Current PnL is: ₹{round(pnl, 2)}")
         elif action == "get_trade_book":
             try:
                 tradesDf = strategy.getTrades()
+                tradesDf = tradesDf.loc[pd.to_datetime(
+                    tradesDf['Entry Date/Time'], format='%Y-%m-%d %H:%M:%S').dt.date == datetime.date.today()]
 
-                ax = plt.subplot(111, frame_on=False)
-                ax.xaxis.set_visible(False)
-                ax.yaxis.set_visible(False)
-                tab = table(ax, tradesDf, loc='center', cellLoc='center')
-                tabFigure = tab.get_figure()
-                imageBuffer = io.BytesIO()
-                tabFigure.savefig(imageBuffer, format='png',
-                                  bbox_inches='tight')
-                imageBuffer.seek(0)
+                if tradesDf.shape[0] == 0:
+                    await update.message.reply_text(f'There are no trades for today yet!')
+                else:
+                    ax = plt.subplot(111, frame_on=False)
+                    ax.xaxis.set_visible(False)
+                    ax.yaxis.set_visible(False)
+                    tab = table(ax, tradesDf, loc='center', cellLoc='center')
+                    tabFigure = tab.get_figure()
+                    imageBuffer = io.BytesIO()
+                    tabFigure.savefig(imageBuffer, format='png',
+                                      bbox_inches='tight')
+                    imageBuffer.seek(0)
 
-                await update.message.reply_photo(photo=InputFile(imageBuffer))
+                    await update.message.reply_photo(photo=InputFile(imageBuffer))
             except Exception as e:
                 await update.message.reply_text(f'Exception occured while sending trade book. Error: {e}')
         elif action == "exit_all_positions":
