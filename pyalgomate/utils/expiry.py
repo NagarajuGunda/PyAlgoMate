@@ -105,13 +105,13 @@ def getNearestWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingInde
         date.year, date.month, date.day)
     expiryDay, monthlyExpiryDay = _getExpiryDay(currentDate, index)
 
-    if (currentDate.day_of_week == expiryDay):
-        expiryDate = currentDate
+    if __isLastWeek(currentDate) and currentDate <= currentDate.last_of('month', monthlyExpiryDay):
+        expiryDate = currentDate.last_of('month', monthlyExpiryDay)
     else:
-        expiryDate = currentDate.next(expiryDay)
-
-    if __isLastWeek(expiryDate):
-        expiryDate = getNearestMonthlyExpiryDate(expiryDate, index)
+        if (currentDate.day_of_week == expiryDay):
+            expiryDate = currentDate
+        else:
+            expiryDate = currentDate.next(expiryDay)
 
     return __considerHolidayList(expiryDate)
 
@@ -119,17 +119,9 @@ def getNearestWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingInde
 def getNextWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingIndex = UnderlyingIndex.BANKNIFTY):
     currentDate = pendulum.now().date() if date is None else pendulum.date(
         date.year, date.month, date.day)
-    expiryDay, monthlyExpiryDay = _getExpiryDay(currentDate, index)
-    if (currentDate.day_of_week is expiryDay):
-        expiryDate = currentDate.next(expiryDay)
-    else:
-        expiryDate = currentDate.next(
-            expiryDay).next(expiryDay)
+    expiryDate = getNearestWeeklyExpiryDate(currentDate, index)
 
-    if __isLastWeek(expiryDate):
-        expiryDate = getNearestMonthlyExpiryDate(expiryDate, index)
-
-    return __considerHolidayList(expiryDate)
+    return getNearestWeeklyExpiryDate(expiryDate + datetime.timedelta(days=1), index)
 
 
 def getNearestMonthlyExpiryDate(date: datetime.date = None, index: UnderlyingIndex = UnderlyingIndex.BANKNIFTY):
@@ -166,10 +158,10 @@ if __name__ == '__main__':
           f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date())}")
     print()
     print('Nearest Weekly expiry is\t' +
-          str(getNearestWeeklyExpiryDate(datetime.date(2023, 9, 27))))
+          str(getNearestWeeklyExpiryDate(datetime.date(2023, 9, 29))))
     print('Next Weekly expiry is\t\t' +
-          str(getNextWeeklyExpiryDate(datetime.date(2023, 9, 27))))
+          str(getNextWeeklyExpiryDate(datetime.date(2023, 9, 29))))
     print('Nearest Monthly expiry is\t' +
-          str(getNearestMonthlyExpiryDate(datetime.date(2023, 9, 27))))
+          str(getNearestMonthlyExpiryDate(datetime.date(2023, 9, 29))))
     print('Next Month expiry is\t\t' +
-          str(getNextMonthlyExpiryDate(datetime.date(2023, 9, 27))))
+          str(getNextMonthlyExpiryDate(datetime.date(2023, 9, 29))))
