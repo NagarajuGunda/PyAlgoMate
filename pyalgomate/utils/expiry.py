@@ -88,7 +88,7 @@ def _getExpiryDay(date: datetime.date, index: UnderlyingIndex):
 
 def __considerHolidayList(expiryDate: pendulum.Date) -> datetime.date:
     ret = None
-    if (expiryDate in listOfNseHolidays):
+    if (expiryDate in listOfNseHolidays) or (expiryDate.day_of_week in [pendulum.SATURDAY, pendulum.SUNDAY]):
         ret = __considerHolidayList(expiryDate.subtract(days=1))
     else:
         ret = expiryDate
@@ -121,7 +121,7 @@ def getNextWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingIndex =
         date.year, date.month, date.day)
     expiryDate = getNearestWeeklyExpiryDate(currentDate, index)
 
-    return getNearestWeeklyExpiryDate(expiryDate + datetime.timedelta(days=1), index)
+    return getNearestWeeklyExpiryDate(expiryDate + datetime.timedelta(days=5), index)
 
 
 def getNearestMonthlyExpiryDate(date: datetime.date = None, index: UnderlyingIndex = UnderlyingIndex.BANKNIFTY):
@@ -151,11 +151,31 @@ def getNextMonthlyExpiryDate(date: datetime.date = None, index: UnderlyingIndex 
 
 
 if __name__ == '__main__':
-    print(f"Today is\t\t\t{pendulum.now().date()}\n"
+    print(f"Today is\t\t\t{pendulum.now().date()}\n")
+    print()
+    print(f"NIFTY\n"
+          f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.NIFTY)}\n"
+          f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.NIFTY)}\n"
+          f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.NIFTY)}\n"
+          f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.NIFTY)}")
+    print()
+    print(f"BANKNIFTY\n"
           f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date())}\n"
           f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date())}\n"
           f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date())}\n"
           f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date())}")
+    print()
+    print(f"MIDCAPNIFTY\n"
+          f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.MIDCAPNIFTY)}\n"
+          f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.MIDCAPNIFTY)}\n"
+          f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.MIDCAPNIFTY)}\n"
+          f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.MIDCAPNIFTY)}")
+    print()
+    print(f"FINNIFTY\n"
+          f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}\n"
+          f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}\n"
+          f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}\n"
+          f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}")
     print()
     print('Nearest Weekly expiry is\t' +
           str(getNearestWeeklyExpiryDate(datetime.date(2023, 9, 29))))
