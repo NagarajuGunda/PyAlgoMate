@@ -53,31 +53,37 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
                 logger.info(f'Login failed!')
 
         if loginStatus != None:
-            currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-                datetime.datetime.now().date())
-            nextWeekExpiry = utils.getNextWeeklyExpiryDate(
-                datetime.datetime.now().date())
-            monthlyExpiry = utils.getNearestMonthlyExpiryDate(
-                datetime.datetime.now().date())
-
             if len(underlyings) == 0:
                 underlyings = ['NSE|NIFTY BANK']
 
             optionSymbols = []
 
             for underlying in underlyings:
-                ltp = api.get_quotes('NSE', getFinvasiaToken(
-                    api, underlying))['lp']
+                underlyingToken = getFinvasiaToken(api, underlying)
+                underlyingQuotes = api.get_quotes('NSE', underlyingToken)
+                ltp = underlyingQuotes['lp']
+
+                underlyingDetails = finvasia.broker.getUnderlyingDetails(
+                    underlying)
+                index = underlyingDetails['index']
+                strikeDifference = underlyingDetails['strikeDifference']
+
+                currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
+                    datetime.datetime.now().date(), index)
+                nextWeekExpiry = utils.getNextWeeklyExpiryDate(
+                    datetime.datetime.now().date(), index)
+                monthlyExpiry = utils.getNearestMonthlyExpiryDate(
+                    datetime.datetime.now().date(), index)
 
                 if "Weekly" in registerOptions:
                     optionSymbols += finvasia.broker.getOptionSymbols(
-                        underlying, currentWeeklyExpiry, ltp, 10)
+                        underlying, currentWeeklyExpiry, ltp, 10, strikeDifference)
                 if "NextWeekly" in registerOptions:
                     optionSymbols += finvasia.broker.getOptionSymbols(
-                        underlying, nextWeekExpiry, ltp, 10)
+                        underlying, nextWeekExpiry, ltp, 10, strikeDifference)
                 if "Monthly" in registerOptions:
                     optionSymbols += finvasia.broker.getOptionSymbols(
-                        underlying, monthlyExpiry, ltp, 10)
+                        underlying, monthlyExpiry, ltp, 10, strikeDifference)
 
             optionSymbols = list(dict.fromkeys(optionSymbols))
 
@@ -201,7 +207,8 @@ def main():
         port = config['Streamlit']['Port']
         sock.bind(f"tcp://127.0.0.1:{port}")
 
-    feed, api = getFeed(creds, config['Broker'])
+    feed, api = getFeed(
+        creds, broker=config['Broker'], underlyings=config['Underlyings'])
 
     for strategyName, details in config['Strategies'].items():
         strategyClassName = details['Class']
