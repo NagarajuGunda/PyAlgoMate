@@ -127,6 +127,9 @@ class PaperTradingBroker(BacktestingBroker):
         
         self.__api = barFeed.getApi()
 
+    def getUnderlyingDetails(self, underlying):
+        return underlyingMapping[underlying]
+
     def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
         return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
 
@@ -410,6 +413,9 @@ class LiveBroker(broker.Broker):
     """
 
     QUEUE_TIMEOUT = 0.01
+
+    def getUnderlyingDetails(self, underlying):
+        return underlyingMapping[underlying]
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
         symbol = getUnderlyingDetails(underlyingInstrument)['optionPrefix']
