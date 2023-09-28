@@ -4,6 +4,8 @@ import zmq
 import json
 import logging
 import datetime
+import glob
+import pandas as pd
 import pyalgomate.utils as utils
 import inspect
 from pyalgomate.telegram import TelegramBot
@@ -60,14 +62,37 @@ def checkDate(ctx, param, value):
         raise click.UsageError("Not a valid date: '{0}'.".format(value))
 
 
+def getDataFrameFromParquets(dataFiles, startDate=None, endDate=None):
+    df = None
+    for files in dataFiles:
+        for file in glob.glob(files):
+            if df is None:
+                df = pd.read_parquet(file)
+            else:
+                df = pd.concat([df, pd.read_parquet(file)],
+                               ignore_index=True)
+
+    df = df.sort_values(['Ticker', 'Date/Time']).drop_duplicates(
+        subset=['Ticker', 'Date/Time'], keep='first')
+
+    if startDate:
+        df = df[df['Date/Time'].dt.date >= startDate]
+    if endDate:
+        df = df[df['Date/Time'].dt.date <= endDate]
+
+    return df
+
 def backtest(strategyClass, df, underlyings, send_to_ui, telegramBot):
+    from pyalgomate.backtesting import DataFrameFeed
     from pyalgomate.backtesting import CustomCSVFeed
     from pyalgomate.brokers import BacktestingBroker
 
+    start = datetime.datetime.now()
+    #feed = DataFrameFeed.DataFrameFeed(df, underlyings)
     feed = CustomCSVFeed.CustomCSVFeed()
-
     for underlying in underlyings:
         feed.addBarsFromDataframe(df, underlying)
+    print(f"Time took in loading the data <{datetime.datetime.now()-start}>")
 
     broker = BacktestingBroker(200000, feed)
 
@@ -116,8 +141,6 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
     if send_to_ui:
         sock.bind(f"tcp://127.0.0.1:{port}")
 
-    from pyalgomate.backtesting import CustomCSVFeed
-
     underlyings = list(underlying)
 
     if send_to_telegram:
@@ -132,12 +155,10 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
     argNames = [param for param in constructorArgs]
     click.echo(f"{strategyClass.__name__} takes {argNames}")
 
-    feed = CustomCSVFeed.CustomCSVFeed()
-
-    df = feed.getDataFrameFromParquets(dataFiles=data,
-                                       startDate=datetime.datetime.strptime(
-                                           from_date, "%Y-%m-%d").date() if from_date is not None else None,
-                                       endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
+    df = getDataFrameFromParquets(dataFiles=data,
+                                  startDate=datetime.datetime.strptime(
+                                      from_date, "%Y-%m-%d").date() if from_date is not None else None,
+                                  endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
 
     if parallelize == 'Day':
         groups = df.groupby(
@@ -145,8 +166,6 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
     elif parallelize == 'Month':
         groups = df.groupby(
             [df['Date/Time'].dt.year, df['Date/Time'].dt.month])
-    else:
-        groups = [(None, df)]
 
     start = datetime.datetime.now()
 
@@ -156,29 +175,31 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
     if parallelize:
         print(f"Running with {workers} workers")
 
-    with ProcessPoolExecutor(max_workers=workers) as executor:
-        futures = []
-        for groupKey, groupDf in groups:
-            future = executor.submit(
-                backtest, strategyClass, groupDf, underlyings, send_to_ui, telegramBot)
-            futures.append(future)
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            futures = []
+            for groupKey, groupDf in groups:
+                future = executor.submit(
+                    backtest, strategyClass, groupDf, underlyings, send_to_ui, telegramBot)
+                futures.append(future)
 
-        for future in futures:
-            results = future.result()
-            backtestResults.append(results)
-    
+            for future in futures:
+                results = future.result()
+                backtestResults.append(results)
+
+        tradesDf = pd.DataFrame()
+        for backtestResult in backtestResults:
+            tradesDf = pd.concat([tradesDf, backtestResult], ignore_index=True)
+    else:
+        tradesDf = backtest(strategyClass, df,
+                            underlyings, send_to_ui, telegramBot)
+
     print("")
     print(
         f"Time took in running the strategy <{datetime.datetime.now()-start}>")
 
-    tradesDf = pd.DataFrame()
-    for backtestResult in backtestResults:
-        tradesDf = pd.concat([tradesDf, backtestResult], ignore_index=True)
-
     tradesDf.sort_values(by=['Entry Date/Time'])
     tradesDf.to_csv(f'results/{strategyClass.__name__}_backtest.csv', mode='a',
                     header=not os.path.exists(f'results/{strategyClass.__name__}_backtest.csv'), index=False)
-
 
     if telegramBot:
         telegramBot.stop()  # Signal the stop event
