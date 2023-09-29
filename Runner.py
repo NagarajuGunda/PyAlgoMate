@@ -7,6 +7,7 @@ import logging
 import signal
 import zmq
 import json
+import traceback
 import pyalgomate.utils as utils
 from pyalgomate.telegram import TelegramBot
 
@@ -169,16 +170,18 @@ def runStrategy(strategy):
     try:
         strategy.run()
     except Exception as e:
-        logger.critical(
+        logger.exception(
             f'Error occurred while running strategy {strategy.strategyName}. Exception: {e}')
+        print(traceback.format_exc())
 
 
 def threadTarget(strategy):
     try:
         runStrategy(strategy)
     except Exception as e:
-        logger.error(
+        logger.exception(
             f'An exception occurred in thread for strategy {strategy.strategyName}. Exception: {e}')
+        print(traceback.format_exc())
 
 
 context = zmq.Context()
