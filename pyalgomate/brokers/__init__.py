@@ -9,6 +9,7 @@ import pandas as pd
 from pyalgotrade import broker
 from pyalgotrade.broker import fillstrategy
 from pyalgotrade.broker import backtesting
+from pyalgomate.utils import UnderlyingIndex
 
 from pyalgomate.strategies import OptionContract
 
@@ -39,6 +40,34 @@ class BacktestingBroker(backtesting.Broker):
         * BUY_TO_COVER orders are mapped to BUY orders.
         * SELL_SHORT orders are mapped to SELL orders.
     """
+
+    def getUnderlyingDetails(self, underlying):
+        return {
+            'MIDCAPNIFTY': {
+                'optionPrefix': 'MIDCAPNIFTY',
+                'index': UnderlyingIndex.MIDCAPNIFTY,
+                'lotSize': 75,
+                'strikeDifference': 25
+            },
+            'BANKNIFTY': {
+                'optionPrefix': 'BANKNIFTY',
+                'index': UnderlyingIndex.BANKNIFTY,
+                'lotSize': 15,
+                'strikeDifference': 100
+            },
+            'NIFTY': {
+                'optionPrefix': 'NIFTY',
+                'index': UnderlyingIndex.NIFTY,
+                'lotSize': 50,
+                'strikeDifference': 50
+            },
+            'FINNIFTY': {
+                'optionPrefix': 'FINNIFTY',
+                'index': UnderlyingIndex.FINNIFTY,
+                'lotSize': 40,
+                'strikeDifference': 50
+            }
+        }[underlying]
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
         return underlyingInstrument + str(strikePrice) + ('CE' if (callOrPut == 'C' or callOrPut == 'Call') else 'PE')
