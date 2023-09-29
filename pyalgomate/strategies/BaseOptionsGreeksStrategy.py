@@ -299,7 +299,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def onStart(self):
         # build open orders from tradeDf
-        self.buildOrdersFromActiveOrders()
+        #self.buildOrdersFromActiveOrders()
 
     def onEnterOk(self, position: position):
         execInfo = position.getEntryOrder().getExecutionInfo()
