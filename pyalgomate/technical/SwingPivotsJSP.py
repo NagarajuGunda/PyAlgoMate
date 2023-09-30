@@ -9,6 +9,7 @@ class Bar:
     high: float
     low: float
     close: float
+    fdatetime: datetime.datetime
 
 
 class SwingPivotsJSP:
@@ -16,6 +17,8 @@ class SwingPivotsJSP:
         self.data = list()
         self.pivotLows = list()
         self.pivotHighs = list()
+        self.largePivotLows = list()
+        self.largePivotHighs = list()
 
         self.__reset__()
 
@@ -30,8 +33,17 @@ class SwingPivotsJSP:
     def getPivotLows(self):
         return self.pivotLows
 
+    def getLargePivotHighs(self):
+        return self.largePivotHighs
+
+    def getLargePivotLows(self):
+        return self.largePivotLows
+    
+    def getBars(self):
+        return self.data
+
     def add_input_value(self, dateTime: datetime.datetime, open: float, high: float, low: float, close: float):
-        self.data.append(Bar(dateTime, open, high, low, close))
+        self.data.append(Bar(dateTime, open, high, low, close, None))
         self.calculatePivots()
 
     def findPivotLow(self, anchorBar, previousBars, nextBars) -> bool:
@@ -41,6 +53,7 @@ class SwingPivotsJSP:
                     self.pivotLows.append(self.pivotLowAnchor)
                 elif self.pivotLowAnchor.low < self.pivotLows[-1].low:
                     self.pivotLows[-1] = self.pivotLowAnchor
+                self.pivotLows[-1].fdatetime = self.data[-1].datetime
                 self.__reset__()
                 return True
         else:
@@ -56,6 +69,7 @@ class SwingPivotsJSP:
                             self.pivotLows.append(anchorBar)
                         elif anchorBar.low < self.pivotLows[-1].low:
                             self.pivotLows[-1] = anchorBar
+                        self.pivotLows[-1].fdatetime = self.data[-1].datetime
                         self.__reset__()
                         return True
                     else:
@@ -67,6 +81,7 @@ class SwingPivotsJSP:
                             self.pivotLows.append(anchorBar)
                         elif anchorBar.low < self.pivotLows[-1].low:
                             self.pivotLows[-1] = anchorBar
+                        self.pivotLows[-1].fdatetime = self.data[-1].datetime
                         self.__reset__()
                         return True
                     else:
@@ -85,6 +100,7 @@ class SwingPivotsJSP:
                     self.pivotHighs.append(self.pivotHighAnchor)
                 elif self.pivotHighAnchor.high > self.pivotHighs[-1].high:
                     self.pivotHighs[-1] = self.pivotHighAnchor
+                self.pivotHighs[-1].fdatetime = self.data[-1].datetime
                 self.__reset__()
                 return True
         else:
@@ -100,6 +116,7 @@ class SwingPivotsJSP:
                             self.pivotHighs.append(anchorBar)
                         elif anchorBar.high > self.pivotHighs[-1].high:
                             self.pivotHighs[-1] = anchorBar
+                        self.pivotHighs[-1].fdatetime = self.data[-1].datetime
                         self.__reset__()
                         return True
                     else:
@@ -111,6 +128,7 @@ class SwingPivotsJSP:
                             self.pivotHighs.append(anchorBar)
                         elif anchorBar.high > self.pivotHighs[-1].high:
                             self.pivotHighs[-1] = anchorBar
+                        self.pivotHighs[-1].fdatetime = self.data[-1].datetime
                         self.__reset__()
                         return True
                     else:
@@ -130,9 +148,21 @@ class SwingPivotsJSP:
             if self.data[0].high > self.data[1].high:
                 self.pivotHighs.append(self.data[0])
                 self.pivotLows.append(self.data[1])
+                self.largePivotHighs.append(self.data[0])
+                self.largePivotLows.append(self.data[1])
+                self.pivotHighs[-1].fdatetime = self.data[-1].datetime
+                self.pivotLows[-1].fdatetime = self.data[-1].datetime
+                self.largePivotHighs[-1].fdatetime = self.data[-1].datetime
+                self.largePivotLows[-1].fdatetime = self.data[-1].datetime
             else:
                 self.pivotHighs.append(self.data[1])
                 self.pivotLows.append(self.data[0])
+                self.largePivotHighs.append(self.data[1])
+                self.largePivotLows.append(self.data[0])
+                self.pivotHighs[-1].fdatetime = self.data[-1].datetime
+                self.pivotLows[-1].fdatetime = self.data[-1].datetime
+                self.largePivotHighs[-1].fdatetime = self.data[-1].datetime
+                self.largePivotLows[-1].fdatetime = self.data[-1].datetime
             return
 
         # The anchor bar (most recent)
@@ -145,11 +175,36 @@ class SwingPivotsJSP:
         # Bars after the current bar
         nextBars = list(self.data)[-2:]
 
-        if self.findPivotLow(anchorBar, previousBars, nextBars):
-            return
+        if not self.findPivotLow(anchorBar, previousBars, nextBars):
+            self.findPivotHigh(anchorBar, previousBars, nextBars)
 
-        if self.findPivotHigh(anchorBar, previousBars, nextBars):
-            return
+        if len(self.pivotHighs) > 0 and self.data[-1].high > self.pivotHighs[-1].high:
+            largePivotHigh = self.largePivotHighs[-1]
+            llvBar = None
+            for bar in reversed(self.data[:-1]):
+                if bar == largePivotHigh:
+                    break
+                if llvBar is None or bar.low < llvBar.low:
+                    llvBar = bar
+
+            if llvBar and self.largePivotLows[-1] != llvBar:
+                self.largePivotLows.append(llvBar)
+                self.largePivotLows[-1].fdatetime = self.data[-1].datetime
+                return
+
+        if len(self.pivotLows) > 0 and self.data[-1].low < self.pivotLows[-1].low and len(self.pivotHighs):
+            largePivotLow = self.largePivotLows[-1]
+            hhvBar = None
+            for bar in reversed(self.data[:-1]):
+                if bar == largePivotLow:
+                    break
+                if hhvBar is None or bar.high > hhvBar.high:
+                    hhvBar = bar
+
+            if hhvBar and self.largePivotHighs[-1] != hhvBar:
+                self.largePivotHighs.append(hhvBar)
+                self.largePivotHighs[-1].fdatetime = self.data[-1].datetime
+                return
 
 
 if __name__ == "__main__":
@@ -175,12 +230,28 @@ if __name__ == "__main__":
     [print(f"{'PH' if item in SwingPivotsJSP.getPivotHighs() else 'PL'} - {item}")
      for item in merged]
 
-    # pd.DataFrame(
-    #     [(bar.datetime, bar.open, bar.high, bar.low, bar.close)
-    #      for bar in SwingPivotsJSP.getPivotHighs()],
-    #     columns=['DateTime', 'Open', 'High', 'Low', 'Close']).to_csv('pivot_highs.csv', index=False)
+    merged = SwingPivotsJSP.getLargePivotHighs() + SwingPivotsJSP.getLargePivotLows()
+    merged.sort(key=lambda x: x.datetime)
+
+    [print(f"{'LPH' if item in SwingPivotsJSP.getPivotHighs() else 'LPL'} - {item}")
+     for item in merged]
 
     # pd.DataFrame(
-    #     [(bar.datetime, bar.open, bar.high, bar.low, bar.close)
+    #     [(bar.datetime, bar.open, bar.high, bar.low, bar.close, bar.fdatetime)
+    #      for bar in SwingPivotsJSP.getPivotHighs()],
+    #     columns=['DateTime', 'Open', 'High', 'Low', 'Close', 'FDateTime']).to_csv('pivot_highs.csv', index=False)
+
+    # pd.DataFrame(
+    #     [(bar.datetime, bar.open, bar.high, bar.low, bar.close, bar.fdatetime)
     #      for bar in SwingPivotsJSP.getPivotLows()],
-    #     columns=['DateTime', 'Open', 'High', 'Low', 'Close']).to_csv('pivot_lows.csv', index=False)
+    #     columns=['DateTime', 'Open', 'High', 'Low', 'Close', 'FDateTime']).to_csv('pivot_lows.csv', index=False)
+
+    # pd.DataFrame(
+    #     [(bar.datetime, bar.open, bar.high, bar.low, bar.close, bar.fdatetime)
+    #      for bar in SwingPivotsJSP.getLargePivotHighs()],
+    #     columns=['DateTime', 'Open', 'High', 'Low', 'Close', 'FDateTime']).to_csv('large_pivot_highs.csv', index=False)
+
+    # pd.DataFrame(
+    #     [(bar.datetime, bar.open, bar.high, bar.low, bar.close, bar.fdatetime)
+    #      for bar in SwingPivotsJSP.getLargePivotLows()],
+    #     columns=['DateTime', 'Open', 'High', 'Low', 'Close', 'FDateTime']).to_csv('large_pivot_lows.csv', index=False)
