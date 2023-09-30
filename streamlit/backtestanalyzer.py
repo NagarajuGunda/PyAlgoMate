@@ -375,6 +375,21 @@ def main():
         tradesData = tradesData[(tradesData['Entry Date/Time'].dt.date >= selected_from_date) &
                                 (tradesData['Exit Date/Time'].dt.date <= selected_to_date)]
 
+        if 'DTE' in tradesData.columns and len(tradesData['DTE'].unique()):
+            dtesMapping = dict()
+            dtes = sorted(tradesData['DTE'].unique())
+            dteColumns = st.columns(len(dtes))
+            for index, dte in enumerate(dtes):
+                with dteColumns[index]:
+                    dtesMapping[dte] = st.checkbox(
+                        label=str(f'{dte} DTE'), value=True, key=f'{dte}DTE')
+
+            selectedDtes = [dte for dte,
+                            isSelected in dtesMapping.items() if isSelected]
+
+            tradesData = tradesData[tradesData['DTE'].isin(selectedDtes)]
+                
+
         if selectedGroupCriteria is not None:
             if selectedGroupCriteria == 'Date':
                 groupBy = tradesData.groupby('Date')

@@ -87,7 +87,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             self.tradesDf = pd.read_csv(self.tradesCSV, index_col=False)
         else:
             self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Entry Order Id', 'Exit Date/Time', 'Exit Order Id',
-                                                  'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL', 'Date', 'MAE', 'MFE'])
+                                                  'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL', 'Date', 'MAE', 'MFE', 'DTE'])
 
 
         self.pnlDf = pd.DataFrame(columns=['Date/Time', 'PnL'])
@@ -310,17 +310,24 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         self.openPositions.add(position)
 
+        instrument = position.getInstrument()
         # Check if there is an order id already present in trade df for the same instrument
         if self.tradesDf[(self.tradesDf['Entry Order Id'] == position.getEntryOrder().getId())
-                         & (self.tradesDf['Instrument'] == position.getInstrument())
+                         & (self.tradesDf['Instrument'] == instrument)
                          ].shape[0] == 0:
+            dte = None
+            optionContract = self.__optionContracts[instrument]
+            if optionContract is not None:
+                expiry = optionContract.expiry
+                dte = (expiry - execInfo.getDateTime().date()).days
+
             # Append a new row to the tradesDf DataFrame with the trade information
             newRow = {
                 'Entry Date/Time': execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'),
                 'Entry Order Id': position.getEntryOrder().getId(),
                 'Exit Date/Time': None,
                 'Exit Order Id': None,
-                'Instrument': position.getInstrument(),
+                'Instrument': instrument,
                 'Buy/Sell': "Buy" if position.getEntryOrder().isBuy() else "Sell",
                 'Quantity': execInfo.getQuantity(),
                 'Entry Price': position.getEntryOrder().getAvgFillPrice(),
@@ -328,17 +335,18 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                 'PnL': None,
                 'Date': None,
                 'MAE': None,
-                'MFE': None
-                }
+                'MFE': None,
+                'DTE': dte
+            }
             self.tradesDf = pd.concat([self.tradesDf, pd.DataFrame(
                 [newRow], columns=self.tradesDf.columns)], ignore_index=True)
 
             if self.collectTrades:
                 self.tradesDf.to_csv(self.tradesCSV, index=False)
 
-        if self.__optionData.get(position.getInstrument(), None) is not None:
+        if self.__optionData.get(instrument, None) is not None:
             self.log(
-                f"Option greeks for {position.getInstrument()}\n{self.__optionData[position.getInstrument()]}", logging.DEBUG)
+                f"Option greeks for {instrument}\n{self.__optionData[instrument]}", logging.DEBUG)
 
     def getOpenPosition(self, id: int) -> position:
         for position in self.openPositions.copy():
