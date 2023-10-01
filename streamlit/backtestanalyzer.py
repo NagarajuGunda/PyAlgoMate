@@ -347,8 +347,8 @@ def main():
             tradesData["Exit Date/Time"])
         tradesData["Date"] = pd.to_datetime(tradesData["Date"])
 
-        groupCol, initialCapitalCol, fromDateCol, toDateCol = st.columns([
-                                                                         1, 1, 2, 2])
+        groupCol, initialCapitalCol, fromDateCol, toDateCol, slippageCol = st.columns([
+            1, 1, 2, 2, 2])
 
         with groupCol:
             selectedGroupCriteria = st.selectbox(
@@ -374,6 +374,15 @@ def main():
 
         tradesData = tradesData[(tradesData['Entry Date/Time'].dt.date >= selected_from_date) &
                                 (tradesData['Exit Date/Time'].dt.date <= selected_to_date)]
+
+        with slippageCol:
+            slippage = st.slider('Slippage %', 0.0, 5.0, 0.0, 0.1)
+
+            if slippage:
+                tradesData['PnL_WithoutSlippage'] = tradesData['PnL']
+                tradesData['PnL'] = tradesData['PnL'] - \
+                    (((tradesData['Entry Price'] * slippage) /
+                     100.0) * tradesData['Quantity'])
 
         if 'DTE' in tradesData.columns and len(tradesData['DTE'].unique()):
             dtesMapping = dict()
