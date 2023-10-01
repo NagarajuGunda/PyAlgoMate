@@ -61,7 +61,7 @@ class ResampledBars():
         if not self.__range.belongs(nextDateTime):
             self.__values.append(self.__grouper.getGrouped())
             self.__range = resamplebase.build_range(
-                dateTime, self.getFrequency())
+                nextDateTime, self.getFrequency())
             self.__grouper = BarsGrouper(
                 self.__range.getBeginning(), value, self.getFrequency())
 
