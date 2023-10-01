@@ -166,6 +166,8 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
     elif parallelize == 'Month':
         groups = df.groupby(
             [df['Date/Time'].dt.year, df['Date/Time'].dt.month])
+    else:
+        parallelize = None
 
     start = datetime.datetime.now()
 
