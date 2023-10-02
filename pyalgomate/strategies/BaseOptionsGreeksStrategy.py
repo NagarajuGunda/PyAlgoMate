@@ -48,9 +48,9 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def __init__(self, feed, broker, strategyName, logger: logging.Logger, 
                  callback=None, 
-                 resampleFrequency=None,
                  collectData=None,
-                 telegramBot:TelegramBot=None):
+                 telegramBot:TelegramBot=None,
+                 telegramChannelId=None):
         super(BaseOptionsGreeksStrategy, self).__init__(feed, broker)
         self.marketStartTime = datetime.time(hour=9, minute=15)
         self.marketEndTime = datetime.time(hour=15, minute=29)
@@ -59,6 +59,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.collectData = collectData
         self.collectTrades = False if self.isBacktest() else True
         self.telegramBot = telegramBot
+        self.telegramChannelId = telegramChannelId
         self._observers = []
         self.__optionContracts = dict()
         self.mae = dict()
@@ -262,8 +263,16 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             self.logger.log(
                 level=level, msg=f"\n📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n\n{message}\n\n")
             if self.telegramBot:
-                self.telegramBot.sendMessage(
-                    f"📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n\n{message}")
+                message = f"📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n\n{message}"
+                message = {'channelId': self.telegramChannelId,
+                           'message': message}
+                self.telegramBot.sendMessage(message)
+
+    def sendPnLImage(self):
+        if self.telegramBot:
+            message = {'channelId': self.telegramChannelId,
+                       'message': self.getPnLImage()}
+            self.telegramBot.sendMessage(message)
 
     def getPnL(self, position: position):
         order = position.getEntryOrder()
@@ -298,7 +307,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                     (exitPrice * exitOrder.getQuantity())
         return pnl
 
-    def getPnLFig(self):
+    def getPnLImage(self):
         pnl = self.getOverallPnL()
         pnlDf = self.getPnLs()
         values = pd.to_numeric(pnlDf['PnL'])
@@ -309,7 +318,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         fig.update_layout(
             title_x=0.5, title_xanchor='center', yaxis_title='PnL')
 
-        return fig
+        return fig.to_image(format='png')
 
     def onStart(self):
         # build open orders from tradeDf

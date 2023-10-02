@@ -134,7 +134,17 @@ class TelegramBot:
                     # Sleep for the remaining time to respect the current interval
                     await asyncio.sleep(self.current_sleep_interval - elapsed_time)
 
-                await self.bot.send_message(chat_id=self.channelId, text=message)
+                if type(message) is dict:
+                    content = message['message']
+                    channelId = message['channelId']
+                    if not channelId:
+                        channelId = self.channelId
+                    if isinstance(content, str):
+                        await self.bot.send_message(chat_id=channelId, text=content)
+                    else:
+                        await self.bot.send_photo(chat_id=channelId, photo=content)
+                else:
+                    await self.bot.send_message(chat_id=self.channelId, text=message)
                 self.messageQueue.task_done()
 
                 self.last_message_time = time.time()
@@ -213,7 +223,7 @@ class TelegramBot:
 
         # Now you have both the selected strategy and the action to perform
         if action == "get_pnl_chart":
-            await update.message.reply_photo(photo=strategy.getPnLFig().to_image(format='png'))
+            await update.message.reply_photo(photo=strategy.getPnLImage())
         elif action == "get_trade_book":
             try:
                 tradesDf = strategy.getTrades()
