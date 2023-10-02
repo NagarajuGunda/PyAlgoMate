@@ -18,6 +18,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import pandas as _pd
 import numpy as _np
 from math import sqrt as _sqrt, ceil as _ceil
@@ -25,7 +26,7 @@ from datetime import datetime as _dt
 from base64 import b64encode as _b64encode
 import re as _regex
 from tabulate import tabulate as _tabulate
-from quantstats.reports import __version__, stats as _stats, utils as _utils, plots as _plots
+from quantstats import __version__, stats as _stats, utils as _utils, plots as _plots
 from dateutil.relativedelta import relativedelta
 from io import StringIO
 
@@ -76,7 +77,7 @@ def html(
     win_year, win_half_year = _get_trading_periods(periods_per_year)
 
     tpl = ""
-    with open(template_path or __file__[:-4] + ".html") as f:
+    with open(os.path.join(os.path.dirname(_stats.__file__), 'report.html')) as f:
         tpl = f.read()
         f.close()
 
@@ -480,13 +481,7 @@ def html(
     tpl = _regex.sub(r"\{\{(.*?)\}\}", "", tpl)
     tpl = tpl.replace("white-space:pre;", "")
 
-    if output is None:
-        # _open_html(tpl)
-        _download_html(tpl, download_filename)
-        return
-
-    with open(output, "w", encoding="utf-8") as f:
-        f.write(tpl)
+    return tpl
 
 
 def full(

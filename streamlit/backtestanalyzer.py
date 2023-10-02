@@ -3,7 +3,7 @@ import numpy as np
 import plotly.graph_objs as go
 import streamlit as st
 from matplotlib.colors import LinearSegmentedColormap
-from thirdparty import calplot
+from thirdparty import calplot, quantstats_reports
 
 
 # Calculate Winning and Losing Streaks
@@ -397,7 +397,16 @@ def main():
                             isSelected in dtesMapping.items() if isSelected]
 
             tradesData = tradesData[tradesData['DTE'].isin(selectedDtes)]
-                
+
+        with st.expander('Get Quantstats Report'):
+            result = st.button('Run')
+            if result:
+                pnls = tradesData['PnL']
+                returns = pnls / initialCapital
+                returns.index = pd.to_datetime(tradesData['Entry Date/Time'])
+                st.components.v1.html(quantstats_reports.html(returns, title='Tearsheet', compounded=False, output='tearsheet.html'),
+                                      height=1000,
+                                      scrolling=True)
 
         if selectedGroupCriteria is not None:
             if selectedGroupCriteria == 'Date':
@@ -474,7 +483,6 @@ def main():
 
         with st.expander("Check dataframe"):
             st.dataframe(tradesData, use_container_width=True)
-
 
 if __name__ == "__main__":
     main()
