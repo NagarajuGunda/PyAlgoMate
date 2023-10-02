@@ -32,10 +32,16 @@ underlyingMapping = {
         'lotSize': 15,
         'strikeDifference': 100
     },
-    'NSE|NIFTY 50': {
+    'NSE|NIFTY INDEX': {
         'optionPrefix': 'NFO|NIFTY',
         'index': UnderlyingIndex.NIFTY,
         'lotSize': 50,
+        'strikeDifference': 50
+    },
+    'NSE|FIN NIFTY': {
+        'optionPrefix': 'NFO|FINNIFTY',
+        'index': UnderlyingIndex.FINNIFTY,
+        'lotSize': 40,
         'strikeDifference': 50
     }
 }

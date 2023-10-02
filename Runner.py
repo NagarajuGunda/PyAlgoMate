@@ -8,6 +8,8 @@ import signal
 import zmq
 import json
 import traceback
+import socket
+from logging.handlers import SysLogHandler
 import pyalgomate.utils as utils
 from pyalgomate.telegram import TelegramBot
 
@@ -61,6 +63,10 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
 
             for underlying in underlyings:
                 underlyingToken = getFinvasiaToken(api, underlying)
+                print(f'Token id for <{underlying}> is <{underlyingToken}>')
+                if underlyingToken is None:
+                    print(f'Error getting token id for {underlyingToken}')
+                    exit(1)
                 underlyingQuotes = api.get_quotes('NSE', underlyingToken)
                 ltp = underlyingQuotes['lp']
 
@@ -209,6 +215,26 @@ def main():
     if 'Streamlit' in config:
         port = config['Streamlit']['Port']
         sock.bind(f"tcp://127.0.0.1:{port}")
+
+    if 'PaperTrail' not in creds:
+        papertrailCreds = creds['PaperTrail']['address'].split(':')
+
+        class ContextFilter(logging.Filter):
+            hostname = socket.gethostname()
+
+            def filter(self, record):
+                record.hostname = ContextFilter.hostname
+                return True
+
+        syslog = SysLogHandler(
+            address=(papertrailCreds[0], int(papertrailCreds[1])))
+        syslog.addFilter(ContextFilter())
+        format = '%(asctime)s %(hostname)s PyAlgoMate: %(message)s'
+        formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
+        syslog.setFormatter(formatter)
+        logger = logging.getLogger()
+        logger.addHandler(syslog)
+        logger.setLevel(logging.INFO)
 
     feed, api = getFeed(
         creds, broker=config['Broker'], underlyings=config['Underlyings'])

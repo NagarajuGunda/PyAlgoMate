@@ -19,6 +19,39 @@ from pyalgomate.strategies import OptionContract
 # strategy.
 
 
+def getUnderlyingDetails(underlying):
+    return {
+        'MIDCAPNIFTY': {
+            'optionPrefix': 'MIDCAPNIFTY',
+            'index': UnderlyingIndex.MIDCAPNIFTY,
+            'lotSize': 75,
+            'strikeDifference': 25
+        },
+        'BANKNIFTY': {
+            'optionPrefix': 'BANKNIFTY',
+            'index': UnderlyingIndex.BANKNIFTY,
+            'lotSize': 15,
+            'strikeDifference': 100
+        },
+        'NIFTY': {
+            'optionPrefix': 'NIFTY',
+            'index': UnderlyingIndex.NIFTY,
+            'lotSize': 50,
+            'strikeDifference': 50
+        },
+        'FINNIFTY': {
+            'optionPrefix': 'FINNIFTY',
+            'index': UnderlyingIndex.FINNIFTY,
+            'lotSize': 40,
+            'strikeDifference': 50
+        }
+    }[underlying]
+
+
+def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
+    return f'{underlyingInstrument}{expiry.strftime("%d%b%y").upper()}{callOrPut.upper()}{strikePrice}'
+
+
 class QuantityTraits(broker.InstrumentTraits):
     def roundQuantity(self, quantity):
         return round(quantity, 2)
@@ -42,35 +75,10 @@ class BacktestingBroker(backtesting.Broker):
     """
 
     def getUnderlyingDetails(self, underlying):
-        return {
-            'MIDCAPNIFTY': {
-                'optionPrefix': 'MIDCAPNIFTY',
-                'index': UnderlyingIndex.MIDCAPNIFTY,
-                'lotSize': 75,
-                'strikeDifference': 25
-            },
-            'BANKNIFTY': {
-                'optionPrefix': 'BANKNIFTY',
-                'index': UnderlyingIndex.BANKNIFTY,
-                'lotSize': 15,
-                'strikeDifference': 100
-            },
-            'NIFTY': {
-                'optionPrefix': 'NIFTY',
-                'index': UnderlyingIndex.NIFTY,
-                'lotSize': 50,
-                'strikeDifference': 50
-            },
-            'FINNIFTY': {
-                'optionPrefix': 'FINNIFTY',
-                'index': UnderlyingIndex.FINNIFTY,
-                'lotSize': 40,
-                'strikeDifference': 50
-            }
-        }[underlying]
+        return getUnderlyingDetails(underlying)
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
-        return underlyingInstrument + str(strikePrice) + ('CE' if (callOrPut == 'C' or callOrPut == 'Call') else 'PE')
+        return getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut)
 
     def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
         return underlyingInstrument + str(ceStrikePrice) + "CE", underlyingInstrument + str(peStrikePrice) + "PE"
