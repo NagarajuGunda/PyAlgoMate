@@ -216,7 +216,7 @@ def main():
         port = config['Streamlit']['Port']
         sock.bind(f"tcp://127.0.0.1:{port}")
 
-    if 'PaperTrail' not in creds:
+    if 'PaperTrail' in creds:
         papertrailCreds = creds['PaperTrail']['address'].split(':')
 
         class ContextFilter(logging.Filter):

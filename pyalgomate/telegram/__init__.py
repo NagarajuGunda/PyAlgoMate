@@ -119,9 +119,9 @@ class TelegramBot:
             try:
                 try:
                     if not failed_messages.empty():
-                        message = await asyncio.wait_for(failed_messages.get(), timeout=self.current_sleep_interval)
+                        message = await asyncio.wait_for(failed_messages.get(), timeout=1)
                     else:
-                        message = await asyncio.wait_for(self.messageQueue.get(), timeout=self.current_sleep_interval)
+                        message = await asyncio.wait_for(self.messageQueue.get(), timeout=1)
                 except asyncio.TimeoutError:
                     if self.stopEvent.is_set():
                         break
@@ -329,7 +329,7 @@ class TelegramBot:
 
 
 def main() -> None:
-    bot = TelegramBot("botid", "-chatid")
+    bot = TelegramBot("5972504197:AAHc3cCqZvR4trW8V7Wnyk3zbo81NKPfxvY", "-1001480336694")
     bot.sendMessage("Hello, world!")
     bot.sendMessage("Message1")
     bot.sendMessage("Message2")
