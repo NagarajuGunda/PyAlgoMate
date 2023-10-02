@@ -150,6 +150,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                 time.sleep(2)
 
     def reset(self):
+        self.sendPnLImage()
+
         self.__optionData = dict()
         self.openPositions = set()
         self.closedPositions = set()
