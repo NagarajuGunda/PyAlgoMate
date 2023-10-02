@@ -4,6 +4,7 @@ import datetime
 import pandas as pd
 import os
 import time
+import plotly.express as px
 
 import pyalgotrade.bar
 from pyalgotrade.broker import Order, OrderExecutionInfo
@@ -296,6 +297,19 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                 pnl += (entryPrice * entryOrder.getQuantity()) - \
                     (exitPrice * exitOrder.getQuantity())
         return pnl
+
+    def getPnLFig(self):
+        pnl = self.getOverallPnL()
+        pnlDf = self.getPnLs()
+        values = pd.to_numeric(pnlDf['PnL'])
+        color = np.where(values < 0, 'loss', 'profit')
+
+        fig = px.area(pnlDf, x="Date/Time", y=values, title=f"{self.strategyName} MTM | Current PnL:  ₹{round(pnl, 2)}",
+                      color=color, color_discrete_map={'loss': 'orangered', 'profit': 'lightgreen'})
+        fig.update_layout(
+            title_x=0.5, title_xanchor='center', yaxis_title='PnL')
+
+        return fig
 
     def onStart(self):
         # build open orders from tradeDf

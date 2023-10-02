@@ -4,7 +4,6 @@ import threading
 import signal
 import pandas as pd
 import numpy as np
-import plotly.express as px
 from typing import List, Dict
 import matplotlib.pyplot as plt
 from pandas.plotting import table
@@ -214,17 +213,7 @@ class TelegramBot:
 
         # Now you have both the selected strategy and the action to perform
         if action == "get_pnl_chart":
-            pnl = strategy.getOverallPnL()
-            pnlDf = strategy.getPnLs()
-            values = pd.to_numeric(pnlDf['PnL'])
-            color = np.where(values < 0, 'loss', 'profit')
-
-            fig = px.area(pnlDf, x="Date/Time", y=values, title=f"Current PnL:  ₹{round(pnl, 2)}",
-                          color=color, color_discrete_map={'loss': 'orangered', 'profit': 'lightgreen'})
-            fig.update_layout(
-                title_x=0.5, title_xanchor='center', yaxis_title='PnL')
-
-            await update.message.reply_photo(photo=fig.to_image(format='png', scale=6), caption=f"{'🟢' if pnl >= 0  else '🔴'} Current PnL is: ₹{round(pnl, 2)}")
+            await update.message.reply_photo(photo=strategy.getPnLFig().to_image(format='png'))
         elif action == "get_trade_book":
             try:
                 tradesDf = strategy.getTrades()
