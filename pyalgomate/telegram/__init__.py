@@ -294,7 +294,8 @@ class TelegramBot:
     async def run(self):
         """Run the bot."""
         # Create the Application and pass it your bot's token.
-        self.application = Application.builder().token(self.botToken).build()
+        self.application = Application.builder().token(
+            self.botToken).read_timeout(30).write_timeout(30).build()
 
         # Add conversation handler with the states CHOOSING, SELECT_STRATEGY
         conv_handler = ConversationHandler(

@@ -290,8 +290,13 @@ def main():
 
     signal.signal(signal.SIGINT, handle_interrupt)
 
-    for thread in threads:
-        thread.join()
+    if telegramBot:
+        telegramBot.waitUntilFinished()
+    else:
+        while any(thread.is_alive() for thread in threads):
+            for thread in threads:
+                if thread.is_alive():
+                    thread.join(timeout=1)
 
 
 if __name__ == "__main__":
