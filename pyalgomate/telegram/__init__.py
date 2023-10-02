@@ -119,9 +119,9 @@ class TelegramBot:
             try:
                 try:
                     if not failed_messages.empty():
-                        message = await asyncio.wait_for(failed_messages.get(), timeout=self.original_sleep_interval)
+                        message = await asyncio.wait_for(failed_messages.get(), timeout=self.current_sleep_interval)
                     else:
-                        message = await asyncio.wait_for(self.messageQueue.get(), timeout=self.original_sleep_interval)
+                        message = await asyncio.wait_for(self.messageQueue.get(), timeout=self.current_sleep_interval)
                 except asyncio.TimeoutError:
                     if self.stopEvent.is_set():
                         break
