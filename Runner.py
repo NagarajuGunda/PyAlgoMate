@@ -13,10 +13,23 @@ from logging.handlers import SysLogHandler
 import pyalgomate.utils as utils
 from pyalgomate.telegram import TelegramBot
 
-logging.basicConfig(filename=f'PyAlgoMate.log', level=logging.INFO)
-logging.getLogger("requests").setLevel(logging.WARNING)
-
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+fileHandler = logging.FileHandler('PyAlgoMate.log')
+fileHandler.setLevel(logging.INFO)
+fileHandler.setFormatter(formatter)
+
+consoleHandler = logging.StreamHandler()
+consoleHandler.setLevel(logging.INFO)
+consoleHandler.setFormatter(formatter)
+
+logger.addHandler(fileHandler)
+logger.addHandler(consoleHandler)
+
+logging.getLogger("requests").setLevel(logging.WARNING)
 
 
 def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY BANK']):
@@ -63,9 +76,11 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
 
             for underlying in underlyings:
                 underlyingToken = getFinvasiaToken(api, underlying)
-                print(f'Token id for <{underlying}> is <{underlyingToken}>')
+                logger.info(
+                    f'Token id for <{underlying}> is <{underlyingToken}>')
                 if underlyingToken is None:
-                    print(f'Error getting token id for {underlyingToken}')
+                    logger.error(
+                        f'Error getting token id for {underlyingToken}')
                     exit(1)
                 underlyingQuotes = api.get_quotes('NSE', underlyingToken)
                 ltp = underlyingQuotes['lp']
@@ -94,9 +109,11 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
 
             optionSymbols = list(dict.fromkeys(optionSymbols))
 
+            logger.info('Getting token mappings')
             tokenMappings = getFinvasiaTokenMappings(
                 api, underlyings + optionSymbols)
 
+            logger.info('Creating feed object')
             barFeed = LiveTradeFeed(api, tokenMappings)
         else:
             exit(1)
@@ -115,7 +132,7 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
             userid=cred['user'], password=cred['pwd'], twofa=twoFA)
 
         profile = api.profile()
-        print(f"Welcome {profile.get('user_name')}")
+        logger.info(f"Welcome {profile.get('user_name')}")
 
         currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
             datetime.datetime.now().date())
@@ -178,7 +195,7 @@ def runStrategy(strategy):
     except Exception as e:
         logger.exception(
             f'Error occurred while running strategy {strategy.strategyName}. Exception: {e}')
-        print(traceback.format_exc())
+        logger.exception(traceback.format_exc())
 
 
 def threadTarget(strategy):
@@ -187,7 +204,7 @@ def threadTarget(strategy):
     except Exception as e:
         logger.exception(
             f'An exception occurred in thread for strategy {strategy.strategyName}. Exception: {e}')
-        print(traceback.format_exc())
+        logger.exception(traceback.format_exc())
 
 
 context = zmq.Context()
@@ -238,6 +255,9 @@ def main():
 
     feed, api = getFeed(
         creds, broker=config['Broker'], underlyings=config['Underlyings'])
+
+    logger.info('Starting Feed')
+    feed.start()
 
     for strategyName, details in config['Strategies'].items():
         strategyClassName = details['Class']
