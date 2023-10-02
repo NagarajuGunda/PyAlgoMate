@@ -194,7 +194,7 @@ class TelegramBot:
             "pnl": strategy.getOverallPnL(),
             "open": len(strategy.openPositions),
             "closed": len(strategy.closedPositions),
-            "running": strategy.state != State.UNKNOWN or strategy.state == State.EXITED
+            "running": strategy.state == State.UNKNOWN or strategy.state == State.EXITED
         } for strategy in self.strategies]
 
         message = ""
