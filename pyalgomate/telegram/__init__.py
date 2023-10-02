@@ -353,7 +353,7 @@ class TelegramBot:
 
 
 def main() -> None:
-    bot = TelegramBot("5972504197:AAHc3cCqZvR4trW8V7Wnyk3zbo81NKPfxvY", "-1001480336694")
+    bot = TelegramBot("botid", "channelid")
     bot.sendMessage("Hello, world!")
     bot.sendMessage("Message1")
     bot.sendMessage("Message2")
