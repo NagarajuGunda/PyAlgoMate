@@ -18,26 +18,7 @@ from pyalgomate.strategy.position import LongOpenPosition, ShortOpenPosition
 from py_vollib_vectorized import vectorized_implied_volatility, get_all_greeks
 from pyalgotrade.barfeed import csvfeed
 from pyalgomate.telegram import TelegramBot
-
-class State(object):
-    LIVE = 1
-    PLACING_ORDERS = 2
-    ENTERED = 3
-    EXITED = 4
-
-    @classmethod
-    def toString(cls, state):
-        if state == cls.LIVE:
-            return "LIVE"
-        elif state == cls.PLACING_ORDERS:
-            return "PLACING_ORDERS"
-        elif state == cls.ENTERED:
-            return "ENTERED"
-        elif state == cls.EXITED:
-            return "EXITED"
-        else:
-            raise "Invalid State"
-
+from pyalgomate.core import State
 
 class Expiry(object):
     WEEKLY = 1
@@ -209,7 +190,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             "charts": {
                 "pnl": overallPnL
             },
-            "state": State.toString(self.state)
+            "state": str(self.state)
         }
 
         if self.collectData is not None:

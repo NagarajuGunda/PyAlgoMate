@@ -7,7 +7,7 @@ import pandas as pd
 
 import pyalgomate.utils as utils
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
-from pyalgomate.strategies.BaseOptionsGreeksStrategy import State
+from pyalgomate.core import State
 from pyalgomate.cli import CliMain
 import pyalgotrade.bar
 

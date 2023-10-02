@@ -7,6 +7,7 @@ import numpy as np
 from typing import List, Dict
 import matplotlib.pyplot as plt
 from pandas.plotting import table
+from pyalgomate.core import State
 import io
 import datetime
 import time
@@ -43,12 +44,14 @@ logger = logging.getLogger(__name__)
 
 CHOOSING, SELECT_STRATEGY, TYPING_REPLY = range(3)
 
+GET_STATUS = "Get Status"
 GET_PNL_CHART = "Get PnL Charts"
 GET_TRADE_BOOK = "Get Trade Book"
 EXIT_ALL_POSITIONS = "Exit All Positions"
 DONE = "Done"
 
 reply_keyboard = [
+    [GET_STATUS],
     [GET_PNL_CHART],
     [GET_TRADE_BOOK],
     [EXIT_ALL_POSITIONS],
@@ -185,20 +188,39 @@ class TelegramBot:
     def waitUntilFinished(self):
         self.sendThread.join()
 
+    async def get_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        strategiesDetails = [{
+            "name": strategy.strategyName,
+            "pnl": strategy.getOverallPnL(),
+            "open": len(strategy.openPositions),
+            "closed": len(strategy.closedPositions),
+            "running": strategy.state != State.UNKNOWN or strategy.state == State.EXITED
+        } for strategy in self.strategies]
+
+        message = ""
+
+        for details in strategiesDetails:
+            message += f"{'🔴' if details['pnl'] < 0 else '🟢'} {'<s>' if not details['running'] else ''}<a href='https://github.com/NagarajuGunda/PyAlgoMate/'>{details['name']}</a>{'</s>' if not details['running'] else ''}  <b>₹ {details['pnl']:.2f}</b>\n"
+            message += f"<i>Open = {details['open']} Closed = {details['closed']} Total = {details['open'] + details['closed']}</i>\n\n"
+
+        overallPnL = sum([details['pnl'] for details in strategiesDetails])
+        message += f"\n"
+        message += f"{'🔴' if overallPnL < 0 else '🟢'} Overall PNL <b>•  ₹ {overallPnL:.2f}</b>\n\n"
+
+        await update.message.reply_text(message, parse_mode='HTML', disable_web_page_preview=True)
+
+        return await self.start(update, context)
+
     async def choice_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if not await self.isUserAllowed(update):
             return ConversationHandler.END
 
-        """Handle user choices, including "Get PnL" and "Exit All Positions"."""
         text = update.message.text
-        if text == GET_PNL_CHART:
-            return await self.select_strategy(update, context, "get_pnl_chart")
-        elif text == GET_TRADE_BOOK:
-            return await self.select_strategy(update, context, "get_trade_book")
-        elif text == EXIT_ALL_POSITIONS:
-            return await self.select_strategy(update, context, "exit_all_positions")
-        else:
-            return await self.done(update, context)
+
+        if text == GET_STATUS:
+            return await self.get_status(update, context)
+
+        return await self.select_strategy(update, context, text)
 
     async def select_strategy(self, update: Update, context: ContextTypes.DEFAULT_TYPE, action: str) -> int:
         strategy_names = [[strategy.strategyName]
@@ -222,9 +244,9 @@ class TelegramBot:
             return await self.unexpected_message_handler(update, context)
 
         # Now you have both the selected strategy and the action to perform
-        if action == "get_pnl_chart":
+        if action == GET_PNL_CHART:
             await update.message.reply_photo(photo=strategy.getPnLImage())
-        elif action == "get_trade_book":
+        elif action == GET_TRADE_BOOK:
             try:
                 tradesDf = strategy.getTrades()
                 tradesDf = tradesDf.loc[pd.to_datetime(
@@ -246,10 +268,12 @@ class TelegramBot:
                     await update.message.reply_photo(photo=InputFile(imageBuffer))
             except Exception as e:
                 await update.message.reply_text(f'Exception occured while sending trade book. Error: {e}')
-        elif action == "exit_all_positions":
+        elif action == EXIT_ALL_POSITIONS:
             # strategy.exitAllPositions()
             exit_message = f"Exiting all positions for {selected_strategy}..."
             await update.message.reply_text(exit_message)
+        else:
+            await update.message.reply_text('Invalid strategy action')
 
         return await self.start(update, context)
 

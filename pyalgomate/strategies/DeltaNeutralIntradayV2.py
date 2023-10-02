@@ -4,7 +4,7 @@ import pandas as pd
 
 import pyalgomate.utils as utils
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
-from pyalgomate.strategies.BaseOptionsGreeksStrategy import State, Expiry
+from pyalgomate.core import State, Expiry
 from pyalgomate.cli import CliMain
 
 logger = logging.getLogger(__file__)
@@ -140,7 +140,7 @@ class DeltaNeutralIntradayV2(BaseOptionsGreeksStrategy):
 
         self.overallPnL = self.getOverallPnL()
 
-        self.log(f"Current PnL is {self.overallPnL}. Overall delta is {overallDelta}. Datetime {bars.getDateTime()}. State is {State.toString(self.state)}.\n" +
+        self.log(f"Current PnL is {self.overallPnL}. Overall delta is {overallDelta}. Datetime {bars.getDateTime()}. State is {self.state}.\n" +
                  "\tRegistered option count is {self.registeredOptionsCount}. Number of options present {len(optionData)}.\n" +
                  "\tNumber of open positions are {len(self.openPositions)}. Number of closed positions are {len(self.closedPositions)}.", logging.DEBUG)
 

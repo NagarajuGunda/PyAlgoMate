@@ -1,7 +1,7 @@
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 import pyalgomate.utils as utils
 import datetime
-from pyalgomate.strategies.BaseOptionsGreeksStrategy import State
+from pyalgomate.core import State
 from pyalgomate.cli import CliMain
 import logging
 import pyalgotrade.bar

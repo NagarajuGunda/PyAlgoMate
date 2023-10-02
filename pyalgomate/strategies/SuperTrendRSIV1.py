@@ -8,7 +8,7 @@ import pandas as pd
 import pyalgotrade.bar
 import pyalgomate.utils as utils
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
-from pyalgomate.strategies.BaseOptionsGreeksStrategy import State
+from pyalgomate.core import State
 
 logger = logging.getLogger(__file__)
 

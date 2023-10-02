@@ -5,6 +5,17 @@
 from enum import IntEnum
 
 
+class State(IntEnum):
+    UNKNOWN = 0
+    LIVE = 1
+    PLACING_ORDERS = 2
+    ENTERED = 3
+    EXITED = 4
+
+    def __str__(self):
+        return self.name
+
+
 class UnderlyingIndex(IntEnum):
     NIFTY = 0
     BANKNIFTY = 1

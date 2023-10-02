@@ -12,6 +12,7 @@ import socket
 from logging.handlers import SysLogHandler
 import pyalgomate.utils as utils
 from pyalgomate.telegram import TelegramBot
+from pyalgomate.core import State
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -193,6 +194,7 @@ def runStrategy(strategy):
     try:
         strategy.run()
     except Exception as e:
+        strategy.state = State.UNKNOWN
         logger.exception(
             f'Error occurred while running strategy {strategy.strategyName}. Exception: {e}')
         logger.exception(traceback.format_exc())
@@ -202,6 +204,7 @@ def threadTarget(strategy):
     try:
         runStrategy(strategy)
     except Exception as e:
+        strategy.state = State.UNKNOWN
         logger.exception(
             f'An exception occurred in thread for strategy {strategy.strategyName}. Exception: {e}')
         logger.exception(traceback.format_exc())

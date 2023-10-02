@@ -4,7 +4,7 @@ import pandas as pd
 
 import pyalgomate.utils as utils
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
-from pyalgomate.strategies.BaseOptionsGreeksStrategy import State, Expiry
+from pyalgomate.core import State, Expiry
 from pyalgomate.cli import CliMain
 
 class StraddleIntradayV1(BaseOptionsGreeksStrategy):
