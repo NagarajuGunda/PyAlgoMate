@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 from pandas.plotting import table
 import io
 import datetime
-
+import time
+from telegram.error import RetryAfter
 from telegram import __version__ as TG_VER
 
 try:
@@ -74,7 +75,7 @@ class InvalidStrategyFilter(BaseFilter):
 
 
 class TelegramBot:
-    def __init__(self, botToken, channelId, allowedUserIds):
+    def __init__(self, botToken, channelId, allowedUserIds=[]):
         self.botToken = botToken
         self.bot = Bot(token=botToken)
         self.channelId = channelId
@@ -89,6 +90,10 @@ class TelegramBot:
         self.allowedUserIds = allowedUserIds
 
         self.strategies: List[object] = []
+
+        self.last_message_time = 0
+        self.original_sleep_interval = 0.5
+        self.current_sleep_interval = self.original_sleep_interval
 
     def addStrategy(self, strategy):
         self.strategies.append(strategy)
@@ -108,20 +113,51 @@ class TelegramBot:
 
     async def _sendMessages(self):
         self.readyEvent.set()
+        failed_messages = asyncio.Queue()
+
         while True:
-            message = await self.messageQueue.get()
-            await asyncio.sleep(4)  # Add a delay between each message send
-            await self._safeSend(message)
-            self.messageQueue.task_done()
+            try:
+                try:
+                    if not failed_messages.empty():
+                        message = await asyncio.wait_for(failed_messages.get(), timeout=self.original_sleep_interval)
+                    else:
+                        message = await asyncio.wait_for(self.messageQueue.get(), timeout=self.original_sleep_interval)
+                except asyncio.TimeoutError:
+                    if self.stopEvent.is_set():
+                        break
+                    else:
+                        continue
+
+                # Calculate time elapsed since the last message
+                elapsed_time = time.time() - self.last_message_time
+
+                if elapsed_time < self.current_sleep_interval:
+                    # Sleep for the remaining time to respect the current interval
+                    await asyncio.sleep(self.current_sleep_interval - elapsed_time)
+
+                await self.bot.send_message(chat_id=self.channelId, text=message)
+                self.messageQueue.task_done()
+
+                self.last_message_time = time.time()
+
+                # Reset the sleep interval to the original value
+                self.current_sleep_interval = self.original_sleep_interval
+
+            except RetryAfter as e:
+                retry_after_seconds = e.retry_after
+                self.current_sleep_interval = max(
+                    retry_after_seconds, self.current_sleep_interval)
+                logger.exception(
+                    f"Rate limit exceeded. Sleeping for {retry_after_seconds}. Error: {e}")
+                await asyncio.sleep(retry_after_seconds)
+                await failed_messages.put(message)
+
+            except Exception as e:
+                logger.exception(f"Failed to send message: {e}")
+                await failed_messages.put(message)
 
             if self.stopEvent.is_set():
                 break
-
-    async def _safeSend(self, message):
-        try:
-            await self.bot.send_message(chat_id=self.channelId, text=message)
-        except Exception as e:
-            logger.info(f"Error sending message: {str(e)}")
 
     def stop(self):
         async def stopPolling(updater):
@@ -295,12 +331,20 @@ class TelegramBot:
 def main() -> None:
     bot = TelegramBot("botid", "-chatid")
     bot.sendMessage("Hello, world!")
+    bot.sendMessage("Message1")
+    bot.sendMessage("Message2")
+    bot.sendMessage("Message3")
+    bot.sendMessage("Message4")
+    bot.sendMessage("Message5")
+    bot.sendMessage("Message6")
+    bot.sendMessage("Message7")
+    bot.sendMessage("Message8")
+    bot.sendMessage("Message9")
 
     def handle_interrupt(signum, frame):
         logger.info("Ctrl+C received. Stopping the bot...")
         bot.stop()
         bot.waitUntilFinished()
-        bot.delete()
         logger.info("Bot stopped. Exiting the process.")
         exit(0)
 
