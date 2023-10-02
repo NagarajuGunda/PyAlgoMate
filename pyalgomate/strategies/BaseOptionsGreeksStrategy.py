@@ -20,11 +20,6 @@ from pyalgotrade.barfeed import csvfeed
 from pyalgomate.telegram import TelegramBot
 from pyalgomate.core import State
 
-class Expiry(object):
-    WEEKLY = 1
-    MONTHLY = 2
-
-
 class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def __init__(self, feed, broker, strategyName, logger: logging.Logger, 

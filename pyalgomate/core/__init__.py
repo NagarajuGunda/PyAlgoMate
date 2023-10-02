@@ -16,6 +16,14 @@ class State(IntEnum):
         return self.name
 
 
+class Expiry(IntEnum):
+    WEEKLY = 1
+    MONTHLY = 2
+
+    def __str__(self):
+        return self.name
+
+
 class UnderlyingIndex(IntEnum):
     NIFTY = 0
     BANKNIFTY = 1
