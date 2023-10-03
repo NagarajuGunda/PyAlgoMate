@@ -137,3 +137,6 @@ class BaseBarFeed(feed.BaseFeed):
 
     def getDispatchPriority(self):
         return dispatchprio.BAR_FEED
+
+    def isDataFeedAlive(self, heartBeatInterval):
+        return False

@@ -110,6 +110,7 @@ class LiveTradeFeed(BaseBarFeed):
         self.__enableReconnection = True
         self.__stopped = False
         self.__orderBookUpdateEvent = observer.Event()
+        self.__lastDataTime = None
 
     def getApi(self):
         return self.__api
@@ -164,6 +165,7 @@ class LiveTradeFeed(BaseBarFeed):
             ret = True
             if eventType == wsclient.WebSocketClient.Event.TRADE:
                 self.__onTrade(eventData)
+                self.__lastDataTime = datetime.datetime.now()
             elif eventType == wsclient.WebSocketClient.Event.ORDER_BOOK_UPDATE:
                 self.__orderBookUpdateEvent.emit(eventData)
             elif eventType == wsclient.WebSocketClient.Event.DISCONNECTED:
@@ -242,3 +244,11 @@ class LiveTradeFeed(BaseBarFeed):
         :rtype: :class:`pyalgotrade.observer.Event`.
         """
         return self.__orderBookUpdateEvent
+
+    def isDataFeedAlive(self, heartBeatInterval=5):
+        if self.__lastDataTime is None:
+            return False
+
+        currentDateTime = datetime.datetime.now()
+        timeSinceLastDateTime = currentDateTime - self.__lastDataTime
+        return timeSinceLastDateTime.total_seconds() <= heartBeatInterval

@@ -207,6 +207,11 @@ class TelegramBot:
         message += f"\n"
         message += f"{'🔴' if overallPnL < 0 else '🟢'} Overall PNL <b>•  ₹ {overallPnL:.2f}</b>\n\n"
 
+        if len(self.strategies):
+            feedAlive = self.strategies[0].getFeed().isDataFeedAlive()
+
+            message += f"<i>Data Feed:</i> {'🔵' if feedAlive else '⭕'}"
+
         await update.message.reply_text(message, parse_mode='HTML', disable_web_page_preview=True)
 
         return await self.start(update, context)
