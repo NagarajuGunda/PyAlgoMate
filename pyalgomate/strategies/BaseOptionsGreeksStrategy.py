@@ -7,11 +7,10 @@ import time
 import plotly.express as px
 
 import pyalgotrade.bar
-from pyalgotrade.broker import Order, OrderExecutionInfo
 from pyalgotrade.strategy import position
 from pyalgotrade import strategy
 from pyalgotrade import broker
-from pyalgomate.brokers import BacktestingBroker, QuantityTraits
+from pyalgomate.brokers import QuantityTraits
 import pyalgomate.utils as utils
 from pyalgomate.strategies import OptionGreeks
 from pyalgomate.strategy.position import LongOpenPosition, ShortOpenPosition
@@ -19,6 +18,7 @@ from py_vollib_vectorized import vectorized_implied_volatility, get_all_greeks
 from pyalgotrade.barfeed import csvfeed
 from pyalgomate.telegram import TelegramBot
 from pyalgomate.core import State
+from pyalgomate.barfeed import resampled
 
 class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
@@ -38,6 +38,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.telegramChannelId = telegramChannelId
         self._observers = []
         self.__optionContracts = dict()
+        self.__resampledBarFeeds = []
         self.mae = dict()
         self.mfe = dict()
         self.reset()
@@ -78,6 +79,24 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             if not os.path.isfile(self.dataFileName):
                 pd.DataFrame(columns=self.dataColumns).to_csv(
                     self.dataFileName, index=False)
+
+    def onIdle(self):
+        for resampledBarFeed in self.__resampledBarFeeds:
+            resampledBarFeed.checkNow(self.getCurrentDateTime())
+
+    def resampleBarFeed(self, frequency, callback):
+        """
+        Builds a resampled barfeed that groups bars by a certain frequency.
+
+        :param frequency: The grouping frequency in seconds. Must be > 0.
+        :param callback: A function similar to onBars that will be called when new bars are available.
+        :rtype: :class:`pyalgotrade.barfeed.BaseBarFeed`.
+        """
+        ret = resampled.ResampledBarFeed(self.getFeed(), frequency)
+        ret.getNewValuesEvent().subscribe(lambda dt, bars: callback(bars))
+        self.getDispatcher().addSubject(ret)
+        self.__resampledBarFeeds.append(ret)
+        return ret
 
     def isBacktest(self):
         return isinstance(self.getFeed(), csvfeed.BarFeed)
