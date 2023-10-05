@@ -139,13 +139,16 @@ class TelegramBot:
 
                 if type(message) is dict:
                     content = message['message']
-                    channelId = message['channelId']
-                    if not channelId:
-                        channelId = self.channelId
+                    channelId = self.channelId
+                    if channelId in message:
+                        channelId = message['channelId']
+                    messageThreadId = None
+                    if 'messageThreadId' in message:
+                        messageThreadId = message['messageThreadId']
                     if isinstance(content, str):
-                        await self.bot.send_message(chat_id=channelId, text=content)
+                        await self.bot.send_message(chat_id=channelId, text=content, message_thread_id=messageThreadId)
                     else:
-                        await self.bot.send_photo(chat_id=channelId, photo=content)
+                        await self.bot.send_photo(chat_id=channelId, photo=content, message_thread_id=messageThreadId)
                 else:
                     await self.bot.send_message(chat_id=self.channelId, text=message)
                 self.messageQueue.task_done()

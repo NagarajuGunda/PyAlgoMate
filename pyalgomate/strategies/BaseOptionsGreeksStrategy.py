@@ -26,7 +26,8 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
                  callback=None, 
                  collectData=None,
                  telegramBot:TelegramBot=None,
-                 telegramChannelId=None):
+                 telegramChannelId=None,
+                 telegramMessageThreadId=None):
         super(BaseOptionsGreeksStrategy, self).__init__(feed, broker)
         self.marketStartTime = datetime.time(hour=9, minute=15)
         self.marketEndTime = datetime.time(hour=15, minute=29)
@@ -36,6 +37,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         self.collectTrades = False if self.isBacktest() else True
         self.telegramBot = telegramBot
         self.telegramChannelId = telegramChannelId
+        self.telegramMessageThreadId = telegramMessageThreadId
         self._observers = []
         self.__optionContracts = dict()
         self.__resampledBarFeeds = []
@@ -250,23 +252,26 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         for callback in self._observers:
             callback(self.strategyName, jsonData)
 
-    def log(self, message, level=logging.INFO):
+    def log(self, message, level=logging.INFO, sendToTelegram=True):
         if level == logging.DEBUG:
             self.logger.debug(
                 f"{self.strategyName} {self.getCurrentDateTime()} {message}")
         else:
             self.logger.log(
                 level=level, msg=f"\n📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n\n{message}\n\n")
-            if self.telegramBot:
-                message = f"📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n\n{message}"
-                message = {'channelId': self.telegramChannelId,
-                           'message': message}
-                self.telegramBot.sendMessage(message)
+
+        if sendToTelegram and self.telegramBot:
+            message = f"📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n\n{message}"
+            message = {'channelId': self.telegramChannelId,
+                       'message': message,
+                       'messageThreadId': self.telegramMessageThreadId}
+            self.telegramBot.sendMessage(message)
 
     def sendPnLImage(self):
         if self.telegramBot:
             message = {'channelId': self.telegramChannelId,
-                       'message': self.getPnLImage()}
+                       'message': self.getPnLImage(),
+                       'messageThreadId': self.telegramMessageThreadId}
             self.telegramBot.sendMessage(message)
 
     def getPnL(self, position: position):
