@@ -140,7 +140,7 @@ class TelegramBot:
                 if type(message) is dict:
                     content = message['message']
                     channelId = self.channelId
-                    if channelId in message:
+                    if 'channelId' in message:
                         channelId = message['channelId']
                     messageThreadId = None
                     if 'messageThreadId' in message:
@@ -361,8 +361,11 @@ class TelegramBot:
 
 
 def main() -> None:
-    bot = TelegramBot("botid", "channelid")
-    bot.sendMessage("Hello, world!")
+    bot = TelegramBot("5972504197:AAH7l8x1DUHMw6wfoExQknY7IuuKnzV5cjU", "@pyalgomate_private")
+    bot.sendMessage({"message": "Hello, world1!", "messageThreadId": "2"})
+    bot.sendMessage({"message": "Hello, world2!", "messageThreadId": "3"})
+    bot.sendMessage({"message": "Hello, world3!", "messageThreadId": "6"})
+    bot.sendMessage({"message": "Hello, world4!", "messageThreadId": "8"})
     bot.sendMessage("Message1")
     bot.sendMessage("Message2")
     bot.sendMessage("Message3")
