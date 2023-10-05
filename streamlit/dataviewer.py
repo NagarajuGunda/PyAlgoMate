@@ -227,19 +227,31 @@ def main():
 
         if st.session_state['straddleCharts']:
             pattern = r'([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)'
-            filteredData['Ticker'] = filteredData[filteredData['Ticker'].str.match(
-                pattern)]['Ticker'].str.replace(pattern, r'\1 \2\3\4 \6 ATM', regex=True)
 
-            filteredData = filteredData[~filteredData.Ticker.isna()]
+            ceDf = filteredData[filteredData['Ticker'].str.match(r'([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})C(\d+)')]
+            peDf = filteredData[filteredData['Ticker'].str.match(r'([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})P(\d+)')]
 
-            filteredData = filteredData.groupby(by=['Date/Time', 'Ticker']).agg({
-                'Open': 'sum',
-                'High': 'sum',
-                'Low': 'sum',
-                'Close': 'sum',
-                'Volume': 'sum',
-                'Open Interest': 'sum'
-            }).reset_index()
+            ceDf['Ticker'] = ceDf['Ticker'].str.replace(pattern, r'\1 \2\3\4 \6 Straddle', regex=True)
+            peDf['Ticker'] = peDf['Ticker'].str.replace(pattern, r'\1 \2\3\4 \6 Straddle', regex=True)
+
+            commonTickers = set(ceDf['Ticker']).intersection(set(peDf['Ticker']))
+            ceDf = ceDf[ceDf['Ticker'].isin(commonTickers)]
+            peDf = peDf[peDf['Ticker'].isin(commonTickers)]
+
+            ceDf.set_index(['Ticker', 'Date/Time'], inplace=True)
+            peDf.set_index(['Ticker', 'Date/Time'], inplace=True)
+
+            # Join the dataframes on 'Ticker' and 'DateTime'
+            mergedDf = pd.merge(ceDf, peDf, left_index=True, right_index=True, suffixes=('_ce', '_pe'))
+            # Calculate the new columns based on your requirements
+            mergedDf['Open'] = mergedDf['Open_ce'] + mergedDf['Open_pe']
+            mergedDf['High'] = pd.concat([mergedDf['High_ce'] + mergedDf['Low_pe'], mergedDf['Low_ce'] + mergedDf['High_pe']], axis=1).max(axis=1)
+            mergedDf['Low'] = pd.concat([mergedDf['High_ce'] + mergedDf['Low_pe'], mergedDf['Low_ce'] + mergedDf['High_pe']], axis=1).min(axis=1)
+            mergedDf['Close'] = mergedDf['Close_ce'] + mergedDf['Close_pe']
+            mergedDf['Volume'] = mergedDf['Volume_ce'] + mergedDf['Volume_pe']
+            mergedDf['Open Interest'] = mergedDf['Open Interest_ce'] + mergedDf['Open Interest_pe']
+
+            filteredData = mergedDf.reset_index()[['Ticker', 'Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']]
 
         with tickerColumn:
             tickers = filteredData["Ticker"].unique().tolist()
