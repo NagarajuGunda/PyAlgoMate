@@ -140,7 +140,7 @@ class TelegramBot:
                 if type(message) is dict:
                     content = message['message']
                     channelId = self.channelId
-                    if 'channelId' in message:
+                    if 'channelId' in message and message['channelId'] is not None:
                         channelId = message['channelId']
                     messageThreadId = None
                     if 'messageThreadId' in message:
