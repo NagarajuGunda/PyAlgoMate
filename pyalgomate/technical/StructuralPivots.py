@@ -32,11 +32,20 @@ class StructuralPivots:
     def getLargePivotLows(self):
         return self.largePivotLows
 
+    def getBars(self):
+        return self.data
+
     def add_input_value(self, dateTime: datetime.datetime, open: float, high: float, low: float, close: float):
         self.data.append(Bar(dateTime, open, high, low, close))
         self.calculatePivots()
 
     def calculatePivots(self):
+        if not len(self.pivotHighs) and len(self.data):
+            self.pivotHighs.append(self.data[0])
+
+        if not len(self.pivotLows) and len(self.data):
+            self.pivotLows.append(self.data[0])
+
         if len(self.data) < self.lookupPeriod * 2 + 1:
             return
 
