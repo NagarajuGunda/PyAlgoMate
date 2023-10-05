@@ -173,7 +173,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def on1MinBars(self, bars):
         self.log(
-            f"On Resampled Bars - Date/Time - {bars.getDateTime()}", logging.DEBUG)
+            f"On Resampled Bars - Date/Time - {bars.getDateTime()}", logging.DEBUG, sendToTelegram=False)
 
         # Calculate MAE and MFE
         for position in self.openPositions.copy():
@@ -369,7 +369,7 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
         if self.__optionData.get(instrument, None) is not None:
             self.log(
-                f"Option greeks for {instrument}\n{self.__optionData[instrument]}", logging.DEBUG)
+                f"Option greeks for {instrument}\n{self.__optionData[instrument]}", logging.DEBUG, sendToTelegram=False)
 
     def getOpenPosition(self, id: int) -> position:
         for position in self.openPositions.copy():
@@ -421,13 +421,13 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             self.tradesDf.to_csv(self.tradesCSV, index=False)
 
         self.log(
-            f"Option greeks for {position.getInstrument()}\n{self.__optionData.get(position.getInstrument(), None) if self.__optionData is not None else None}", logging.DEBUG)
+            f"Option greeks for {position.getInstrument()}\n{self.__optionData.get(position.getInstrument(), None) if self.__optionData is not None else None}", logging.DEBUG, sendToTelegram=False)
 
     def onEnterCanceled(self, position: position):
-        self.log(f"===== Entry order cancelled: {position.getEntryOrder().getInstrument()} =====", logging.DEBUG)
+        self.log(f"===== Entry order cancelled: {position.getEntryOrder().getInstrument()} =====", logging.DEBUG, sendToTelegram=False)
 
     def onExitCanceled(self, position: position):
-        self.log(f"===== Exit order cancelled: {position.getExitOrder().getInstrument()} =====", logging.DEBUG)
+        self.log(f"===== Exit order cancelled: {position.getExitOrder().getInstrument()} =====", logging.DEBUG, sendToTelegram=False)
 
     def haveLTP(self, instrument):
         return instrument in self.getFeed().getKeys() and len(self.getFeed().getDataSeries(instrument)) > 0
