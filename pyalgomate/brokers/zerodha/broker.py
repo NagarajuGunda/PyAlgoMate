@@ -18,15 +18,43 @@ from pyalgotrade import broker
 from pyalgomate.brokers import BacktestingBroker, QuantityTraits
 from pyalgomate.strategies import OptionContract
 import pyalgomate.utils as utils
+from pyalgomate.utils import UnderlyingIndex
 
 logger = logging.getLogger(__file__)
 
+underlyingMapping = {
+    'NSE:NIFTY MID SELECT': {
+        'optionPrefix': 'NFO:MIDCPNIFTY',
+        'index': UnderlyingIndex.MIDCAPNIFTY,
+        'lotSize': 75,
+        'strikeDifference': 25
+    },
+    'NSE:NIFTY BANK': {
+        'optionPrefix': 'NFO:BANKNIFTY',
+        'index': UnderlyingIndex.BANKNIFTY,
+        'lotSize': 15,
+        'strikeDifference': 100
+    },
+    'NSE:NIFTY 50': {
+        'optionPrefix': 'NFO:NIFTY',
+        'index': UnderlyingIndex.NIFTY,
+        'lotSize': 50,
+        'strikeDifference': 50
+    },
+    'NSE:NIFTY FIN SERVICE': {
+        'optionPrefix': 'NFO:FINNIFTY',
+        'index': UnderlyingIndex.FINNIFTY,
+        'lotSize': 40,
+        'strikeDifference': 50
+    }
+}
+
+def getUnderlyingDetails(underlying):
+    return underlyingMapping[underlying]
 
 def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
     monthly = utils.getNearestMonthlyExpiryDate(expiry) == expiry
-    symbol = 'NFO:NIFTY'
-    if 'NIFTY BANK' in underlyingInstrument or 'BANKNIFTY' in underlyingInstrument:
-        symbol = 'NFO:BANKNIFTY'
+    symbol = getUnderlyingDetails(underlyingInstrument)['optionPrefix']
 
     strikePlusOption = str(strikePrice) + ('CE' if (callOrPut ==
                                                     'C' or callOrPut == 'Call') else 'PE')
@@ -44,17 +72,17 @@ def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
         return symbol + str(expiry.year % 100) + f"{monthlySymbol}{expiry.day:02d}" + strikePlusOption
 
 
-def getOptionSymbols(underlyingInstrument, expiry, ltp, count):
-    ltp = int(float(ltp) / 100) * 100
+def getOptionSymbols(underlyingInstrument, expiry, ltp, count, strikeDifference=100):
+    ltp = int(float(ltp) / strikeDifference) * strikeDifference
     logger.info(f"Nearest strike price of {underlyingInstrument} is <{ltp}>")
     optionSymbols = []
     for n in range(-count, count+1):
        optionSymbols.append(getOptionSymbol(
-           underlyingInstrument, expiry, ltp + (n * 100), 'C'))
+           underlyingInstrument, expiry, ltp + (n * strikeDifference), 'C'))
 
     for n in range(-count, count+1):
        optionSymbols.append(getOptionSymbol(
-           underlyingInstrument, expiry, ltp - (n * 100), 'P'))
+           underlyingInstrument, expiry, ltp - (n * strikeDifference), 'P'))
 
     logger.info("Options symbols are " + ",".join(optionSymbols))
     return optionSymbols
@@ -106,6 +134,9 @@ class ZerodhaPaperTradingBroker(BacktestingBroker):
 
         self.__api = barFeed.getApi()
 
+    def getUnderlyingDetails(self, underlying):
+        return underlyingMapping[underlying]
+
     def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
         return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
 
@@ -123,7 +154,10 @@ class ZerodhaPaperTradingBroker(BacktestingBroker):
             year = int(m.group(2)) + 2000
             expiry = utils.getNearestMonthlyExpiryDate(
                 datetime.date(year, month, 1))
-            return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", m.group(1).replace('NFO:BANKNIFTY', 'NSE:NIFTY BANK').replace('NFO:NIFTY', 'NSE:NIFTY 50'))
+            optionPrefix = m.group(1)
+            for underlying, underlyingDetails in underlyingMapping.items():
+                if underlyingDetails['optionPrefix'] == optionPrefix:
+                    return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", underlying)
 
         m = re.match(r"([A-Z\:]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
 
@@ -143,9 +177,10 @@ class ZerodhaPaperTradingBroker(BacktestingBroker):
 
         year = int(m.group(2)) + 2000
         expiry = datetime.date(year, month, day)
-        return OptionContract(symbol, int(m.group(5)), expiry, "c" if m.group(6) == "C" else "p", m.group(1).replace('NFO:BANKNIFTY', 'NSE:NIFTY BANK').replace('NFO:NIFTY', 'NSE:NIFTY 50'))
-
-    pass
+        optionPrefix = m.group(1)
+        for underlying, underlyingDetails in underlyingMapping.items():
+            if underlyingDetails['optionPrefix'] == optionPrefix:
+                return OptionContract(symbol, int(m.group(5)), expiry, "c" if m.group(6) == "C" else "p", underlying)
 
 
 class TradeEvent(object):
@@ -270,6 +305,9 @@ class ZerodhaLiveBroker(broker.Broker):
 
     QUEUE_TIMEOUT = 0.01
 
+    def getUnderlyingDetails(self, underlying):
+        return underlyingMapping[underlying]
+
     def getOptionSymbol(self, underlyingInstrument, expiry: datetime.date, strikePrice, callOrPut):
         return getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut)
 
@@ -284,7 +322,10 @@ class ZerodhaLiveBroker(broker.Broker):
             year = int(m.group(2)) + 2000
             expiry = utils.getNearestMonthlyExpiryDate(
                 datetime.date(year, month, 1))
-            return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", m.group(1).replace('NFO:BANKNIFTY', 'NSE:NIFTY BANK').replace('NFO:NIFTY', 'NSE:NIFTY 50'))
+            optionPrefix = m.group(1)
+            for underlying, underlyingDetails in underlyingMapping.items():
+                if underlyingDetails['optionPrefix'] == optionPrefix:
+                    return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", underlying)
 
         m = re.match(r"([A-Z\:]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
 
@@ -304,7 +345,10 @@ class ZerodhaLiveBroker(broker.Broker):
 
         year = int(m.group(2)) + 2000
         expiry = datetime.date(year, month, day)
-        return OptionContract(symbol, int(m.group(5)), expiry, "c" if m.group(6) == "C" else "p", m.group(1).replace('NFO:BANKNIFTY', 'NSE:NIFTY BANK').replace('NFO:NIFTY', 'NSE:NIFTY 50'))
+        optionPrefix = m.group(1)
+        for underlying, underlyingDetails in underlyingMapping.items():
+            if underlyingDetails['optionPrefix'] == optionPrefix:
+                return OptionContract(symbol, int(m.group(5)), expiry, "c" if m.group(6) == "C" else "p", underlying)
 
     def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
         return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
@@ -386,8 +430,8 @@ class ZerodhaLiveBroker(broker.Broker):
         self.__tradeMonitor.stop()
 
     def join(self):
-        if self.__tradeMonitor.isAlive():
-            self.__tradeMonitor.join()
+        self.__tradeMonitor.stop()
+        self.__tradeMonitor.join()
 
     def eof(self):
         return self.__stop
