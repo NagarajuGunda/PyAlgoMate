@@ -117,22 +117,33 @@ class ResampledBars():
 
 
 class ATMStraddleV1(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, underlying, strategyName=None, callback=None, lotSize=None, collectData=None, telegramBot=None):
+    def __init__(self, feed, broker, underlying,
+                 strategyName=None,
+                 callback=None,
+                 collectData=None,
+                 telegramBot=None,
+                 telegramChannelId=None,
+                 telegramMessageThreadId=None):
         super(ATMStraddleV1, self).__init__(feed, broker,
                                             strategyName=strategyName if strategyName else __class__.__name__,
                                             logger=logging.getLogger(
                                                 __file__),
                                             callback=callback,
                                             collectData=collectData,
-                                            telegramBot=telegramBot)
+                                            telegramBot=telegramBot,
+                                            telegramChannelId=telegramChannelId,
+                                            telegramMessageThreadId=telegramMessageThreadId)
 
         self.entryTime = datetime.time(hour=9, minute=17)
         self.exitTime = datetime.time(hour=15, minute=15)
-        self.lotSize = lotSize if lotSize is not None else 25
         self.lots = 1
         self.quantity = self.lotSize * self.lots
         self.portfolioSL = 2000
         self.underlying = underlying
+        underlyingDetails = self.getBroker().getUnderlyingDetails(self.underlying)
+        self.underlyingIndex = underlyingDetails['index']
+        self.strikeDifference = underlyingDetails['strikeDifference']
+        self.lotSize = underlyingDetails['lotSize']
 
         self.__reset__()
 
@@ -248,7 +259,7 @@ class ATMStraddleV1(BaseOptionsGreeksStrategy):
 
             if self.underlying in self.supertrend and len(self.supertrend[self.underlying]) > self.indicatorValuesToBeAvailable:
                 currentExpiry = utils.getNearestWeeklyExpiryDate(
-                    bars.getDateTime().date())
+                    bars.getDateTime().date(), self.underlyingIndex)
                 supertrendValue = self.supertrend[self.underlying][-1]
                 lastClose = self.resampledDict[self.underlying]['Close'][-1]
                 self.log(
