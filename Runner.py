@@ -249,7 +249,7 @@ def main():
         syslog = SysLogHandler(
             address=(papertrailCreds[0], int(papertrailCreds[1])))
         syslog.addFilter(ContextFilter())
-        format = '%(asctime)s %(hostname)s PyAlgoMate: %(message)s'
+        format = '%(asctime)s [%(hostname)s] [%(processName)s:%(process)d] [%(threadName)s:%(thread)d] [%(name)s] [%(levelname)s] - %(message)s'
         formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
         syslog.setFormatter(formatter)
         logger = logging.getLogger()
