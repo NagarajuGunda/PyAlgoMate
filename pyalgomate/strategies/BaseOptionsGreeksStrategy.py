@@ -411,17 +411,22 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
         pnl = ((exitPrice - entryPrice) * entryOrder.getExecutionInfo().getQuantity()
                ) if entryOrder.isBuy() else ((entryPrice - exitPrice) * entryOrder.getExecutionInfo().getQuantity())
 
-        idx = self.tradesDf.loc[(self.tradesDf['Instrument']
-                                == position.getInstrument()) & (self.tradesDf['Entry Order Id']
-                                == entryOrderId)].index[-1]
-        self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Order Id', 'Exit Price', 'PnL', 'Date', 'MAE', 'MFE']] = [
-            execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'), exitOrderId, exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d'), mae, mfe]
+        filteredDf = self.tradesDf[(self.tradesDf['Instrument'] == position.getInstrument()) & (
+            self.tradesDf['Entry Order Id'] == entryOrderId)]
 
-        if self.collectTrades:
-            self.tradesDf.to_csv(self.tradesCSV, index=False)
+        if not filteredDf.empty:
+            idx = filteredDf.index[-1]
+            self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Order Id', 'Exit Price', 'PnL', 'Date', 'MAE', 'MFE']] = [
+                execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'), exitOrderId, exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d'), mae, mfe]
 
-        self.log(
-            f"Option greeks for {position.getInstrument()}\n{self.__optionData.get(position.getInstrument(), None) if self.__optionData is not None else None}", logging.DEBUG, sendToTelegram=False)
+            if self.collectTrades:
+                self.tradesDf.to_csv(self.tradesCSV, index=False)
+
+            self.log(
+                f"Option greeks for {position.getInstrument()}\n{self.__optionData.get(position.getInstrument(), None) if self.__optionData is not None else None}", logging.DEBUG, sendToTelegram=False)
+        else:
+            self.log(
+                f'Could not get a row with Instrument <{position.getInstrument()}> Entry Order Id <{entryOrderId}>')
 
     def onEnterCanceled(self, position: position):
         self.log(f"===== Entry order cancelled: {position.getEntryOrder().getInstrument()} =====", logging.DEBUG, sendToTelegram=False)
