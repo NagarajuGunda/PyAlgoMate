@@ -137,17 +137,17 @@ class BacktestingBroker(backtesting.Broker):
     def createLimitOrder(self, action, instrument, limitPrice, quantity):
         action = self._remapAction(action)
 
-        if action == broker.Order.Action.BUY:
-            # Check that there is enough cash.
-            fee = self.getCommission().calculate(None, limitPrice, quantity)
-            cashRequired = limitPrice * quantity + fee
-            if cashRequired > self.getCash(False):
-                raise Exception("Not enough cash")
-        elif action == broker.Order.Action.SELL:
-            # Check that there are enough coins.
-            if quantity > self.getShares(instrument):
-                raise Exception("Not enough %s" % (instrument))
-        else:
-            raise Exception("Only BUY/SELL orders are supported")
+        # if action == broker.Order.Action.BUY:
+        #     # Check that there is enough cash.
+        #     fee = self.getCommission().calculate(None, limitPrice, quantity)
+        #     cashRequired = limitPrice * quantity + fee
+        #     if cashRequired > self.getCash(False):
+        #         raise Exception("Not enough cash")
+        # elif action == broker.Order.Action.SELL:
+        #     # Check that there are enough coins.
+        #     if quantity > self.getShares(instrument):
+        #         raise Exception("Not enough %s" % (instrument))
+        # else:
+        #     raise Exception("Only BUY/SELL orders are supported")
 
         return super(BacktestingBroker, self).createLimitOrder(action, instrument, limitPrice, quantity)
