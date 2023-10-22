@@ -220,6 +220,8 @@ def valueChangedCallback(strategy, value):
 
 
 def main():
+    logger = logging.getLogger()
+
     with open("strategies.yaml", "r") as file:
         config = yaml.safe_load(file)
 
@@ -252,7 +254,6 @@ def main():
         format = '%(asctime)s [%(hostname)s] [%(processName)s:%(process)d] [%(threadName)s:%(thread)d] [%(name)s] [%(levelname)s] - %(message)s'
         formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
         syslog.setFormatter(formatter)
-        logger = logging.getLogger()
         logger.addHandler(syslog)
         logger.setLevel(logging.INFO)
 
