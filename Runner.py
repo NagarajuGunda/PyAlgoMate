@@ -267,7 +267,8 @@ def main():
         strategyClassName = details['Class']
         strategyPath = details['Path']
         strategyMode = details['Mode']
-        strategyArgs = details['Args']
+        strategyArgs = details['Args'] if details['Args'] is not None else dict(
+        )
         strategyArgs.append({'telegramBot': telegramBot})
         strategyArgs.append({'strategyName': strategyName})
         strategyArgs.append({'callback': valueChangedCallback})
