@@ -1,0 +1,17 @@
+[Unit]
+Description=PyAlgoMate Service
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/root/PyAlgoMate
+ExecStart=/root/PyAlgoMate/PyAlgoMate.sh
+#Restart=always
+#RestartSec=3
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=pyalgomate
+
+[Install]
+WantedBy=multi-user.target
