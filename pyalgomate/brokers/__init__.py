@@ -18,39 +18,41 @@ from pyalgomate.strategies import OptionContract
 # It is guaranteed to process BarFeed events before the strategy because it connects to BarFeed events before the
 # strategy.
 
+underlyingMapping = {
+    'MIDCAPNIFTY': {
+        'optionPrefix': 'MIDCAPNIFTY',
+        'index': UnderlyingIndex.MIDCAPNIFTY,
+        'lotSize': 75,
+        'strikeDifference': 25
+    },
+    'BANKNIFTY': {
+        'optionPrefix': 'BANKNIFTY',
+        'index': UnderlyingIndex.BANKNIFTY,
+        'lotSize': 15,
+        'strikeDifference': 100
+    },
+    'NIFTY': {
+        'optionPrefix': 'NIFTY',
+        'index': UnderlyingIndex.NIFTY,
+        'lotSize': 50,
+        'strikeDifference': 50
+    },
+    'FINNIFTY': {
+        'optionPrefix': 'FINNIFTY',
+        'index': UnderlyingIndex.FINNIFTY,
+        'lotSize': 40,
+        'strikeDifference': 50
+    }
+}
+
+def getUnderlyingMappings():
+    return underlyingMapping
 
 def getUnderlyingDetails(underlying):
-    return {
-        'MIDCAPNIFTY': {
-            'optionPrefix': 'MIDCAPNIFTY',
-            'index': UnderlyingIndex.MIDCAPNIFTY,
-            'lotSize': 75,
-            'strikeDifference': 25
-        },
-        'BANKNIFTY': {
-            'optionPrefix': 'BANKNIFTY',
-            'index': UnderlyingIndex.BANKNIFTY,
-            'lotSize': 15,
-            'strikeDifference': 100
-        },
-        'NIFTY': {
-            'optionPrefix': 'NIFTY',
-            'index': UnderlyingIndex.NIFTY,
-            'lotSize': 50,
-            'strikeDifference': 50
-        },
-        'FINNIFTY': {
-            'optionPrefix': 'FINNIFTY',
-            'index': UnderlyingIndex.FINNIFTY,
-            'lotSize': 40,
-            'strikeDifference': 50
-        }
-    }[underlying]
-
+    return underlyingMapping[underlying]
 
 def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
     return f'{underlyingInstrument}{expiry.strftime("%d%b%y").upper()}{callOrPut.upper()}{strikePrice}'
-
 
 class QuantityTraits(broker.InstrumentTraits):
     def roundQuantity(self, quantity):
@@ -73,6 +75,9 @@ class BacktestingBroker(backtesting.Broker):
         * BUY_TO_COVER orders are mapped to BUY orders.
         * SELL_SHORT orders are mapped to SELL orders.
     """
+    
+    def getUnderlyingMappings(self):
+        return getUnderlyingMappings()
 
     def getUnderlyingDetails(self, underlying):
         return getUnderlyingDetails(underlying)

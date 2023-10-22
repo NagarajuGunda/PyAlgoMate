@@ -49,6 +49,9 @@ underlyingMapping = {
     }
 }
 
+def getUnderlyingMappings():
+    return underlyingMapping
+
 def getUnderlyingDetails(underlying):
     return underlyingMapping[underlying]
 
@@ -133,6 +136,9 @@ class ZerodhaPaperTradingBroker(BacktestingBroker):
         super().__init__(cash, barFeed, fee)
 
         self.__api = barFeed.getApi()
+    
+    def getUnderlyingMappings(self):
+        return getUnderlyingMappings()
 
     def getUnderlyingDetails(self, underlying):
         return underlyingMapping[underlying]
@@ -304,6 +310,9 @@ class ZerodhaLiveBroker(broker.Broker):
     """
 
     QUEUE_TIMEOUT = 0.01
+    
+    def getUnderlyingMappings(self):
+        return getUnderlyingMappings()
 
     def getUnderlyingDetails(self, underlying):
         return underlyingMapping[underlying]
