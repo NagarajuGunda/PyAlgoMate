@@ -1,5 +1,3 @@
-import os
-import datetime
 import yaml
 from importlib import import_module
 import threading
@@ -10,9 +8,9 @@ import json
 import traceback
 import socket
 from logging.handlers import SysLogHandler
-import pyalgomate.utils as utils
 from pyalgomate.telegram import TelegramBot
 from pyalgomate.core import State
+from pyalgomate.brokers import getFeed, getBroker
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -31,163 +29,6 @@ logger.addHandler(fileHandler)
 logger.addHandler(consoleHandler)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
-
-
-def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY BANK']):
-    if broker == 'Finvasia':
-        from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
-        from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker, getFinvasiaToken, getFinvasiaTokenMappings
-        import pyalgomate.brokers.finvasia as finvasia
-        from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
-        import pyotp
-
-        cred = creds[broker]
-
-        api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
-                         websocket='wss://api.shoonya.com/NorenWSTP/')
-        userToken = None
-        tokenFile = 'shoonyakey.txt'
-        if os.path.exists(tokenFile) and (datetime.datetime.fromtimestamp(os.path.getmtime(tokenFile)).date() == datetime.datetime.today().date()):
-            logger.info(f"Token has been created today already. Re-using it")
-            with open(tokenFile, 'r') as f:
-                userToken = f.read()
-            logger.info(
-                f"userid {cred['user']} password ******** usertoken {userToken}")
-            loginStatus = api.set_session(
-                userid=cred['user'], password=cred['pwd'], usertoken=userToken)
-        else:
-            logger.info(f"Logging in and persisting user token")
-            loginStatus = api.login(userid=cred['user'], password=cred['pwd'], twoFA=pyotp.TOTP(cred['factor2']).now(),
-                                    vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
-
-            if loginStatus:
-                with open(tokenFile, 'w') as f:
-                    f.write(loginStatus.get('susertoken'))
-
-                logger.info(
-                    f"{loginStatus.get('uname')}={loginStatus.get('stat')} token={loginStatus.get('susertoken')}")
-            else:
-                logger.info(f'Login failed!')
-
-        if loginStatus != None:
-            if len(underlyings) == 0:
-                underlyings = ['NSE|NIFTY BANK']
-
-            optionSymbols = []
-
-            for underlying in underlyings:
-                underlyingToken = getFinvasiaToken(api, underlying)
-                logger.info(
-                    f'Token id for <{underlying}> is <{underlyingToken}>')
-                if underlyingToken is None:
-                    logger.error(
-                        f'Error getting token id for {underlyingToken}')
-                    exit(1)
-                underlyingQuotes = api.get_quotes('NSE', underlyingToken)
-                ltp = underlyingQuotes['lp']
-
-                underlyingDetails = finvasia.broker.getUnderlyingDetails(
-                    underlying)
-                index = underlyingDetails['index']
-                strikeDifference = underlyingDetails['strikeDifference']
-
-                currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-                    datetime.datetime.now().date(), index)
-                nextWeekExpiry = utils.getNextWeeklyExpiryDate(
-                    datetime.datetime.now().date(), index)
-                monthlyExpiry = utils.getNearestMonthlyExpiryDate(
-                    datetime.datetime.now().date(), index)
-
-                if "Weekly" in registerOptions:
-                    optionSymbols += finvasia.broker.getOptionSymbols(
-                        underlying, currentWeeklyExpiry, ltp, 10, strikeDifference)
-                if "NextWeekly" in registerOptions:
-                    optionSymbols += finvasia.broker.getOptionSymbols(
-                        underlying, nextWeekExpiry, ltp, 10, strikeDifference)
-                if "Monthly" in registerOptions:
-                    optionSymbols += finvasia.broker.getOptionSymbols(
-                        underlying, monthlyExpiry, ltp, 10, strikeDifference)
-
-            optionSymbols = list(dict.fromkeys(optionSymbols))
-
-            logger.info('Getting token mappings')
-            tokenMappings = getFinvasiaTokenMappings(
-                api, underlyings + optionSymbols)
-
-            logger.info('Creating feed object')
-            barFeed = LiveTradeFeed(api, tokenMappings)
-        else:
-            exit(1)
-    elif broker == 'Zerodha':
-        from pyalgomate.brokers.zerodha.kiteext import KiteExt
-        import pyalgomate.brokers.zerodha as zerodha
-        from pyalgomate.brokers.zerodha.broker import getZerodhaTokensList
-        from pyalgomate.brokers.zerodha.feed import ZerodhaLiveFeed
-        from pyalgomate.brokers.zerodha.broker import ZerodhaPaperTradingBroker, ZerodhaLiveBroker
-
-        cred = creds[broker]
-
-        api = KiteExt()
-        twoFA = pyotp.TOTP(cred['factor2']).now()
-        api.login_with_credentials(
-            userid=cred['user'], password=cred['pwd'], twofa=twoFA)
-
-        profile = api.profile()
-        logger.info(f"Welcome {profile.get('user_name')}")
-
-        currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-            datetime.datetime.now().date())
-        nextWeekExpiry = utils.getNextWeeklyExpiryDate(
-            datetime.datetime.now().date())
-        monthlyExpiry = utils.getNearestMonthlyExpiryDate(
-            datetime.datetime.now().date())
-
-        if len(underlyings) == 0:
-            underlyings = ['NSE:NIFTY BANK']
-
-        optionSymbols = []
-
-        for underlying in underlyings:
-            ltp = api.quote(underlying)[
-                underlying]["last_price"]
-
-            if "Weekly" in registerOptions:
-                optionSymbols += zerodha.broker.getOptionSymbols(
-                    underlying, currentWeeklyExpiry, ltp, 10)
-            if "NextWeekly" in registerOptions:
-                optionSymbols += zerodha.broker.getOptionSymbols(
-                    underlying, nextWeekExpiry, ltp, 10)
-            if "Monthly" in registerOptions:
-                optionSymbols += zerodha.broker.getOptionSymbols(
-                    underlying, monthlyExpiry, ltp, 10)
-
-        optionSymbols = list(dict.fromkeys(optionSymbols))
-
-        tokenMappings = getZerodhaTokensList(
-            api, underlyings + optionSymbols)
-
-        barFeed = ZerodhaLiveFeed(api, tokenMappings)
-
-    return barFeed, api
-
-
-def getBroker(feed, api, broker, mode, capital=200000):
-    if broker == 'Finvasia':
-        from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker
-
-        if mode == 'paper':
-            brokerInstance = PaperTradingBroker(200000, feed)
-        else:
-            brokerInstance = LiveBroker(api)
-    elif broker == 'Zerodha':
-        from pyalgomate.brokers.zerodha.broker import ZerodhaPaperTradingBroker, ZerodhaLiveBroker
-
-        if mode == 'paper':
-            brokerInstance = ZerodhaPaperTradingBroker(capital, feed)
-        else:
-            brokerInstance = ZerodhaLiveBroker(api)
-
-    return brokerInstance
 
 
 def runStrategy(strategy):
@@ -220,8 +61,6 @@ def valueChangedCallback(strategy, value):
 
 
 def main():
-    logger = logging.getLogger()
-
     with open("strategies.yaml", "r") as file:
         config = yaml.safe_load(file)
 
@@ -264,35 +103,38 @@ def main():
     feed.start()
 
     for strategyName, details in config['Strategies'].items():
-        strategyClassName = details['Class']
-        strategyPath = details['Path']
-        strategyMode = details['Mode']
-        strategyArgs = details['Args'] if details['Args'] is not None else list(
-        )
-        strategyArgs.append({'telegramBot': telegramBot})
-        strategyArgs.append({'strategyName': strategyName})
-        strategyArgs.append({'callback': valueChangedCallback})
+        try:
+            strategyClassName = details['Class']
+            strategyPath = details['Path']
+            strategyMode = details['Mode']
+            strategyArgs = details['Args'] if details['Args'] is not None else list(
+            )
+            strategyArgs.append({'telegramBot': telegramBot})
+            strategyArgs.append({'strategyName': strategyName})
+            strategyArgs.append({'callback': valueChangedCallback})
 
-        module = import_module(
-            strategyPath.replace('.py', '').replace('/', '.'))
-        strategyClass = getattr(module, strategyClassName)
-        strategyArgsDict = {
-            key: value for item in strategyArgs for key, value in item.items()}
+            module = import_module(
+                strategyPath.replace('.py', '').replace('/', '.'))
+            strategyClass = getattr(module, strategyClassName)
+            strategyArgsDict = {
+                key: value for item in strategyArgs for key, value in item.items()}
 
-        broker = getBroker(feed, api, config['Broker'], strategyMode)
+            broker = getBroker(feed, api, config['Broker'], strategyMode)
 
-        if hasattr(strategyClass, 'getAdditionalArgs') and callable(getattr(strategyClass, 'getAdditionalArgs')):
-            additionalArgs = strategyClass.getAdditionalArgs(broker)
+            if hasattr(strategyClass, 'getAdditionalArgs') and callable(getattr(strategyClass, 'getAdditionalArgs')):
+                additionalArgs = strategyClass.getAdditionalArgs(broker)
 
-            for key, value in additionalArgs.items():
-                if key not in strategyArgsDict:
-                    strategyArgsDict[key] = value
+                for key, value in additionalArgs.items():
+                    if key not in strategyArgsDict:
+                        strategyArgsDict[key] = value
 
-        strategyInstance = strategyClass(
-            feed=feed, broker=broker, **strategyArgsDict)
+            strategyInstance = strategyClass(
+                feed=feed, broker=broker, **strategyArgsDict)
 
-        strategies.append(strategyInstance)
-
+            strategies.append(strategyInstance)
+        except Exception as e:
+            logger.error(
+                f'Error in creating strategy instance for <{strategyName}>. Error: {e}')
     threads = []
 
     for strategyObject in strategies:
