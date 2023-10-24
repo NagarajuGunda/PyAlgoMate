@@ -442,16 +442,22 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
             return self.getFeed().getDataSeries(instrument)[-1].getClose()
         return 0
 
-    def getNearestDeltaOption(self, optionType, deltaValue, expiry):
+    def getNearestDeltaOption(self, optionType, deltaValue, expiry, underlying=None):
         options = [opt for opt in self.__optionData.values(
         ) if opt.optionContract.type == optionType and opt.optionContract.expiry == expiry]
+        if underlying:
+            options = [
+                opt for opt in options if opt.optionContract.underlying == underlying]
         options.sort(key=lambda x: abs(
             x.delta + abs(deltaValue) if optionType == 'p' else x.delta - abs(deltaValue)))
         return options[0] if len(options) > 0 else None
 
-    def getNearestPremiumOption(self, optionType, premium, expiry):
+    def getNearestPremiumOption(self, optionType, premium, expiry, underlying=None):
         options = [opt for opt in self.__optionData.values(
         ) if opt.optionContract.type == optionType and opt.optionContract.expiry == expiry]
+        if underlying:
+            options = [
+                opt for opt in options if opt.optionContract.underlying == underlying]
         options.sort(key=lambda x: abs(x.price - premium))
         return options[0] if len(options) > 0 else None
 
