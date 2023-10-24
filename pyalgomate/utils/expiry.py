@@ -103,12 +103,18 @@ def getNearestWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingInde
         date.year, date.month, date.day)
     expiryDay, monthlyExpiryDay = _getExpiryDay(currentDate, index)
 
-    if (currentDate.day_of_week == expiryDay):
-        expiryDate = currentDate
-    else:
-        expiryDate = currentDate.next(expiryDay)
+    while True:
+        if currentDate.day_of_week == expiryDay:
+            expiryDate = currentDate
+        else:
+            expiryDate = currentDate.next(expiryDay)
 
-    expiryDate = __considerHolidayList(expiryDate)
+        expiryDate = __considerHolidayList(expiryDate)
+
+        if expiryDate >= datetime.date(currentDate.year, currentDate.month, currentDate.day):
+            break
+
+        currentDate = currentDate.add(days=1)
 
     if __isLastWeek(expiryDate):
         return getNearestMonthlyExpiryDate(date, index)
