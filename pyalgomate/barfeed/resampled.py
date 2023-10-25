@@ -27,7 +27,7 @@ class BarsGrouper(resamplebase.Grouper):
 
     def getGrouped(self):
         bar_dict = {}
-        for instrument, grouper in self.__barGroupers.items():
+        for instrument, grouper in self.__barGroupers.copy().items():
             bar_dict[instrument] = grouper.getGrouped()
         return bar.Bars(bar_dict)
 
