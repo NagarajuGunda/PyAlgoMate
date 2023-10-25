@@ -21,6 +21,10 @@ class SubscribeEvent(object):
         self.__datetime = None
 
     @property
+    def field(self):
+        return self.__eventDict["t"]
+
+    @property
     def exchange(self):
         return self.__eventDict["e"]
 
@@ -88,6 +92,7 @@ class LiveTradeFeed(BaseBarFeed):
 
         super(LiveTradeFeed, self).__init__(bar.Frequency.TRADE, maxLen)
         self.__tradeBars = queue.Queue()
+        self.__quotes = queue.Queue()
         self.__api = api
         self.__tokenMappings = tokenMappings
         self.__pending_subscriptions = list(tokenMappings.keys())
@@ -167,23 +172,15 @@ class LiveTradeFeed(BaseBarFeed):
     def onQuoteUpdate(self, message):
         logger.debug(message)
 
-        field = message.get("t")
         message["ts"] = self.__tokenMappings[f"{message['e']}|{message['tk']}"].split('|')[
             1]
-
-        # t='tk' is sent once on subscription for each instrument.
-        # this will have all the fields with the most recent value thereon t='tf' is sent for fields that have changed.
         subscribeEvent = SubscribeEvent(message)
 
-        if field not in ["tf", "tk"]:
-            self.onUnknownEvent(subscribeEvent)
-            return
-
-        if field == "tk":
-            self.__onSubscriptionSucceeded(subscribeEvent)
-
-        self.onTrade(subscribeEvent.Bar())
+        self.__quotes.put(subscribeEvent)
         self.__lastDataTime = datetime.datetime.now()
+
+        if subscribeEvent.field == "tk":
+            self.__onSubscriptionSucceeded(subscribeEvent)
 
     def __onSubscriptionSucceeded(self, event: SubscribeEvent):
         logger.info(
@@ -213,6 +210,31 @@ class LiveTradeFeed(BaseBarFeed):
 
     def onError(self, exception):
         logger.error(f"Error: {exception}")
+
+    def __dispatchImpl(self):
+        ret = False
+        try:
+            if self.__quotes.qsize() > 0:
+                subscribeEvent: SubscribeEvent = self.__quotes.get()
+
+                if subscribeEvent.field not in ["tf", "tk"]:
+                    self.onUnknownEvent(subscribeEvent)
+                    return ret
+
+                self.onTrade(subscribeEvent.Bar())
+                ret = True
+        except Exception as e:
+            logger.error(f'Unhandled exception {e}')
+
+        return ret
+
+    def dispatch(self):
+        ret = False
+        if self.__dispatchImpl():
+            ret = True
+        if super(LiveTradeFeed, self).dispatch():
+            ret = True
+        return ret
 
     def isDataFeedAlive(self, heartBeatInterval=5):
         if self.__lastDataTime is None:
