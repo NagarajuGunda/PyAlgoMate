@@ -1,7 +1,55 @@
 import datetime
 from pyalgotrade.dataseries import resampled
 from pyalgotrade import resamplebase
+from pyalgotrade.resamplebase import DayRange, MonthRange, TimeRange
 from pyalgotrade import bar
+
+
+class IntraDayRange(TimeRange):
+    def __init__(self, dateTime, frequency, startTime: datetime.time = datetime.time(hour=9, minute=15)):
+        super(IntraDayRange, self).__init__()
+        assert isinstance(frequency, int)
+        assert frequency > 1
+        assert frequency < bar.Frequency.DAY
+
+        self.startTime = startTime
+        self.frequency = frequency
+        self.__begin, self.__end = self.calculateTimeRange(dateTime)
+
+    def calculateTimeRange(self, dateTime: datetime.datetime):
+        secondsSinceStart = ((dateTime.hour - self.startTime.hour) * 60 * 60) + (
+            (dateTime.minute - self.startTime.minute) * 60) + (dateTime.second - self.startTime.second)
+
+        slotStartTime = (dateTime -
+                         datetime.timedelta(seconds=secondsSinceStart % self.frequency)).replace(microsecond=0)
+        slotEndTime = slotStartTime + \
+            datetime.timedelta(seconds=self.frequency)
+
+        return slotStartTime, slotEndTime
+
+    def belongs(self, dateTime):
+        return dateTime >= self.__begin and dateTime < self.__end
+
+    def getBeginning(self):
+        return self.__begin
+
+    def getEnding(self):
+        return self.__end
+
+
+def build_range(dateTime, frequency):
+    assert (isinstance(frequency, int))
+    assert (frequency > 1)
+
+    if frequency < bar.Frequency.DAY:
+        ret = IntraDayRange(dateTime, frequency)
+    elif frequency == bar.Frequency.DAY:
+        ret = DayRange(dateTime)
+    elif frequency == bar.Frequency.MONTH:
+        ret = MonthRange(dateTime)
+    else:
+        raise Exception("Unsupported frequency")
+    return ret
 
 
 class BarsGrouper(resamplebase.Grouper):
@@ -47,7 +95,7 @@ class ResampledBars():
 
     def addBars(self, dateTime, value):
         if self.__range is None:
-            self.__range = resamplebase.build_range(
+            self.__range = build_range(
                 dateTime, self.getFrequency())
             self.__grouper = BarsGrouper(
                 self.__range.getBeginning(), value, self.getFrequency())
@@ -60,10 +108,22 @@ class ResampledBars():
 
         if not self.__range.belongs(nextDateTime):
             self.__values.append(self.__grouper.getGrouped())
-            self.__range = resamplebase.build_range(
+            self.__range = build_range(
                 nextDateTime, self.getFrequency())
             self.__grouper = BarsGrouper(
                 self.__range.getBeginning(), value, self.getFrequency())
 
         if len(self.__values):
             self.__callback(self.__values.pop(0))
+
+
+if __name__ == "__main__":
+    dateTime = datetime.datetime.now()
+    intradayRange = IntraDayRange(dateTime, 75 * bar.Frequency.MINUTE)
+    print(f'Frequency: {intradayRange.frequency // 60}mins. Datetime: {dateTime}. Beggining: {intradayRange.getBeginning()}. Ending: {intradayRange.getEnding()}')
+
+    intradayRange = IntraDayRange(dateTime, 15 * bar.Frequency.MINUTE)
+    print(f'Frequency: {intradayRange.frequency // 60}mins. Datetime: {dateTime}. Beggining: {intradayRange.getBeginning()}. Ending: {intradayRange.getEnding()}')
+
+    intradayRange = IntraDayRange(dateTime, 5 * bar.Frequency.MINUTE)
+    print(f'Frequency: {intradayRange.frequency // 60}mins. Datetime: {dateTime}. Beggining: {intradayRange.getBeginning()}. Ending: {intradayRange.getEnding()}')
