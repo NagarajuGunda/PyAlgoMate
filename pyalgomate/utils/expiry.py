@@ -95,8 +95,10 @@ def __considerHolidayList(expiryDate: pendulum.Date) -> datetime.date:
 
     return datetime.date(ret.year, ret.month, ret.day)
 
+
 def __isLastWeek(date: datetime.date) -> bool:
     return pendulum.date(date.year, date.month, date.day).add(weeks=1).month != date.month
+
 
 def getNearestWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingIndex = UnderlyingIndex.BANKNIFTY):
     currentDate = pendulum.now().date() if date is None else pendulum.date(
@@ -111,13 +113,16 @@ def getNearestWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingInde
 
         expiryDate = __considerHolidayList(expiryDate)
 
+        if expiryDate.month != currentDate.month:
+            monthlyExpiryDate = getNearestMonthlyExpiryDate(date, index)
+
+            if monthlyExpiryDate.month == currentDate.month:
+                expiryDate = monthlyExpiryDate
+
         if expiryDate >= datetime.date(currentDate.year, currentDate.month, currentDate.day):
             break
 
         currentDate = currentDate.add(days=1)
-
-    if __isLastWeek(expiryDate):
-        return getNearestMonthlyExpiryDate(date, index)
 
     return expiryDate
 
@@ -183,11 +188,3 @@ if __name__ == '__main__':
           f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}\n"
           f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}")
     print()
-    print('Nearest Weekly expiry is\t' +
-          str(getNearestWeeklyExpiryDate(datetime.date(2023, 9, 29))))
-    print('Next Weekly expiry is\t\t' +
-          str(getNextWeeklyExpiryDate(datetime.date(2023, 9, 29))))
-    print('Nearest Monthly expiry is\t' +
-          str(getNearestMonthlyExpiryDate(datetime.date(2023, 9, 29))))
-    print('Next Month expiry is\t\t' +
-          str(getNextMonthlyExpiryDate(datetime.date(2023, 9, 29))))
