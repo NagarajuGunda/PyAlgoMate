@@ -76,7 +76,7 @@ class BarsGrouper(resamplebase.Grouper):
 
     def getGrouped(self):
         bar_dict = {}
-        for instrument, grouper in self.__barGroupers.items():
+        for instrument, grouper in self.__barGroupers.copy().items():
             bar_dict[instrument] = grouper.getGrouped()
         return bar.Bars(bar_dict)
 
@@ -92,6 +92,11 @@ class ResampledBars():
 
     def getFrequency(self):
         return self.__frequency
+
+    def getBar(self, instrument) -> bar.Bar:
+        ret: bar.BasicBar = self.__grouper.getGrouped().getBar(instrument)
+
+        return ret
 
     def addBars(self, dateTime, value):
         if self.__range is None:
