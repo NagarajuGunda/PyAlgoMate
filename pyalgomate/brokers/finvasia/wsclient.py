@@ -150,6 +150,7 @@ class WebSocketClient:
         return self.__connected
 
     def onOpened(self):
+        logger.info("Websocket connected")
         self.__connected = True
         for channel in self.__pending_subscriptions:
             logger.info("Subscribing to channel %s." % channel)
