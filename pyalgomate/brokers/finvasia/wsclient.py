@@ -119,7 +119,7 @@ class WebSocketClient:
         self.__queue = queue
         self.__api = api
         self.__tokenMappings = tokenMappings
-        self.__pending_subscriptions = list(tokenMappings.keys())
+        self.__pending_subscriptions = list()
         self.__connected = False
         self.__initialized = threading.Event()
         self.__currentDateTime = None
@@ -152,6 +152,7 @@ class WebSocketClient:
     def onOpened(self):
         logger.info("Websocket connected")
         self.__connected = True
+        self.__pending_subscriptions = list(self.__tokenMappings.keys())
         for channel in self.__pending_subscriptions:
             logger.info("Subscribing to channel %s." % channel)
             self.__api.subscribe(channel)
