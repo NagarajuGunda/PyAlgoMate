@@ -135,6 +135,8 @@ def main():
         except Exception as e:
             logger.error(
                 f'Error in creating strategy instance for <{strategyName}>. Error: {e}')
+            logger.exception(traceback.format_exc())
+
     threads = []
 
     for strategyObject in strategies:
