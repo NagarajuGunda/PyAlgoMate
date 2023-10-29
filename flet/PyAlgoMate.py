@@ -35,38 +35,39 @@ class StrategyCard(ft.Card):
         super().__init__()
 
         self.strategy = strategy
-
+        self.expand = True
         self.stateText = ft.Text(
             self.strategy.state
         )
         self.pnlText = ft.Text(
-            self.strategy.getOverallPnL()
+            "₹ 0",
+            size=30
         )
 
         self.content = ft.Row(
             height=100,
             controls=[
-                ft.Column(
-                    controls=[ft.Text(
+                ft.Container(
+                    expand=1,
+                    content=ft.Text(
                         strategy.strategyName
-                    )]
+                    )
                 ),
-                ft.Column(
-                    controls=[
-                        self.stateText
-                    ]
+                ft.Container(
+                    expand=1,
+                    content=self.stateText
                 ),
-                ft.Column(
-                    controls=[
-                        self.pnlText
-                    ]
+                ft.Container(
+                    expand=1,
+                    content=self.pnlText
                 ),
-                ft.Column(
-                    controls=[
-                        ft.ElevatedButton(
+                ft.Container(
+                    expand=1,
+                    content=ft.Container(
+                        content=ft.ElevatedButton(
                             text='Trades'
                         )
-                    ]
+                    )
                 )
             ]
         )
@@ -75,7 +76,9 @@ class StrategyCard(ft.Card):
 
     def onBars(self, dateTime, bars):
         self.stateText.value = str(self.strategy.state)
-        self.pnlText.value = f'{self.strategy.getOverallPnL():.2f}'
+        pnl = self.strategy.getOverallPnL()
+        self.pnlText.value = f'₹ {pnl:.2f}'
+        self.pnlText.color = "green" if pnl >= 0 else "red"
         self.update()
 
 
@@ -85,6 +88,7 @@ class StrategiesContainer(ft.Container):
 
         self.strategies = strategies
         self.content = ft.Column(
+            horizontal_alignment='center',
             controls=[
                 ft.Row(
                     controls=[
