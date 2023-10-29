@@ -169,7 +169,9 @@ class BacktestingBroker(backtesting.Broker):
 
 def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY BANK']):
     if broker == 'Backtest':
-        return DataFrameFeed(pd.DataFrame()), None
+        data = pd.read_parquet('strategies/data/2023/banknifty/08.parquet')
+        data = data.query("'2023-08-22' <= `Date/Time` <= '2023-08-25'")
+        return DataFrameFeed(data, tickers=['BANKNIFTY']), None
     elif broker == 'Finvasia':
         from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
         from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker, getFinvasiaToken, getFinvasiaTokenMappings
@@ -308,7 +310,10 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
 
 
 def getBroker(feed, api, broker, mode, capital=200000):
-    if broker == 'Finvasia':
+    if broker == 'Backtest':
+        from pyalgomate.brokers import BacktestingBroker
+        brokerInstance = BacktestingBroker(1000000, feed)
+    elif broker == 'Finvasia':
         from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker
 
         if mode == 'paper':

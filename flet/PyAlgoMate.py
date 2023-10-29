@@ -1,11 +1,14 @@
 import yaml
 import logging
+import threading
+import traceback
 from importlib import import_module
 from typing import List
 
 import flet as ft
 
 from pyalgomate.brokers import getFeed, getBroker
+from pyalgomate.core import State
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 
 logger = logging.getLogger(__name__)
@@ -32,6 +35,14 @@ class StrategyCard(ft.Card):
         super().__init__()
 
         self.strategy = strategy
+
+        self.stateText = ft.Text(
+            self.strategy.state
+        )
+        self.pnlText = ft.Text(
+            self.strategy.getOverallPnL()
+        )
+
         self.content = ft.Row(
             height=100,
             controls=[
@@ -42,16 +53,12 @@ class StrategyCard(ft.Card):
                 ),
                 ft.Column(
                     controls=[
-                        ft.Text(
-                            strategy.state
-                        )
+                        self.stateText
                     ]
                 ),
                 ft.Column(
                     controls=[
-                        ft.Text(
-                            strategy.getOverallPnL()
-                        )
+                        self.pnlText
                     ]
                 ),
                 ft.Column(
@@ -63,6 +70,13 @@ class StrategyCard(ft.Card):
                 )
             ]
         )
+
+        self.strategy.getFeed().getNewValuesEvent().subscribe(self.onBars)
+
+    def onBars(self, dateTime, bars):
+        self.stateText.value = str(self.strategy.state)
+        self.pnlText.value = f'{self.strategy.getOverallPnL():.2f}'
+        self.update()
 
 
 class StrategiesContainer(ft.Container):
@@ -92,7 +106,7 @@ def GetStrategies():
     feed, api = getFeed(
         creds, broker='Backtest', underlyings=config['Underlyings'])
 
-    # feed.start()
+    feed.start()
     telegramBot = None
 
     for strategyName, details in config['Strategies'].items():
@@ -116,9 +130,10 @@ def GetStrategies():
             if hasattr(strategyClass, 'getAdditionalArgs') and callable(getattr(strategyClass, 'getAdditionalArgs')):
                 additionalArgs = strategyClass.getAdditionalArgs(broker)
 
-                for key, value in additionalArgs.items():
-                    if key not in strategyArgsDict:
-                        strategyArgsDict[key] = value
+                if additionalArgs:
+                    for key, value in additionalArgs.items():
+                        if key not in strategyArgsDict:
+                            strategyArgsDict[key] = value
 
             strategyInstance = strategyClass(
                 feed=feed, broker=broker, **strategyArgsDict)
@@ -127,8 +142,29 @@ def GetStrategies():
         except Exception as e:
             logger.error(
                 f'Error in creating strategy instance for <{strategyName}>. Error: {e}')
+            logger.exception(traceback.format_exc())
 
     return strategies
+
+
+def runStrategy(strategy):
+    try:
+        strategy.run()
+    except Exception as e:
+        strategy.state = State.UNKNOWN
+        logger.exception(
+            f'Error occurred while running strategy {strategy.strategyName}. Exception: {e}')
+        logger.exception(traceback.format_exc())
+
+
+def threadTarget(strategy):
+    try:
+        runStrategy(strategy)
+    except Exception as e:
+        strategy.state = State.UNKNOWN
+        logger.exception(
+            f'An exception occurred in thread for strategy {strategy.strategyName}. Exception: {e}')
+        logger.exception(traceback.format_exc())
 
 
 def main(page: ft.Page):
@@ -137,6 +173,7 @@ def main(page: ft.Page):
     page.padding = ft.padding.only(right=50)
     page.bgcolor = "#212328"
 
+    strategies = GetStrategies()
     t = ft.Tabs(
         selected_index=0,
         animation_duration=300,
@@ -145,7 +182,7 @@ def main(page: ft.Page):
         tabs=[
             ft.Tab(
                 text="Strategies",
-                content=StrategiesContainer(GetStrategies()),
+                content=StrategiesContainer(strategies),
             ),
             ft.Tab(
                 text="Trade Terminal",
@@ -159,6 +196,14 @@ def main(page: ft.Page):
     page.add(t)
 
     page.update()
+
+    threads = []
+
+    for strategyObject in strategies:
+        thread = threading.Thread(target=threadTarget, args=(strategyObject,))
+        thread.daemon = True
+        thread.start()
+        threads.append(thread)
 
 
 if __name__ == "__main__":
