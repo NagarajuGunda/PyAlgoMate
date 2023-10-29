@@ -12,6 +12,7 @@ from pyalgotrade.broker import fillstrategy
 from pyalgotrade.broker import backtesting
 from pyalgomate.utils import UnderlyingIndex
 import pyalgomate.utils as utils
+from pyalgomate.backtesting.DataFrameFeed import DataFrameFeed
 
 from pyalgomate.strategies import OptionContract
 
@@ -167,7 +168,9 @@ class BacktestingBroker(backtesting.Broker):
 
 
 def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY BANK']):
-    if broker == 'Finvasia':
+    if broker == 'Backtest':
+        return DataFrameFeed(pd.DataFrame()), None
+    elif broker == 'Finvasia':
         from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
         from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker, getFinvasiaToken, getFinvasiaTokenMappings
         import pyalgomate.brokers.finvasia as finvasia

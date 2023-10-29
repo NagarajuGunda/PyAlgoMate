@@ -12,6 +12,13 @@ class DataFrameFeed(barfeed.BaseBarFeed):
         super(DataFrameFeed, self).__init__(frequency, maxLen)
 
         self.__df = df
+        self.__nextPos = 0
+        self.__currDateTime = None
+        self.__frequency = frequency
+        self.__haveAdjClose = False
+
+        if df.empty:
+            return
 
         for ticker in tickers:
             self.__df = self.__df[self.__df['Ticker'].str.startswith(ticker)]
@@ -26,11 +33,6 @@ class DataFrameFeed(barfeed.BaseBarFeed):
 
         self.__dateTimes = sorted(self.__df['Date/Time'].unique().tolist())
         self.__instruments = self.__df['Ticker'].unique().tolist()
-        self.__nextPos = 0
-        self.__currDateTime = None
-        self.__frequency = frequency
-
-        self.__haveAdjClose = False
 
         for instrument in self.__instruments:
             self.registerInstrument(instrument)
@@ -39,6 +41,9 @@ class DataFrameFeed(barfeed.BaseBarFeed):
         self.__nextPos = 0
         self.__currDateTime = None
         super(DataFrameFeed, self).reset()
+
+    def getApi(self):
+        return None
 
     def barsHaveAdjClose(self):
         return self.__haveAdjClose
