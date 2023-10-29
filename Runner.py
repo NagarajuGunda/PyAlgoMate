@@ -124,9 +124,10 @@ def main():
             if hasattr(strategyClass, 'getAdditionalArgs') and callable(getattr(strategyClass, 'getAdditionalArgs')):
                 additionalArgs = strategyClass.getAdditionalArgs(broker)
 
-                for key, value in additionalArgs.items():
-                    if key not in strategyArgsDict:
-                        strategyArgsDict[key] = value
+                if additionalArgs:
+                    for key, value in additionalArgs.items():
+                        if key not in strategyArgsDict:
+                            strategyArgsDict[key] = value
 
             strategyInstance = strategyClass(
                 feed=feed, broker=broker, **strategyArgsDict)
