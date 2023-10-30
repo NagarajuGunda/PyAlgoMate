@@ -225,7 +225,7 @@ def GetFeedNStrategies():
     strategies = []
 
     feed, api = getFeed(
-        creds, broker='Backtest', underlyings=config['Underlyings'])
+        creds, broker=config['Broker'], underlyings=config['Underlyings'])
 
     feed.start()
     telegramBot = None
