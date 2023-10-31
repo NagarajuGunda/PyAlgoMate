@@ -584,3 +584,6 @@ class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
 
     def getPnLs(self):
         return self.pnlDf
+
+    def closeAllPositions(self):
+        pass
