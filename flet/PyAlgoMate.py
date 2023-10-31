@@ -3,16 +3,20 @@ import yaml
 import logging
 import threading
 import traceback
+import socket
+from logging.handlers import SysLogHandler
 from importlib import import_module
 from typing import List
 
 import flet as ft
 
+from pyalgomate.telegram import TelegramBot
 from pyalgomate.brokers import getFeed, getBroker
 from pyalgomate.core import State
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
@@ -216,12 +220,14 @@ class StrategiesContainer(ft.Container):
         self.update()
 
 
-def GetFeedNStrategies():
+def GetFeedNStrategies(creds):
     with open("strategies.yaml", "r") as file:
         config = yaml.safe_load(file)
 
-    with open('cred.yml') as f:
-        creds = yaml.load(f, Loader=yaml.FullLoader)
+    telegramBot = None
+    if 'Telegram' in creds and 'token' in creds['Telegram']:
+        telegramBot = TelegramBot(
+            creds['Telegram']['token'], creds['Telegram']['chatid'], creds['Telegram']['allow'])
 
     strategies = []
 
@@ -229,7 +235,6 @@ def GetFeedNStrategies():
         creds, broker=config['Broker'], underlyings=config['Underlyings'])
 
     feed.start()
-    telegramBot = None
 
     for strategyName, details in config['Strategies'].items():
         try:
@@ -295,7 +300,31 @@ def main(page: ft.Page):
     page.padding = ft.padding.only(left=50, right=50)
     page.bgcolor = "#212328"
 
-    feed, strategies = GetFeedNStrategies()
+    creds = None
+    with open('cred.yml') as f:
+        creds = yaml.load(f, Loader=yaml.FullLoader)
+
+    if 'PaperTrail' in creds:
+        papertrailCreds = creds['PaperTrail']['address'].split(':')
+
+        class ContextFilter(logging.Filter):
+            hostname = socket.gethostname()
+
+            def filter(self, record):
+                record.hostname = ContextFilter.hostname
+                return True
+
+        syslog = SysLogHandler(
+            address=(papertrailCreds[0], int(papertrailCreds[1])))
+        syslog.addFilter(ContextFilter())
+        format = '%(asctime)s [%(hostname)s] [%(processName)s:%(process)d] [%(threadName)s:%(thread)d] [%(name)s] [%(levelname)s] - %(message)s'
+        formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
+        syslog.setFormatter(formatter)
+        logger.addHandler(syslog)
+        logger.setLevel(logging.INFO)
+
+    feed, strategies = GetFeedNStrategies(creds)
+
     t = ft.Tabs(
         selected_index=0,
         animation_duration=300,
