@@ -294,42 +294,45 @@ def threadTarget(strategy):
         logger.exception(traceback.format_exc())
 
 
+creds = None
+with open('cred.yml') as f:
+    creds = yaml.load(f, Loader=yaml.FullLoader)
+
+if 'PaperTrail' in creds:
+    papertrailCreds = creds['PaperTrail']['address'].split(':')
+
+    class ContextFilter(logging.Filter):
+        hostname = socket.gethostname()
+
+        def filter(self, record):
+            record.hostname = ContextFilter.hostname
+            return True
+
+    syslog = SysLogHandler(
+        address=(papertrailCreds[0], int(papertrailCreds[1])))
+    syslog.addFilter(ContextFilter())
+    format = '%(asctime)s [%(hostname)s] [%(processName)s:%(process)d] [%(threadName)s:%(thread)d] [%(name)s] [%(levelname)s] - %(message)s'
+    formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
+    syslog.setFormatter(formatter)
+    logger.addHandler(syslog)
+    logger.setLevel(logging.INFO)
+
+feed, strategies = GetFeedNStrategies(creds)
+
+threads = []
+
+for strategyObject in strategies:
+    thread = threading.Thread(target=threadTarget, args=(strategyObject,))
+    thread.daemon = True
+    thread.start()
+    threads.append(thread)
+
+
 def main(page: ft.Page):
     page.horizontal_alignment = "center"
     page.vertical_alignment = "center"
     page.padding = ft.padding.only(left=50, right=50)
     page.bgcolor = "#212328"
-
-    feed = strategies = None
-    if not page.session.contains_key("feed"):
-        creds = None
-        with open('cred.yml') as f:
-            creds = yaml.load(f, Loader=yaml.FullLoader)
-
-        if 'PaperTrail' in creds:
-            papertrailCreds = creds['PaperTrail']['address'].split(':')
-
-            class ContextFilter(logging.Filter):
-                hostname = socket.gethostname()
-
-                def filter(self, record):
-                    record.hostname = ContextFilter.hostname
-                    return True
-
-            syslog = SysLogHandler(
-                address=(papertrailCreds[0], int(papertrailCreds[1])))
-            syslog.addFilter(ContextFilter())
-            format = '%(asctime)s [%(hostname)s] [%(processName)s:%(process)d] [%(threadName)s:%(thread)d] [%(name)s] [%(levelname)s] - %(message)s'
-            formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
-            syslog.setFormatter(formatter)
-            logger.addHandler(syslog)
-            logger.setLevel(logging.INFO)
-
-        feed, strategies = GetFeedNStrategies(creds)
-        page.session.set('feed', feed)
-        page.session.set('strategies', strategies)
-
-    feed, strategies = page.session.get('feed'), page.session.get('strategies')
 
     t = ft.Tabs(
         selected_index=0,
@@ -354,14 +357,6 @@ def main(page: ft.Page):
     page.add(t)
 
     page.update()
-
-    threads = []
-
-    for strategyObject in strategies:
-        thread = threading.Thread(target=threadTarget, args=(strategyObject,))
-        thread.daemon = True
-        thread.start()
-        threads.append(thread)
 
 
 if __name__ == "__main__":
