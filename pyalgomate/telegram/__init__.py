@@ -81,6 +81,16 @@ class TelegramBot:
         self.botToken = botToken
         self.bot = Bot(token=botToken)
         self.channelId = channelId
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError as e:
+            if str(e).startswith('There is no current event loop in thread'):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            else:
+                raise
+
         self.messageQueue = asyncio.Queue()
         self.loop = asyncio.get_event_loop()
         self.sendThread = threading.Thread(target=self._runLoop)
