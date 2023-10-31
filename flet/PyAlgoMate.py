@@ -1,3 +1,4 @@
+import os
 import yaml
 import logging
 import threading
@@ -329,4 +330,11 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=8080)
+    fletPath = os.getenv("FLET_PATH", '/')
+    fletPort = int(os.getenv("FLET_PORT", '8502'))
+    fletView = os.getenv("FLET_VIEW", ft.AppView.FLET_APP)
+    try:
+        fletView = ft.AppView(fletView)
+    except Exception as e:
+        fletView = None
+    ft.app(name=fletPath, target=main, view=fletView, port=fletPort)
