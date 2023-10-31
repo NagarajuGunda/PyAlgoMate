@@ -300,30 +300,36 @@ def main(page: ft.Page):
     page.padding = ft.padding.only(left=50, right=50)
     page.bgcolor = "#212328"
 
-    creds = None
-    with open('cred.yml') as f:
-        creds = yaml.load(f, Loader=yaml.FullLoader)
+    feed = strategies = None
+    if not page.session.contains_key("feed"):
+        creds = None
+        with open('cred.yml') as f:
+            creds = yaml.load(f, Loader=yaml.FullLoader)
 
-    if 'PaperTrail' in creds:
-        papertrailCreds = creds['PaperTrail']['address'].split(':')
+        if 'PaperTrail' in creds:
+            papertrailCreds = creds['PaperTrail']['address'].split(':')
 
-        class ContextFilter(logging.Filter):
-            hostname = socket.gethostname()
+            class ContextFilter(logging.Filter):
+                hostname = socket.gethostname()
 
-            def filter(self, record):
-                record.hostname = ContextFilter.hostname
-                return True
+                def filter(self, record):
+                    record.hostname = ContextFilter.hostname
+                    return True
 
-        syslog = SysLogHandler(
-            address=(papertrailCreds[0], int(papertrailCreds[1])))
-        syslog.addFilter(ContextFilter())
-        format = '%(asctime)s [%(hostname)s] [%(processName)s:%(process)d] [%(threadName)s:%(thread)d] [%(name)s] [%(levelname)s] - %(message)s'
-        formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
-        syslog.setFormatter(formatter)
-        logger.addHandler(syslog)
-        logger.setLevel(logging.INFO)
+            syslog = SysLogHandler(
+                address=(papertrailCreds[0], int(papertrailCreds[1])))
+            syslog.addFilter(ContextFilter())
+            format = '%(asctime)s [%(hostname)s] [%(processName)s:%(process)d] [%(threadName)s:%(thread)d] [%(name)s] [%(levelname)s] - %(message)s'
+            formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
+            syslog.setFormatter(formatter)
+            logger.addHandler(syslog)
+            logger.setLevel(logging.INFO)
 
-    feed, strategies = GetFeedNStrategies(creds)
+        feed, strategies = GetFeedNStrategies(creds)
+        page.session.set('feed', feed)
+        page.session.set('strategies', strategies)
+
+    feed, strategies = page.session.get('feed'), page.session.get('strategies')
 
     t = ft.Tabs(
         selected_index=0,
