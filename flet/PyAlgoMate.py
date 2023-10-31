@@ -78,11 +78,19 @@ class StrategyCard(ft.Card):
                 ft.Container(
                     ft.Column(
                         [
-                            ft.Text(
-                                strategy.strategyName,
-                                size=15,
-                                weight='w700'
-                            ),
+                            ft.Row(
+                                [
+                                    ft.Text(
+                                        strategy.strategyName,
+                                        size=15,
+                                        weight='w700'
+                                    ),
+                                    ft.Text(
+                                        strategy.getBroker().getType(),
+                                        size=10
+                                    )
+                                ],
+                                spacing=10),
                             ft.Row(
                                 [
                                     self.openPositions,

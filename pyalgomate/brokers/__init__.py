@@ -85,6 +85,9 @@ class BacktestingBroker(backtesting.Broker):
         * SELL_SHORT orders are mapped to SELL orders.
     """
 
+    def getType(self):
+        return "Backtest"
+
     def getUnderlyingMappings(self):
         return getUnderlyingMappings()
 

@@ -137,6 +137,9 @@ class ZerodhaPaperTradingBroker(BacktestingBroker):
 
         self.__api = barFeed.getApi()
     
+    def getType(self):
+        return "Paper"
+
     def getUnderlyingMappings(self):
         return getUnderlyingMappings()
 
@@ -311,6 +314,9 @@ class ZerodhaLiveBroker(broker.Broker):
 
     QUEUE_TIMEOUT = 0.01
     
+    def getType(self):
+        return "Live"
+
     def getUnderlyingMappings(self):
         return getUnderlyingMappings()
 
