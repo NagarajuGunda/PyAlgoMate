@@ -6,6 +6,7 @@ After=network.target
 User=root
 Group=root
 WorkingDirectory=/root/PyAlgoMate
+Environment="TZ=Asia/Kolkata"
 Environment="PYTHONPATH=/root/PyAlgoMate"
 Environment="PATH=/root/PyAlgoMate/.venv/bin"
 Environment="FLET_PATH="
