@@ -8,7 +8,6 @@ Group=root
 WorkingDirectory=/root/PyAlgoMate
 Environment="TZ=Asia/Kolkata"
 Environment="PYTHONPATH=/root/PyAlgoMate"
-Environment="PATH=/root/PyAlgoMate/.venv/bin:$PATH"
 Environment="FLET_PATH="
 Environment="FLET_PORT=8502"
 Environment="FLET_VIEW=None"
