@@ -4,6 +4,7 @@ import logging
 import threading
 import traceback
 import socket
+import time
 from logging.handlers import SysLogHandler
 from importlib import import_module
 from typing import List
@@ -145,7 +146,7 @@ class StrategyCard(ft.Card):
             ]
         )
 
-    def onBars(self):
+    def updateStrategy(self):
         self.stateText.value = str(self.strategy.state)
         pnl = self.strategy.getOverallPnL()
         self.pnlText.value = f'₹ {pnl:.2f}'
@@ -183,8 +184,6 @@ class StrategiesContainer(ft.Container):
         self.strategies = strategies
         self.page = page
 
-        feed.getNewValuesEvent().subscribe(self.onBars)
-
         self.totalMtm = ft.Text(
             '₹ 0', size=25)
 
@@ -218,9 +217,9 @@ class StrategiesContainer(ft.Container):
             rows
         )
 
-    def onBars(self, dateTime, bars):
+    def updateStrategies(self):
         for strategyCard in self.strategyCards:
-            strategyCard.onBars()
+            strategyCard.updateStrategy()
 
         totalMtm = sum([strategy.getOverallPnL()
                        for strategy in self.strategies])
@@ -343,6 +342,9 @@ def main(page: ft.Page):
     page.padding = ft.padding.only(left=50, right=50)
     page.bgcolor = "#212328"
 
+    strategiesContainer = StrategiesContainer(
+        page=page, feed=feed, strategies=strategies)
+
     t = ft.Tabs(
         selected_index=0,
         animation_duration=300,
@@ -351,8 +353,7 @@ def main(page: ft.Page):
         tabs=[
             ft.Tab(
                 text="Strategies",
-                content=StrategiesContainer(
-                    page=page, feed=feed, strategies=strategies),
+                content=strategiesContainer,
             ),
             ft.Tab(
                 text="Trade Terminal",
@@ -366,6 +367,10 @@ def main(page: ft.Page):
     page.add(t)
 
     page.update()
+
+    while True:
+        strategiesContainer.updateStrategies()
+        time.sleep(0.1)
 
 
 if __name__ == "__main__":
