@@ -242,6 +242,9 @@ class ZerodhaLiveFeed(BaseBarFeed):
         """
         return self.__orderBookUpdateEvent
 
+    def getLastUpdatedDateTime(self):
+        return self.__lastDataTime
+
     def isDataFeedAlive(self, heartBeatInterval=5):
         if self.__lastDataTime is None:
             return False

@@ -313,20 +313,20 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
 
 
 def getBroker(feed, api, broker, mode, capital=200000):
-    if broker == 'Backtest':
+    if str(broker).lower() == 'backtest':
         from pyalgomate.brokers import BacktestingBroker
-        brokerInstance = BacktestingBroker(1000000, feed)
-    elif broker == 'Finvasia':
+        brokerInstance = BacktestingBroker(capital, feed)
+    elif str(broker).lower() == 'finvasia':
         from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker
 
-        if mode == 'paper':
-            brokerInstance = PaperTradingBroker(200000, feed)
+        if str(mode).lower() == 'paper':
+            brokerInstance = PaperTradingBroker(capital, feed)
         else:
             brokerInstance = LiveBroker(api)
-    elif broker == 'Zerodha':
+    elif str(broker).lower() == 'zerodha':
         from pyalgomate.brokers.zerodha.broker import ZerodhaPaperTradingBroker, ZerodhaLiveBroker
 
-        if mode == 'paper':
+        if str(mode).lower() == 'paper':
             brokerInstance = ZerodhaPaperTradingBroker(capital, feed)
         else:
             brokerInstance = ZerodhaLiveBroker(api)

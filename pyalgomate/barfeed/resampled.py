@@ -96,3 +96,6 @@ class ResampledBarFeed(barfeed.BaseBarFeed):
             self.__values.append(self.__grouper.getGrouped())
             self.__grouper = None
             self.__range = None
+
+    def getLastUpdatedDateTime(self):
+        return self.getCurrentDateTime()

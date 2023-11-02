@@ -5,6 +5,7 @@ import threading
 import traceback
 import socket
 import time
+import base64
 from logging.handlers import SysLogHandler
 from importlib import import_module
 from typing import List
@@ -15,6 +16,7 @@ from pyalgomate.telegram import TelegramBot
 from pyalgomate.brokers import getFeed, getBroker
 from pyalgomate.core import State
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
+from pyalgomate.barfeed import BaseBarFeed
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -133,6 +135,19 @@ class StrategyCard(ft.Card):
                     expand=1
                 ),
                 ft.Container(
+                    ft.Column([ft.IconButton(
+                        icon=ft.icons.INSERT_CHART_ROUNDED,
+                        icon_size=40,
+                        icon_color='#263F6A',
+                        on_click=self.onChartButtonClicked
+                    )],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        expand=1
+                    ),
+                    expand=0.5
+                ),
+                ft.Container(
                     ft.Column([
                         ft.TextButton("Square Off", icon="close_rounded", icon_color="red400",
                                       on_click=self.openDialog)
@@ -154,6 +169,18 @@ class StrategyCard(ft.Card):
         self.openPositions.value = f'Open Pos: {len(self.strategy.openPositions)}'
         self.closedPositions.value = f'Closed Pos: {len(self.strategy.closedPositions)}'
         self.update()
+
+    def onChartButtonClicked(self, e):
+        base64Img = base64.b64encode(
+            self.strategy.getPnLImage()).decode('utf-8')
+        dlg = ft.AlertDialog(
+            content=ft.Container(
+                ft.Image(src_base64=base64Img)
+            )
+        )
+        self.page.dialog = dlg
+        dlg.open = True
+        self.page.update()
 
     def squareOff(self, e):
         self.closeDialogModel.open = False
@@ -178,15 +205,37 @@ class StrategyCard(ft.Card):
 
 
 class StrategiesContainer(ft.Container):
-    def __init__(self, page: ft.Page, feed, strategies: List[BaseOptionsGreeksStrategy]):
+    def __init__(self, page: ft.Page, feed: BaseBarFeed, strategies: List[BaseOptionsGreeksStrategy]):
         super().__init__()
         self.padding = ft.padding.only(top=20)
         self.strategies = strategies
         self.page = page
+        self.feed = feed
 
         self.totalMtm = ft.Text(
             '₹ 0', size=25)
 
+        self.feedIcon = ft.Icon(name=ft.icons.CIRCLE_ROUNDED)
+        self.feedText = ft.Text(
+            'Last Updated Timestamp: ', size=10, italic=True)
+        feedRow = ft.Container(
+            ft.Container(
+                ft.Column(
+                    [
+                        ft.Container(ft.Row([
+                            ft.Text('Feed', size=15, weight='w700'),
+                            self.feedIcon,
+                        ])),
+                        self.feedText
+                    ],
+                ),
+                padding=ft.padding.all(20),
+                width=250,
+                bgcolor='white54',
+                border_radius=10,
+            ),
+            alignment=ft.alignment.top_right,
+        )
         totalMtmRow = ft.Container(
             ft.Column([
                 ft.Container(ft.Text('Total MTM', size=15, weight=ft.FontWeight.BOLD,
@@ -210,9 +259,9 @@ class StrategiesContainer(ft.Container):
 
         self.strategyCards = [StrategyCard(
             strategy, page) for strategy in self.strategies]
-        rows = [totalMtmRow]
-        rows.extend([ft.Row([strategyCard])
-                    for strategyCard in self.strategyCards])
+        rows = [feedRow, totalMtmRow]
+        rows.append(ft.ListView([ft.Row([strategyCard])
+                    for strategyCard in self.strategyCards]))
         self.content = ft.Column(
             rows
         )
@@ -225,6 +274,8 @@ class StrategiesContainer(ft.Container):
                        for strategy in self.strategies])
         self.totalMtm.value = f'₹ {totalMtm:.2f}'
         self.totalMtm.color = "green" if totalMtm >= 0 else "red"
+        self.feedIcon.color = "green" if self.feed.isDataFeedAlive() else "red"
+        self.feedText.value = f'Last Updated Timestamp: {self.feed.getLastUpdatedDateTime()}'
         self.update()
 
 

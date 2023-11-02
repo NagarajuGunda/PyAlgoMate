@@ -3,11 +3,11 @@
 """
 
 import pandas as pd
-from pyalgotrade import barfeed
 from pyalgotrade import bar
+from pyalgomate.barfeed import BaseBarFeed
 
 
-class DataFrameFeed(barfeed.BaseBarFeed):
+class DataFrameFeed(BaseBarFeed):
     def __init__(self, df: pd.DataFrame, tickers=[], startDate=None, endDate=None, frequency=bar.Frequency.MINUTE, maxLen=None):
         super(DataFrameFeed, self).__init__(frequency, maxLen)
 
@@ -97,3 +97,9 @@ class DataFrameFeed(barfeed.BaseBarFeed):
         self.__currDateTime = currentDateTime
 
         return bar.Bars(ret)
+
+    def getLastUpdatedDateTime(self):
+        return self.__currDateTime
+
+    def isDataFeedAlive(self, heartBeatInterval=5):
+        return True
