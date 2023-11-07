@@ -19,8 +19,9 @@ from pyalgotrade.barfeed import csvfeed
 from pyalgomate.telegram import TelegramBot
 from pyalgomate.core import State
 from pyalgomate.barfeed import resampled
+from pyalgomate.core.strategy import BaseStrategy
 
-class BaseOptionsGreeksStrategy(strategy.BaseStrategy):
+class BaseOptionsGreeksStrategy(BaseStrategy):
 
     def __init__(self, feed, broker, strategyName, logger: logging.Logger, 
                  callback=None, 

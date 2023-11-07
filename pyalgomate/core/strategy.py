@@ -46,7 +46,6 @@ class BaseStrategy(object):
 
         # It is important to dispatch broker events before feed events, specially if we're backtesting.
         self.__dispatcher.addSubject(self.__broker)
-        self.__dispatcher.addSubject(self.__barFeed)
 
         # Initialize logging.
         self.__logger = logger.getLogger(BaseStrategy.LOGGER_NAME)
