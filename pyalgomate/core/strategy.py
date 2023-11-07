@@ -489,6 +489,8 @@ class BaseStrategy(object):
         self.__barsProcessedEvent.emit(self, bars)
 
     def run(self):
+        self.__barFeed.start()
+
         """Call once (**and only once**) to run the strategy."""
         self.__dispatcher.run()
 
