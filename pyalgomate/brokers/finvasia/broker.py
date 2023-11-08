@@ -16,6 +16,7 @@ from pyalgomate.brokers import BacktestingBroker, QuantityTraits
 from pyalgomate.strategies import OptionContract
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
 from pyalgomate.utils import UnderlyingIndex
+import pyalgomate.utils as utils
 
 logger = logging.getLogger(__file__)
 
@@ -43,6 +44,12 @@ underlyingMapping = {
         'index': UnderlyingIndex.FINNIFTY,
         'lotSize': 40,
         'strikeDifference': 50
+    },
+    'BSE|BSE SENSEX': {
+        'optionPrefix': 'BFO|SENSEX',
+        'index': UnderlyingIndex.SENSEX,
+        'lotSize': 10,
+        'strikeDifference': 100
     }
 }
 
@@ -53,11 +60,32 @@ def getUnderlyingDetails(underlying):
     return underlyingMapping[underlying]
 
 def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
-    symbol = getUnderlyingDetails(underlyingInstrument)['optionPrefix']
+    underlyingDetails = getUnderlyingDetails(underlyingInstrument)
+    optionPrefix = underlyingDetails['optionPrefix']
+    index = underlyingDetails['index']
 
-    dayMonthYear = f"{expiry.day:02d}" + \
-        calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
-    return symbol + dayMonthYear + callOrPut + str(strikePrice)
+    if index != UnderlyingIndex.SENSEX:
+        dayMonthYear = f"{expiry.day:02d}" + \
+            calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
+        return optionPrefix + dayMonthYear + callOrPut + str(strikePrice)
+    else:
+        strikePlusOption = str(strikePrice) + ('CE' if (callOrPut ==
+                                                        'C' or callOrPut == 'Call') else 'PE')
+
+        monthly = utils.getNearestMonthlyExpiryDate(expiry) == expiry
+
+        if monthly:
+            return optionPrefix + str(expiry.year % 100) + calendar.month_abbr[expiry.month].upper() + strikePlusOption
+        else:
+            if expiry.month == 10:
+                monthlySymbol = 'O'
+            elif expiry.month == 11:
+                monthlySymbol = 'N'
+            elif expiry.month == 12:
+                monthlySymbol = 'D'
+            else:
+                monthlySymbol = f'{expiry.month}'
+            return optionPrefix + str(expiry.year % 100) + f"{monthlySymbol}{expiry.day:02d}" + strikePlusOption
 
 
 def getOptionSymbols(underlyingInstrument, expiry, ltp, count, strikeDifference=100):

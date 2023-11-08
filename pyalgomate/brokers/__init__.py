@@ -217,6 +217,7 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
             optionSymbols = []
 
             for underlying in underlyings:
+                exchange = underlying.split('|')[0]
                 underlyingToken = getFinvasiaToken(api, underlying)
                 logger.info(
                     f'Token id for <{underlying}> is <{underlyingToken}>')
@@ -224,7 +225,7 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
                     logger.error(
                         f'Error getting token id for {underlyingToken}')
                     exit(1)
-                underlyingQuotes = api.get_quotes('NSE', underlyingToken)
+                underlyingQuotes = api.get_quotes(exchange, underlyingToken)
                 ltp = underlyingQuotes['lp']
 
                 underlyingDetails = finvasia.broker.getUnderlyingDetails(
