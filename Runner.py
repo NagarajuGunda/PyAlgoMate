@@ -67,6 +67,7 @@ def main():
     with open('cred.yml') as f:
         creds = yaml.load(f, Loader=yaml.FullLoader)
 
+    telegramBot = None
     if 'Telegram' in creds and 'token' in creds['Telegram']:
         telegramBot = TelegramBot(
             creds['Telegram']['token'], creds['Telegram']['chatid'], creds['Telegram']['allow'])
@@ -165,7 +166,7 @@ def main():
             logger.info("Bot stopped. Exiting the process.")
             exit(0)
 
-    signal.signal(signal.SIGINT, handle_interrupt)
+        signal.signal(signal.SIGINT, handle_interrupt)
 
     if telegramBot:
         telegramBot.waitUntilFinished()

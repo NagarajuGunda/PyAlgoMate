@@ -218,13 +218,7 @@ class LiveTradeFeed(BaseBarFeed):
 
     # This should not raise.
     def stop(self):
-        try:
-            self.__stopped = True
-            if self.__thread is not None and self.__thread.is_alive():
-                logger.info("Stopping websocket client.")
-                self.__thread.stop()
-        except Exception as e:
-            logger.error("Error shutting down client: %s" % (str(e)))
+        pass
 
     # This should not raise.
     def join(self):
