@@ -521,22 +521,19 @@ class LiveBroker(broker.Broker):
         del self.__activeOrders[order.getId()]
 
     def refreshAccountBalance(self):
-        self.__stop = True  # Stop running in case of errors.
-        logger.info("Retrieving account balance.")
-        balance = self.__api.get_limits()
+        try:
+            logger.info("Retrieving account balance.")
+            limits = self.__api.get_limits()
 
-        # Cash
-        # self.__cash = round(balance.getUSDAvailable(), 2)
-        # logger.info("%s USD" % (self.__cash))
-        # # BTC
-        # btc = balance.getBTCAvailable()
-        # if btc:
-        #     self.__shares = {common.btc_symbol: btc}
-        # else:
-        #     self.__shares = {}
-        # logger.info("%s BTC" % (btc))
+            if not limits or limits['stat'] != 'Ok':
+                logger.error(
+                    f'Error retrieving account balance. Reason: {limits["emsg"]}')
 
-        self.__stop = False  # No errors. Keep running.
+            self.__cash = float(limits['cash'])
+            logger.info(f'Available balance is <{self.__cash:.2f}>')
+        except Exception as e:
+            logger.exception(
+                f'Exception retrieving account balance. Reason: {limits["emsg"]}')
 
     def refreshOpenOrders(self):
         return
@@ -585,6 +582,8 @@ class LiveBroker(broker.Broker):
                 order, eventType, orderExecutionInfo))
         else:
             logger.error(f'Unknown order status {trade.getStatus()}')
+
+        self.refreshAccountBalance()
 
     def _onUserTrades(self, trades):
         for trade in trades:

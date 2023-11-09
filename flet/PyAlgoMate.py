@@ -62,6 +62,10 @@ class StrategyCard(ft.Card):
             'Closed Pos: 0',
             size=12
         )
+        self.balanceAvailable = ft.Text(
+            f'Balance Available: ₹ {strategy.getBroker().getCash()}',
+            size=12
+        )
 
         self.closeDialogModel = ft.AlertDialog(
             modal=True,
@@ -98,6 +102,11 @@ class StrategyCard(ft.Card):
                                 [
                                     self.openPositions,
                                     self.closedPositions
+                                ],
+                            ),
+                            ft.Row(
+                                [
+                                    self.balanceAvailable
                                 ]
                             )
                         ],
@@ -168,6 +177,7 @@ class StrategyCard(ft.Card):
         self.pnlText.color = "green" if pnl >= 0 else "red"
         self.openPositions.value = f'Open Pos: {len(self.strategy.openPositions)}'
         self.closedPositions.value = f'Closed Pos: {len(self.strategy.closedPositions)}'
+        self.balanceAvailable.value = f'Balance Available: ₹ {self.strategy.getBroker().getCash()}'
         self.update()
 
     def onChartButtonClicked(self, e):
