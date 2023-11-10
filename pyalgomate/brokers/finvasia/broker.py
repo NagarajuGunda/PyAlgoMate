@@ -188,7 +188,7 @@ class PaperTradingBroker(BacktestingBroker):
         m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)", symbol)
 
         if m is None:
-            m = re.match(r"([A-Z\:]+)(\d{2})([A-Z]{3})(\d+)([CP])E", symbol)
+            m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d+)([CP])E", symbol)
 
             if m is not None:
                 month = datetime.datetime.strptime(m.group(3), '%b').month
@@ -200,7 +200,7 @@ class PaperTradingBroker(BacktestingBroker):
                     if underlyingDetails['optionPrefix'] == optionPrefix:
                         return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", underlying)
 
-            m = re.match(r"([A-Z\:]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
+            m = re.match(r"([A-Z\|]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
 
             if m is None:
                 return None
@@ -511,7 +511,7 @@ class LiveBroker(broker.Broker):
         m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)", symbol)
 
         if m is None:
-            m = re.match(r"([A-Z\:]+)(\d{2})([A-Z]{3})(\d+)([CP])E", symbol)
+            m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d+)([CP])E", symbol)
 
             if m is not None:
                 month = datetime.datetime.strptime(m.group(3), '%b').month
@@ -523,7 +523,7 @@ class LiveBroker(broker.Broker):
                     if underlyingDetails['optionPrefix'] == optionPrefix:
                         return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", underlying)
 
-            m = re.match(r"([A-Z\:]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
+            m = re.match(r"([A-Z\|]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
 
             if m is None:
                 return None
