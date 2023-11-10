@@ -529,7 +529,12 @@ class LiveBroker(broker.Broker):
                 logger.error(
                     f'Error retrieving account balance. Reason: {limits["emsg"]}')
 
-            self.__cash = float(limits['cash'])
+            marginUsed = 0
+
+            if 'marginused' in limits:
+                marginUsed = float(limits['marginused'])
+
+            self.__cash = float(limits['cash']) - marginUsed
             logger.info(f'Available balance is <{self.__cash:.2f}>')
         except Exception as e:
             logger.exception(
