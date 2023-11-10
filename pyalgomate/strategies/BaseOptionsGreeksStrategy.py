@@ -60,10 +60,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         if not os.path.exists("results"):
             os.mkdir("results")
 
-        if self.isBacktest():
-            self.tradesCSV = f"results/{self.strategyName}_backtest.csv"
-        else:
-            self.tradesCSV = f"results/{self.strategyName}_trades.csv"
+        self.tradesCSV = f"results/{self.strategyName}_{self.getBroker().getType().lower()}.csv"
 
         if self.collectTrades and os.path.isfile(self.tradesCSV):
             self.tradesDf = pd.read_csv(self.tradesCSV, index_col=False)
