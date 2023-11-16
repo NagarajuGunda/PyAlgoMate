@@ -9,7 +9,7 @@ from logging.handlers import SysLogHandler
 from importlib import import_module
 
 import flet as ft
-from components import StrategiesContainer
+from components import StrategiesContainer, LoggingControl
 from pyalgomate.telegram import TelegramBot
 from pyalgomate.brokers import getFeed, getBroker
 from pyalgomate.core import State
@@ -148,6 +148,7 @@ def main(page: ft.Page):
     page.padding = ft.padding.only(left=50, right=50)
     page.bgcolor = "#212328"
 
+    loggingControl = LoggingControl(logger)
     strategiesContainer = StrategiesContainer(
         page=page, feed=feed, strategies=strategies)
 
@@ -166,6 +167,11 @@ def main(page: ft.Page):
                 icon=ft.icons.TERMINAL,
                 content=ft.Text("This is Tab 2"),
             ),
+            ft.Tab(
+                text="Logging",
+                icon=ft.icons.NOTE_OUTLINED,
+                content=loggingControl,
+            )
         ],
         expand=1,
     )
@@ -173,6 +179,8 @@ def main(page: ft.Page):
     page.add(t)
 
     page.update()
+
+    loggingControl.setCanUpdate()
 
     while True:
         strategiesContainer.updateStrategies()

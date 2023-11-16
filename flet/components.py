@@ -1,8 +1,12 @@
 import base64
+import logging
 import json
+from flet_core.control import OptionalNumber
+from flet_core.ref import Ref
+from flet_core.types import ResponsiveNumber
 import pandas as pd
 import flet as ft
-from typing import List
+from typing import Any, List, Optional, Union
 
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 from pyalgomate.barfeed import BaseBarFeed
@@ -182,7 +186,7 @@ class StrategyCard(ft.Card):
                 if isinstance(obj, pd.Timestamp):
                     return obj.isoformat()
                 return super().default(obj)
-            
+
         variablesAndValues = vars(self.strategy)
 
         for key, value in variablesAndValues.items():
@@ -300,7 +304,8 @@ class StrategiesContainer(ft.Container):
         rows.append(ft.ListView([ft.Row([strategyCard])
                     for strategyCard in self.strategyCards]))
         self.content = ft.Column(
-            rows
+            rows,
+            scroll=ft.ScrollMode.HIDDEN
         )
 
     def updateStrategies(self):
@@ -314,3 +319,36 @@ class StrategiesContainer(ft.Container):
         self.feedIcon.color = "green" if self.feed.isDataFeedAlive() else "red"
         self.feedText.value = f'Last Updated Timestamp: {self.feed.getLastUpdatedDateTime()}'
         self.update()
+
+
+class CallbackHandler(logging.Handler):
+    def __init__(self, callback):
+        super(CallbackHandler, self).__init__()
+        self.callback = callback
+
+    def emit(self, record):
+        log_message = self.format(record)
+        self.callback(log_message)
+
+
+class LoggingControl(ft.UserControl):
+    def __init__(self, logger):
+        super().__init__()
+        logger.addHandler(CallbackHandler(self.logCallback))
+        self.list = ft.ListView(expand=True, spacing=0, auto_scroll=True)
+        self.canUpdate = False
+
+    def setCanUpdate(self):
+        self.canUpdate = True
+
+    def logCallback(self, message):
+        self.list.controls.append(ft.Text(message,
+                                  color=ft.colors.WHITE,
+                                  selectable=True,
+                                  font_family="Consolas"))
+
+        if self.canUpdate:
+            self.update()
+
+    def build(self):
+        return ft.Container(self.list, expand=True, bgcolor='black')
