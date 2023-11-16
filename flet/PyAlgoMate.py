@@ -33,6 +33,7 @@ logger.addHandler(consoleHandler)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
+loggingControl = LoggingControl(logger)
 
 def GetFeedNStrategies(creds):
     with open("strategies.yaml", "r") as file:
@@ -148,7 +149,6 @@ def main(page: ft.Page):
     page.padding = ft.padding.only(left=50, right=50)
     page.bgcolor = "#212328"
 
-    loggingControl = LoggingControl(logger)
     strategiesContainer = StrategiesContainer(
         page=page, feed=feed, strategies=strategies)
 
