@@ -228,27 +228,30 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
                 underlyingQuotes = api.get_quotes(exchange, underlyingToken)
                 ltp = underlyingQuotes['lp']
 
-                underlyingDetails = finvasia.broker.getUnderlyingDetails(
-                    underlying)
-                index = underlyingDetails['index']
-                strikeDifference = underlyingDetails['strikeDifference']
+                try:
+                    underlyingDetails = finvasia.broker.getUnderlyingDetails(
+                        underlying)
+                    index = underlyingDetails['index']
+                    strikeDifference = underlyingDetails['strikeDifference']
 
-                currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-                    datetime.datetime.now().date(), index)
-                nextWeekExpiry = utils.getNextWeeklyExpiryDate(
-                    datetime.datetime.now().date(), index)
-                monthlyExpiry = utils.getNearestMonthlyExpiryDate(
-                    datetime.datetime.now().date(), index)
+                    currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
+                        datetime.datetime.now().date(), index)
+                    nextWeekExpiry = utils.getNextWeeklyExpiryDate(
+                        datetime.datetime.now().date(), index)
+                    monthlyExpiry = utils.getNearestMonthlyExpiryDate(
+                        datetime.datetime.now().date(), index)
 
-                if "Weekly" in registerOptions:
-                    optionSymbols += finvasia.broker.getOptionSymbols(
-                        underlying, currentWeeklyExpiry, ltp, 10, strikeDifference)
-                if "NextWeekly" in registerOptions:
-                    optionSymbols += finvasia.broker.getOptionSymbols(
-                        underlying, nextWeekExpiry, ltp, 10, strikeDifference)
-                if "Monthly" in registerOptions:
-                    optionSymbols += finvasia.broker.getOptionSymbols(
-                        underlying, monthlyExpiry, ltp, 10, strikeDifference)
+                    if "Weekly" in registerOptions:
+                        optionSymbols += finvasia.broker.getOptionSymbols(
+                            underlying, currentWeeklyExpiry, ltp, 10, strikeDifference)
+                    if "NextWeekly" in registerOptions:
+                        optionSymbols += finvasia.broker.getOptionSymbols(
+                            underlying, nextWeekExpiry, ltp, 10, strikeDifference)
+                    if "Monthly" in registerOptions:
+                        optionSymbols += finvasia.broker.getOptionSymbols(
+                            underlying, monthlyExpiry, ltp, 10, strikeDifference)
+                except Exception as e:
+                    logger.exception(f'Exception: {e}')
 
             optionSymbols = list(dict.fromkeys(optionSymbols))
 
@@ -309,6 +312,62 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
             api, underlyings + optionSymbols)
 
         barFeed = ZerodhaLiveFeed(api, tokenMappings)
+    elif broker == 'Kotak':
+        from neo_api_client import NeoAPI
+        import pyalgomate.brokers.kotak as kotak
+        from pyalgomate.brokers.kotak.broker import getTokenMappings
+        from pyalgomate.brokers.kotak.feed import LiveTradeFeed
+
+        cred = creds[broker]
+
+        api = NeoAPI(consumer_key=cred['consumer_key'],
+                     consumer_secret=cred['consumer_secret'], environment=cred['environment'])
+        api.login(mobilenumber=cred['mobilenumber'], password=cred['Password'])
+        ret = api.session_2fa(cred['mpin'])
+        if ret == None:
+            print('Exited due to biscut')
+            exit(0)
+
+        if len(underlyings) == 0:
+            underlyings = ['BANKNIFTY']
+
+        tokenMappings = []
+        for underlying in underlyings:
+            optionSymbols = []
+            ret = api.search_scrip('NSE' if underlying !=
+                                   'SENSEX' else 'BSE', underlying)
+            script = [
+                script for script in ret if script['pSymbolName'] == underlying][0]
+            tokId = script['pSymbol']
+            quotes = api.quotes([
+                {'instrument_token': str(tokId), 'exchange_segment': 'nse_cm'}])
+            ltp = float(quotes['message'][0]['last_traded_price'])
+
+            underlyingDetails = kotak.broker.getUnderlyingDetails(underlying)
+            index = underlyingDetails['index']
+            strikeDifference = underlyingDetails['strikeDifference']
+
+            currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
+                datetime.datetime.now().date(), index)
+            nextWeekExpiry = utils.getNextWeeklyExpiryDate(
+                datetime.datetime.now().date(), index)
+            monthlyExpiry = utils.getNearestMonthlyExpiryDate(
+                datetime.datetime.now().date(), index)
+
+            if "Weekly" in registerOptions:
+                optionSymbols += kotak.broker.getOptionSymbols(
+                    underlying, currentWeeklyExpiry, ltp, 10, strikeDifference)
+            if "NextWeekly" in registerOptions:
+                optionSymbols += kotak.broker.getOptionSymbols(
+                    underlying, nextWeekExpiry, ltp, 10, strikeDifference)
+            if "Monthly" in registerOptions:
+                optionSymbols += kotak.broker.getOptionSymbols(
+                    underlying, monthlyExpiry, ltp, 10, strikeDifference)
+
+            optionSymbols = list(dict.fromkeys(optionSymbols))
+            tokenMappings += getTokenMappings(api, underlying, optionSymbols)
+
+        barFeed = LiveTradeFeed(api, tokenMappings)
 
     return barFeed, api
 
@@ -331,5 +390,12 @@ def getBroker(feed, api, broker, mode, capital=200000):
             brokerInstance = ZerodhaPaperTradingBroker(capital, feed)
         else:
             brokerInstance = ZerodhaLiveBroker(api)
+    elif broker == 'Kotak':
+        from pyalgomate.brokers.kotak.broker import PaperTradingBroker, LiveBroker
+
+        if mode == 'paper':
+            brokerInstance = PaperTradingBroker(200000, feed)
+        else:
+            brokerInstance = LiveBroker(api)
 
     return brokerInstance
