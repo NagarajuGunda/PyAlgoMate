@@ -115,6 +115,8 @@ def getFinvasiaToken(api, exchangeSymbol):
                 return value['token']
             if value['instname'] == 'UNDIND' and value['cname'] == symbol:
                 return value['token']
+            if value['instname'] in ['FUTIDX', 'EQ'] and value['dname'] == symbol:
+                return value['token']
 
     return None
 
