@@ -10,6 +10,7 @@ from pyalgotrade import dispatcher
 import pyalgotrade.strategy.position
 from pyalgotrade import logger
 from pyalgotrade.barfeed import resampled
+from pyalgomate.barfeed import BaseBarFeed
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -28,7 +29,7 @@ class BaseStrategy(object):
     LOGGER_NAME = "strategy"
 
     def __init__(self, barFeed, broker):
-        self.__barFeed = barFeed
+        self.__barFeed: BaseBarFeed = barFeed
         self.__broker = broker
         self.__activePositions = set()
         self.__orderToPosition = {}
@@ -116,7 +117,7 @@ class BaseStrategy(object):
             ret = bar.getPrice()
         return ret
 
-    def getFeed(self):
+    def getFeed(self) -> BaseBarFeed:
         """Returns the :class:`pyalgotrade.barfeed.BaseBarFeed` that this strategy is using."""
         return self.__barFeed
 
