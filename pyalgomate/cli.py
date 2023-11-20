@@ -402,11 +402,10 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
         else:
             broker = ZerodhaLiveBroker(api)
 
-    if send_to_telegram:
+    telegramBot = None
+    if send_to_telegram and 'Telegram' in creds:
         telegramBot = TelegramBot(
             creds['Telegram']['token'], creds['Telegram']['chatid'], creds['Telegram']['allow'] if 'allow' in creds['Telegram'] else [])
-    else:
-        telegramBot = None
 
     constructorArgs = inspect.signature(strategyClass.__init__).parameters
     argNames = [param for param in constructorArgs]
