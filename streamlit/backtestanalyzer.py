@@ -110,6 +110,9 @@ def box(col, key, value, percentage=None, color='green'):
 
 
 def showStats(initialCapital: int, numOfFiles: int, tradesData: pd.DataFrame):
+    if tradesData.empty:
+        return
+
     overallPnL = tradesData['PnL'].sum()
     averageProfit = tradesData['PnL'].mean()
     maxProfit = tradesData['PnL'].max()
@@ -397,6 +400,14 @@ def main():
                             isSelected in dtesMapping.items() if isSelected]
 
             tradesData = tradesData[tradesData['DTE'].isin(selectedDtes)]
+
+        instruments = st.multiselect(
+            'Instrument',
+            ['BANKNIFTY', 'NIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX', 'BANKEX'],
+            ['BANKNIFTY', 'NIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX', 'BANKEX'])
+
+        if instruments:
+            tradesData = tradesData[tradesData['Instrument'].str.startswith(tuple(instruments))]
 
         with st.expander('Get Quantstats Report'):
             result = st.button('Run')
