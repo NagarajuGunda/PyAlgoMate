@@ -72,7 +72,7 @@ def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
         strikePlusOption = str(strikePrice) + ('CE' if (callOrPut ==
                                                         'C' or callOrPut == 'Call') else 'PE')
 
-        monthly = utils.getNearestMonthlyExpiryDate(expiry) == expiry
+        monthly = utils.getNearestMonthlyExpiryDate(expiry, index) == expiry
 
         if monthly:
             return optionPrefix + str(expiry.year % 100) + calendar.month_abbr[expiry.month].upper() + strikePlusOption
@@ -193,13 +193,14 @@ class PaperTradingBroker(BacktestingBroker):
             m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d+)([CP])E", symbol)
 
             if m is not None:
-                month = datetime.datetime.strptime(m.group(3), '%b').month
-                year = int(m.group(2)) + 2000
-                expiry = utils.getNearestMonthlyExpiryDate(
-                    datetime.date(year, month, 1))
                 optionPrefix = m.group(1)
                 for underlying, underlyingDetails in underlyingMapping.items():
                     if underlyingDetails['optionPrefix'] == optionPrefix:
+                        index = self.getUnderlyingDetails(underlying)['index']
+                        month = datetime.datetime.strptime(m.group(3), '%b').month
+                        year = int(m.group(2)) + 2000
+                        expiry = utils.getNearestMonthlyExpiryDate(
+                            datetime.date(year, month, 1), index)
                         return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", underlying)
 
             m = re.match(r"([A-Z\|]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
@@ -516,13 +517,14 @@ class LiveBroker(broker.Broker):
             m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d+)([CP])E", symbol)
 
             if m is not None:
-                month = datetime.datetime.strptime(m.group(3), '%b').month
-                year = int(m.group(2)) + 2000
-                expiry = utils.getNearestMonthlyExpiryDate(
-                    datetime.date(year, month, 1))
                 optionPrefix = m.group(1)
                 for underlying, underlyingDetails in underlyingMapping.items():
                     if underlyingDetails['optionPrefix'] == optionPrefix:
+                        index = self.getUnderlyingDetails(underlying)['index']
+                        month = datetime.datetime.strptime(m.group(3), '%b').month
+                        year = int(m.group(2)) + 2000
+                        expiry = utils.getNearestMonthlyExpiryDate(
+                            datetime.date(year, month, 1), index)
                         return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", underlying)
 
             m = re.match(r"([A-Z\|]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
