@@ -33,8 +33,6 @@ logger.addHandler(consoleHandler)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-loggingControl = LoggingControl(logger)
-
 def GetFeedNStrategies(creds):
     with open("strategies.yaml", "r") as file:
         config = yaml.safe_load(file)
@@ -166,11 +164,6 @@ def main(page: ft.Page):
                 text="Trade Terminal",
                 icon=ft.icons.TERMINAL,
                 content=ft.Text("This is Tab 2"),
-            ),
-            ft.Tab(
-                text="Logging",
-                icon=ft.icons.NOTE_OUTLINED,
-                content=loggingControl,
             )
         ],
         expand=1,
@@ -179,8 +172,6 @@ def main(page: ft.Page):
     page.add(t)
 
     page.update()
-
-    loggingControl.setCanUpdate()
 
     while True:
         strategiesContainer.updateStrategies()
