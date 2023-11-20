@@ -401,13 +401,27 @@ def main():
 
             tradesData = tradesData[tradesData['DTE'].isin(selectedDtes)]
 
-        instruments = st.multiselect(
-            'Instrument',
-            ['BANKNIFTY', 'NIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX', 'BANKEX'],
-            ['BANKNIFTY', 'NIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX', 'BANKEX'])
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            instruments = st.multiselect(
+                'Instrument',
+                ['BANKNIFTY', 'NIFTY', 'FINNIFTY',
+                    'MIDCPNIFTY', 'SENSEX', 'BANKEX'],
+                ['BANKNIFTY', 'NIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'SENSEX', 'BANKEX'])
 
-        if instruments:
-            tradesData = tradesData[tradesData['Instrument'].str.startswith(tuple(instruments))]
+            if instruments:
+                tradesData = tradesData[tradesData['Instrument'].str.startswith(
+                    tuple(instruments))]
+
+        with col2:
+            buySell = st.multiselect(
+                'Buy/Sell',
+                ['Buy', 'Sell'],
+                ['Buy', 'Sell'])
+
+            if buySell:
+                tradesData = tradesData[tradesData['Buy/Sell']
+                                        .str.startswith(tuple(buySell))]
 
         with st.expander('Get Quantstats Report'):
             result = st.button('Run')
