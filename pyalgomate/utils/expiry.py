@@ -96,8 +96,8 @@ def __considerHolidayList(expiryDate: pendulum.Date) -> datetime.date:
     return datetime.date(ret.year, ret.month, ret.day)
 
 
-def __isLastWeek(date: datetime.date) -> bool:
-    return pendulum.date(date.year, date.month, date.day).add(weeks=1).month != date.month
+def __isSameWeek(date1: datetime.date, date2: datetime.date):
+    return pendulum.date(date1.year, date1.month, date1.day).week_of_month == pendulum.date(date2.year, date2.month, date2.day).week_of_month
 
 
 def getNearestWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingIndex = UnderlyingIndex.BANKNIFTY):
@@ -113,10 +113,9 @@ def getNearestWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingInde
 
         expiryDate = __considerHolidayList(expiryDate)
 
-        if expiryDate.month != currentDate.month:
+        if expiryDay != monthlyExpiryDay:
             monthlyExpiryDate = getNearestMonthlyExpiryDate(date, index)
-
-            if monthlyExpiryDate.month == currentDate.month:
+            if __isSameWeek(expiryDate, monthlyExpiryDate):
                 expiryDate = monthlyExpiryDate
 
         if expiryDate >= datetime.date(currentDate.year, currentDate.month, currentDate.day):
@@ -187,4 +186,10 @@ if __name__ == '__main__':
           f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}\n"
           f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}\n"
           f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}")
+    print()
+    print(f"SENSEX\n"
+          f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}\n"
+          f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}\n"
+          f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}\n"
+          f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}")
     print()
