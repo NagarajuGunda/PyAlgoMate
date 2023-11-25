@@ -2,6 +2,7 @@
 .. moduleauthor:: Nagaraju Gunda
 """
 
+import datetime
 import pandas as pd
 from typing import List
 
@@ -10,13 +11,14 @@ from pyalgomate.barfeed import BaseBarFeed
 
 
 class DataFrameFeed(BaseBarFeed):
-    def __init__(self, df: pd.DataFrame, underlyings: List[str], frequency=bar.Frequency.MINUTE, maxLen=None):
+    def __init__(self, completeDf: pd.DataFrame, df: pd.DataFrame, underlyings: List[str], frequency=bar.Frequency.MINUTE, maxLen=None):
 
         if frequency not in [bar.Frequency.MINUTE, bar.Frequency.DAY]:
             raise Exception("Invalid frequency")
 
         super(DataFrameFeed, self).__init__(frequency, maxLen)
 
+        self.__completeDf = completeDf
         self.__df = df
         self.__frequency = frequency
         self.__haveAdjClose = False
@@ -116,3 +118,18 @@ class DataFrameFeed(BaseBarFeed):
 
     def isDataFeedAlive(self, heartBeatInterval=5):
         return True
+
+    def getHistoricalData(self, instrument: str, timeDelta: datetime.timedelta, interval: str) -> pd.DataFrame():
+        if self.__completeDf is None:
+            return pd.DataFrame(columns=['Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest'])
+
+        endDateTime = self.__currentDateTime if self.__currentDateTime is not None else self.peekDateTime()
+        startDateTime = endDateTime - timeDelta
+
+        mask = (
+            (self.__completeDf['Date/Time'] > startDateTime) &
+            (self.__completeDf['Date/Time'] < endDateTime) &
+            (self.__completeDf['Ticker'] == instrument)
+        )
+
+        return self.__completeDf[mask]

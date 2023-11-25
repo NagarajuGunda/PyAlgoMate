@@ -75,20 +75,14 @@ def getDataFrameFromParquets(dataFiles, startDate=None, endDate=None):
     df = df.sort_values(['Ticker', 'Date/Time']).drop_duplicates(
         subset=['Ticker', 'Date/Time'], keep='first')
 
-    if startDate:
-        df = df[df['Date/Time'].dt.date >= startDate]
-    if endDate:
-        df = df[df['Date/Time'].dt.date <= endDate]
-
     return df
 
-def backtest(strategyClass, df, underlyings, send_to_ui, telegramBot):
+def backtest(strategyClass, completeDf, df, underlyings, send_to_ui, telegramBot):
     from pyalgomate.backtesting import DataFrameFeed
-    from pyalgomate.backtesting import CustomCSVFeed
     from pyalgomate.brokers import BacktestingBroker
 
     start = datetime.datetime.now()
-    feed = DataFrameFeed.DataFrameFeed(df, underlyings)
+    feed = DataFrameFeed.DataFrameFeed(completeDf, df, underlyings)
     print(f"Time took in loading the data <{datetime.datetime.now()-start}>")
 
     broker = BacktestingBroker(200000, feed)
@@ -152,10 +146,18 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
     argNames = [param for param in constructorArgs]
     click.echo(f"{strategyClass.__name__} takes {argNames}")
 
-    df = getDataFrameFromParquets(dataFiles=data,
-                                  startDate=datetime.datetime.strptime(
-                                      from_date, "%Y-%m-%d").date() if from_date is not None else None,
-                                  endDate=datetime.datetime.strptime(to_date, "%Y-%m-%d").date() if to_date is not None else None)
+    df = getDataFrameFromParquets(dataFiles=data)
+    startDate = datetime.datetime.strptime(
+        from_date, "%Y-%m-%d").date() if from_date is not None else None
+    endDate = datetime.datetime.strptime(
+        to_date, "%Y-%m-%d").date() if to_date is not None else None
+
+    completeDf = df
+
+    if startDate:
+        df = df[df['Date/Time'].dt.date >= startDate]
+    if endDate:
+        df = df[df['Date/Time'].dt.date <= endDate]
 
     if parallelize == 'Day':
         groups = df.groupby(
@@ -178,7 +180,7 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
             futures = []
             for groupKey, groupDf in groups:
                 future = executor.submit(
-                    backtest, strategyClass, groupDf, underlyings, send_to_ui, telegramBot)
+                    backtest, strategyClass, None, groupDf, underlyings, send_to_ui, telegramBot)
                 futures.append(future)
 
             for future in futures:
@@ -189,7 +191,7 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
         for backtestResult in backtestResults:
             tradesDf = pd.concat([tradesDf, backtestResult], ignore_index=True)
     else:
-        tradesDf = backtest(strategyClass, df,
+        tradesDf = backtest(strategyClass, completeDf, df,
                             underlyings, send_to_ui, telegramBot)
 
     print("")

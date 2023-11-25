@@ -586,3 +586,9 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
     def closeAllPositions(self):
         pass
+
+    def getHistoricalData(self, instrument: str, timeDelta: datetime.timedelta, interval: str):
+        if self.isBacktest():
+            return self.getFeed().getHistoricalData(instrument, timeDelta, interval)
+        else:
+            return self.getBroker().getHistoricalData(instrument, datetime.datetime.now() - timeDelta, interval)
