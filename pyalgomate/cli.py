@@ -88,10 +88,7 @@ def backtest(strategyClass, df, underlyings, send_to_ui, telegramBot):
     from pyalgomate.brokers import BacktestingBroker
 
     start = datetime.datetime.now()
-    #feed = DataFrameFeed.DataFrameFeed(df, underlyings)
-    feed = CustomCSVFeed.CustomCSVFeed()
-    for underlying in underlyings:
-        feed.addBarsFromDataframe(df, underlying)
+    feed = DataFrameFeed.DataFrameFeed(df, underlyings)
     print(f"Time took in loading the data <{datetime.datetime.now()-start}>")
 
     broker = BacktestingBroker(200000, feed)

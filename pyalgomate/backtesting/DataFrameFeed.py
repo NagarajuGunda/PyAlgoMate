@@ -3,43 +3,43 @@
 """
 
 import pandas as pd
+from typing import List
+
 from pyalgotrade import bar
 from pyalgomate.barfeed import BaseBarFeed
 
 
 class DataFrameFeed(BaseBarFeed):
-    def __init__(self, df: pd.DataFrame, tickers=[], startDate=None, endDate=None, frequency=bar.Frequency.MINUTE, maxLen=None):
+    def __init__(self, df: pd.DataFrame, underlyings: List[str], frequency=bar.Frequency.MINUTE, maxLen=None):
+
+        if frequency not in [bar.Frequency.MINUTE, bar.Frequency.DAY]:
+            raise Exception("Invalid frequency")
+
         super(DataFrameFeed, self).__init__(frequency, maxLen)
 
         self.__df = df
-        self.__nextPos = 0
-        self.__currDateTime = None
         self.__frequency = frequency
         self.__haveAdjClose = False
-
-        if df.empty:
-            return
-
-        for ticker in tickers:
-            self.__df = self.__df[self.__df['Ticker'].str.startswith(ticker)]
-
-        if startDate:
-            self.__df = self.__df[self.__df['Date/Time'].dt.date >= startDate]
-        if endDate:
-            self.__df = self.__df[self.__df['Date/Time'].dt.date <= endDate]
-
-        self.__df = self.__df.drop_duplicates(
-            subset=['Ticker', 'Date/Time'], keep='first').sort_values(['Ticker', 'Date/Time'])
-
-        self.__dateTimes = sorted(self.__df['Date/Time'].unique().tolist())
         self.__instruments = self.__df['Ticker'].unique().tolist()
+        self.__barsByDateTime = {}
+
+        self.__currentDateTime = None
+        self.__dateTimes = sorted(self.__df['Date/Time'].unique().tolist())
+        self.__nextPos = 0
 
         for instrument in self.__instruments:
             self.registerInstrument(instrument)
 
+        self.__columnIndexMapping = {columnName: self.__df.columns.get_loc(
+            columnName) + 1 for columnName in self.__df.columns}
+
+        for instrument in underlyings:
+            self.addBars(instrument)
+
     def reset(self):
+        self.__barsByDateTime = {}
+        self.__currentDateTime = None
         self.__nextPos = 0
-        self.__currDateTime = None
         super(DataFrameFeed, self).reset()
 
     def getApi(self):
@@ -52,7 +52,7 @@ class DataFrameFeed(BaseBarFeed):
         return self.__dateTimes[self.__nextPos] if self.__nextPos < len(self.__dateTimes) else None
 
     def getCurrentDateTime(self):
-        return self.__currDateTime
+        return self.__currentDateTime
 
     def start(self):
         super(DataFrameFeed, self).start()
@@ -66,40 +66,53 @@ class DataFrameFeed(BaseBarFeed):
     def eof(self):
         return self.__nextPos >= len(self.__dateTimes)
 
-    def getNextBars(self):
+    def addBars(self, instrument) -> dict:
+        df = self.__df[(self.__df['Ticker'] == instrument)]
 
+        for row in df.itertuples():
+            instrument = row[self.__columnIndexMapping['Ticker']]
+            dateTime = row[self.__columnIndexMapping['Date/Time']]
+            open = row[self.__columnIndexMapping['Open']]
+            high = row[self.__columnIndexMapping['High']]
+            low = row[self.__columnIndexMapping['Low']]
+            close = row[self.__columnIndexMapping['Close']]
+            volume = row[self.__columnIndexMapping['Volume']]
+            openInterest = row[self.__columnIndexMapping['Open Interest']]
+
+            if dateTime not in self.__barsByDateTime:
+                self.__barsByDateTime[dateTime] = dict()
+
+            self.__barsByDateTime[dateTime][instrument] = bar.BasicBar(dateTime, open, high, low, close, volume, None, self.__frequency, extra={
+                'Open Interest': openInterest})
+
+    def getNextBars(self):
         currentDateTime = self.peekDateTime()
 
         if currentDateTime is None:
             return None
 
-        ret = {}
-
-        df = self.__df[self.__df['Date/Time']
-                       == currentDateTime]
-
-        columnIndexMapping = {columnName: df.columns.get_loc(
-            columnName) + 1 for columnName in df.columns}
-
-        for row in df.itertuples():
-            ticker = row[columnIndexMapping['Ticker']]
-            dateTime = row[columnIndexMapping['Date/Time']]
-            open = row[columnIndexMapping['Open']]
-            high = row[columnIndexMapping['High']]
-            low = row[columnIndexMapping['Low']]
-            close = row[columnIndexMapping['Close']]
-            volume = row[columnIndexMapping['Volume']]
-            openInterest = row[columnIndexMapping['Open Interest']]
-            ret[ticker] = bar.BasicBar(dateTime, open, high, low, close, volume, None, self.__frequency, extra={
-                                       'Open Interest': openInterest})
-
         self.__nextPos += 1
-        self.__currDateTime = currentDateTime
+        self.__currentDateTime = currentDateTime
 
-        return bar.Bars(ret)
+        if self.__currentDateTime not in self.__barsByDateTime:
+            return None
+
+        return bar.Bars(self.__barsByDateTime[self.__currentDateTime])
+
+    def getLastBar(self, instrument) -> bar.Bar:
+        lastBar = super().getLastBar(instrument)
+
+        if lastBar is None:
+            self.addBars(instrument)
+            if instrument not in self.__barsByDateTime[self.__currentDateTime]:
+                return None
+            else:
+                return self.__barsByDateTime[self.__currentDateTime][instrument]
+
+        return lastBar
 
     def getLastUpdatedDateTime(self):
-        return self.__currDateTime
+        return self.__currentDateTime
 
     def isDataFeedAlive(self, heartBeatInterval=5):
         return True

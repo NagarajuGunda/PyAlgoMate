@@ -99,7 +99,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         return ret
 
     def isBacktest(self):
-        return isinstance(self.getFeed(), csvfeed.BarFeed)
+        return self.getBroker().getType().lower() == "backtest"
 
     def buildOrdersFromActiveOrders(self):
         if not self.isBacktest():
@@ -433,11 +433,12 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         self.log(f"===== Exit order cancelled: {position.getExitOrder().getInstrument()} =====", logging.DEBUG, sendToTelegram=False)
 
     def haveLTP(self, instrument):
-        return instrument in self.getFeed().getKeys() and len(self.getFeed().getDataSeries(instrument)) > 0
+        return self.getFeed().getLastBar(instrument) is not None
 
     def getLTP(self, instrument):
-        if self.haveLTP(instrument):
-            return self.getFeed().getDataSeries(instrument)[-1].getClose()
+        lastBar = self.getFeed().getLastBar(instrument)
+        if lastBar:
+            return lastBar.getClose()
         return 0
 
     def getNearestDeltaOption(self, optionType, deltaValue, expiry, underlying=None):

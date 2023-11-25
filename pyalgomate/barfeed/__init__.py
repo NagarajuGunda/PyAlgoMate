@@ -102,7 +102,7 @@ class BaseBarFeed(feed.BaseFeed):
         """Returns the current :class:`pyalgotrade.bar.Bars`."""
         return self.__currentBars
 
-    def getLastBar(self, instrument):
+    def getLastBar(self, instrument) -> bar.Bar:
         """Returns the last :class:`pyalgotrade.bar.Bar` for a given instrument, or None."""
         return self.__lastBars.get(instrument, None)
 
