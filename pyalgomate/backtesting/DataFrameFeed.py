@@ -94,7 +94,7 @@ class DataFrameFeed(BaseBarFeed):
             return None
 
         self.__nextPos += 1
-        self.__currentDateTime = currentDateTime
+        self.__currentDateTime = pd.to_datetime(currentDateTime)
 
         if self.__currentDateTime not in self.__barsByDateTime:
             return None
