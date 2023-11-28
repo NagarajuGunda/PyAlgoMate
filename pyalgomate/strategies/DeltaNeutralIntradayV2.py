@@ -11,13 +11,12 @@ logger = logging.getLogger(__file__)
 
 
 class DeltaNeutralIntradayV2(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, strategyName=None, registeredOptionsCount=None, callback=None, resampleFrequency=None, lotSize=None, collectData=None, telegramBot=None):
+    def __init__(self, feed, broker, strategyName=None, registeredOptionsCount=None, callback=None, lotSize=None, collectData=None, telegramBot=None):
         super(DeltaNeutralIntradayV2, self).__init__(feed, broker,
                                                    strategyName=strategyName if strategyName else __class__.__name__,
                                                    logger=logging.getLogger(
                                                        __file__),
                                                    callback=callback,
-                                                   resampleFrequency=resampleFrequency,
                                                    collectData=collectData,
                                                    telegramBot=telegramBot)
 
