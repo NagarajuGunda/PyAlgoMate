@@ -115,7 +115,7 @@ def getNearestWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingInde
 
         if expiryDay != monthlyExpiryDay:
             monthlyExpiryDate = getNearestMonthlyExpiryDate(date, index)
-            if __isSameWeek(expiryDate, monthlyExpiryDate):
+            if __isSameWeek(expiryDate, monthlyExpiryDate) or monthlyExpiryDate < expiryDate:
                 expiryDate = monthlyExpiryDate
 
         if expiryDate >= datetime.date(currentDate.year, currentDate.month, currentDate.day):
@@ -162,34 +162,34 @@ def getNextMonthlyExpiryDate(date: datetime.date = None, index: UnderlyingIndex 
 
 if __name__ == '__main__':
     print(f"Today is\t\t\t{pendulum.now().date()}\n")
-    print()
-    print(f"NIFTY\n"
-          f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.NIFTY)}\n"
-          f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.NIFTY)}\n"
-          f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.NIFTY)}\n"
-          f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.NIFTY)}")
-    print()
+    # print()
+    # print(f"NIFTY\n"
+    #       f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.NIFTY)}\n"
+    #       f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.NIFTY)}\n"
+    #       f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.NIFTY)}\n"
+    #       f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.NIFTY)}")
+    # print()
     print(f"BANKNIFTY\n"
           f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date())}\n"
           f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date())}\n"
           f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date())}\n"
           f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date())}")
     print()
-    print(f"MIDCAPNIFTY\n"
-          f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.MIDCAPNIFTY)}\n"
-          f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.MIDCAPNIFTY)}\n"
-          f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.MIDCAPNIFTY)}\n"
-          f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.MIDCAPNIFTY)}")
-    print()
-    print(f"FINNIFTY\n"
-          f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}\n"
-          f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}\n"
-          f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}\n"
-          f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}")
-    print()
-    print(f"SENSEX\n"
-          f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}\n"
-          f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}\n"
-          f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}\n"
-          f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}")
-    print()
+    # print(f"MIDCAPNIFTY\n"
+    #       f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.MIDCAPNIFTY)}\n"
+    #       f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.MIDCAPNIFTY)}\n"
+    #       f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.MIDCAPNIFTY)}\n"
+    #       f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.MIDCAPNIFTY)}")
+    # print()
+    # print(f"FINNIFTY\n"
+    #       f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}\n"
+    #       f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}\n"
+    #       f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}\n"
+    #       f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.FINNIFTY)}")
+    # print()
+    # print(f"SENSEX\n"
+    #       f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}\n"
+    #       f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}\n"
+    #       f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}\n"
+    #       f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}")
+    # print()
