@@ -243,13 +243,13 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
 
                     if "Weekly" in registerOptions:
                         optionSymbols += finvasia.broker.getOptionSymbols(
-                            underlying, currentWeeklyExpiry, ltp, 10, strikeDifference)
+                            underlying, currentWeeklyExpiry, ltp, 20, strikeDifference)
                     if "NextWeekly" in registerOptions:
                         optionSymbols += finvasia.broker.getOptionSymbols(
-                            underlying, nextWeekExpiry, ltp, 10, strikeDifference)
+                            underlying, nextWeekExpiry, ltp, 20, strikeDifference)
                     if "Monthly" in registerOptions:
                         optionSymbols += finvasia.broker.getOptionSymbols(
-                            underlying, monthlyExpiry, ltp, 10, strikeDifference)
+                            underlying, monthlyExpiry, ltp, 20, strikeDifference)
                 except Exception as e:
                     logger.exception(f'Exception: {e}')
 
