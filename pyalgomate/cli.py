@@ -77,12 +77,19 @@ def getDataFrameFromParquets(dataFiles, startDate=None, endDate=None):
 
     return df
 
-def backtest(strategyClass, completeDf, df, underlyings, send_to_ui, telegramBot):
-    from pyalgomate.backtesting import DataFrameFeed
+def backtest(strategyClass, completeDf, df, underlyings, send_to_ui, telegramBot, load_all):
+    from pyalgomate.backtesting import DataFrameFeed, CustomCSVFeed
     from pyalgomate.brokers import BacktestingBroker
 
     start = datetime.datetime.now()
-    feed = DataFrameFeed.DataFrameFeed(completeDf, df, underlyings)
+    feed = None
+    if load_all:
+        feed = CustomCSVFeed.CustomCSVFeed()
+        for underlying in underlyings:
+            feed.addBarsFromDataframe(df, underlying)
+    else:
+        feed = DataFrameFeed.DataFrameFeed(completeDf, df, underlyings, )
+
     print(f"Time took in loading the data <{datetime.datetime.now()-start}>")
 
     broker = BacktestingBroker(200000, feed)
@@ -116,8 +123,9 @@ def backtest(strategyClass, completeDf, df, underlyings, send_to_ui, telegramBot
 @click.option('--from-date', help='Specify a from date', callback=checkDate,  default=None, type=click.STRING)
 @click.option('--to-date', help='Specify a to date', callback=checkDate, default=None, type=click.STRING)
 @click.option('--parallelize', help='Specify if backtest in parallel', default=None, type=click.Choice(['Day', 'Month']))
+@click.option('--load-all', help='Specify if all the data needs to be loaded', default=False, type=click.BOOL)
 @click.pass_obj
-def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_telegram, from_date, to_date, parallelize):
+def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_telegram, from_date, to_date, parallelize, load_all):
     import yaml
     from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
     import multiprocessing
@@ -180,7 +188,7 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
             futures = []
             for groupKey, groupDf in groups:
                 future = executor.submit(
-                    backtest, strategyClass, None, groupDf, underlyings, send_to_ui, telegramBot)
+                    backtest, strategyClass, None, groupDf, underlyings, send_to_ui, telegramBot, load_all)
                 futures.append(future)
 
             for future in futures:
@@ -192,7 +200,7 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
             tradesDf = pd.concat([tradesDf, backtestResult], ignore_index=True)
     else:
         tradesDf = backtest(strategyClass, completeDf, df,
-                            underlyings, send_to_ui, telegramBot)
+                            underlyings, send_to_ui, telegramBot, load_all)
 
     print("")
     print(

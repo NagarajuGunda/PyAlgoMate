@@ -115,7 +115,7 @@ def getNearestWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingInde
 
         if expiryDay != monthlyExpiryDay:
             monthlyExpiryDate = getNearestMonthlyExpiryDate(date, index)
-            if __isSameWeek(expiryDate, monthlyExpiryDate):
+            if __isSameWeek(expiryDate, monthlyExpiryDate) or monthlyExpiryDate < expiryDate:
                 expiryDate = monthlyExpiryDate
 
         if expiryDate >= datetime.date(currentDate.year, currentDate.month, currentDate.day):

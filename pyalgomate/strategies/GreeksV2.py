@@ -9,7 +9,7 @@ import sys
 
 class GreeksV2(BaseOptionsGreeksStrategy):
     def __init__(self, feed, broker, underlying, strategyName=None, registeredOptionsCount=0, 
-                 callback=None, resampleFrequency=None, lotSize=None, collectData=None, telegramBot=None):
+                 callback=None, lotSize=None, collectData=None, telegramBot=None):
         super(GreeksV2, self).__init__(feed, broker,
                                        strategyName=strategyName if strategyName else __class__.__name__,
                                        logger=logging.getLogger(

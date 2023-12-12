@@ -8,7 +8,7 @@ import plotly.express as px
 
 import pyalgotrade.bar
 from pyalgotrade.strategy import position
-from pyalgotrade import strategy
+from pyalgotrade.broker import Order
 from pyalgotrade import broker
 from pyalgomate.brokers import QuantityTraits
 import pyalgomate.utils as utils
@@ -323,7 +323,16 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         #self.buildOrdersFromActiveOrders()
         pass
 
-    def onEnterOk(self, position: position):
+    def displaySlippage(self, order: Order):
+        orderType = order.getType()
+
+        if orderType == Order.Type.STOP_LIMIT:
+            slippage = order.getStopPrice() - order.getAvgFillPrice(
+            ) if order.isBuy() else order.getAvgFillPrice() - order.getStopPrice()
+            self.log(f'Slippage for stop limit order with order id <{order.getId()}> is <{slippage:.2f}>',
+                     level=logging.INFO, sendToTelegram=False)
+
+    def onEnterOk(self, position: position.Position):
         execInfo = position.getEntryOrder().getExecutionInfo()
         action = "Buy" if position.getEntryOrder().isBuy() else "Sell"
         message = f'{"🔴" if action == "Sell" else "🟢"} position opened\n\n🔑 Order ID: {position.getEntryOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getEntryOrder().getInstrument()}\n💰 Entry Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}\n✅ Position successfully initiated!'
@@ -369,6 +378,8 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             self.log(
                 f"Option greeks for {instrument}\n{self.__optionData[instrument]}", logging.DEBUG, sendToTelegram=False)
 
+        self.displaySlippage(position.getEntryOrder())
+
     def getOpenPosition(self, id: int) -> position:
         for position in self.openPositions.copy():
             if position.getEntryOrder().getId() == id:
@@ -383,7 +394,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
         return True
 
-    def onExitOk(self, position: position):
+    def onExitOk(self, position: position.Position):
         execInfo = position.getExitOrder().getExecutionInfo()
         message = f'🔔 Position Exit\n\n🔑 Order ID: {position.getExitOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getInstrument()}\n💰 Exit Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}'
         self.log(f"{message}")
@@ -425,6 +436,8 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         else:
             self.log(
                 f'Could not get a row with Instrument <{position.getInstrument()}> Entry Order Id <{entryOrderId}>')
+
+        self.displaySlippage(position.getExitOrder())
 
     def onEnterCanceled(self, position: position):
         self.log(f"===== Entry order cancelled: {position.getEntryOrder().getInstrument()} =====", logging.DEBUG, sendToTelegram=False)
