@@ -33,7 +33,22 @@ listOfNseHolidays = set([
     pendulum.Date(2023, 10, 24),  # Dussehra
     pendulum.Date(2023, 11, 14),  # Diwali Balipratipada
     pendulum.Date(2023, 11, 27),  # Gurunanak Jayanti
-    pendulum.Date(2023, 12, 25)   # Christmas
+    pendulum.Date(2023, 12, 25),   # Christmas
+
+    pendulum.Date(2024, 1, 26),  # Republic Day
+    pendulum.Date(2024, 3, 8),  # Maha Shivaratri
+    pendulum.Date(2024, 3, 25),  # Holi
+    pendulum.Date(2024, 3, 29),  # Good Friday
+    pendulum.Date(2024, 4, 11),  # Eid-Ul-Fitr (Ramzan Eid)
+    pendulum.Date(2024, 4, 17),  # Ram Navami
+    pendulum.Date(2024, 5, 1),  # Maharashtra Day
+    pendulum.Date(2024, 6, 17),  # Bakri Eid
+    pendulum.Date(2024, 7, 17),  # Moharram
+    pendulum.Date(2024, 8, 15),  # Independence Day
+    pendulum.Date(2024, 10, 2),  # Mahatma Gandhi Jayanti
+    pendulum.Date(2024, 11, 1),  # Diwali-Laxmi Pujan*
+    pendulum.Date(2024, 11, 15),  # Gurunanak Jayanti
+    pendulum.Date(2024, 12, 25)   # Christmas
 ])
 
 expiryDays = {
