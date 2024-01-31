@@ -116,8 +116,6 @@ def __isSameWeek(date1: datetime.date, date2: datetime.date):
 
 
 def getNearestWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingIndex = UnderlyingIndex.BANKNIFTY):
-    if index == UnderlyingIndex.BANKNIFTY:
-        return datetime.date(2024, 1, 31)
     currentDate = pendulum.now().date() if date is None else pendulum.date(
         date.year, date.month, date.day)
     expiryDay, monthlyExpiryDay = _getExpiryDay(currentDate, index)
