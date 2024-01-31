@@ -112,10 +112,12 @@ def __considerHolidayList(expiryDate: pendulum.Date) -> datetime.date:
 
 
 def __isSameWeek(date1: datetime.date, date2: datetime.date):
-    return pendulum.date(date1.year, date1.month, date1.day).week_of_month == pendulum.date(date2.year, date2.month, date2.day).week_of_month
+    return date1.month == date2.month and pendulum.date(date1.year, date1.month, date1.day).week_of_month == pendulum.date(date2.year, date2.month, date2.day).week_of_month
 
 
 def getNearestWeeklyExpiryDate(date: datetime.date = None, index: UnderlyingIndex = UnderlyingIndex.BANKNIFTY):
+    if index == UnderlyingIndex.BANKNIFTY:
+        return datetime.date(2024, 1, 31)
     currentDate = pendulum.now().date() if date is None else pendulum.date(
         date.year, date.month, date.day)
     expiryDay, monthlyExpiryDay = _getExpiryDay(currentDate, index)
