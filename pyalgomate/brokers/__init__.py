@@ -382,7 +382,7 @@ def getBroker(feed, api, broker, mode, capital=200000):
         if str(mode).lower() == 'paper':
             brokerInstance = PaperTradingBroker(capital, feed)
         else:
-            brokerInstance = LiveBroker(api)
+            brokerInstance = LiveBroker(api, feed)
     elif str(broker).lower() == 'zerodha':
         from pyalgomate.brokers.zerodha.broker import ZerodhaPaperTradingBroker, ZerodhaLiveBroker
 
