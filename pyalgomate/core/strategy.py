@@ -484,8 +484,11 @@ class BaseStrategy(object):
         # 1: Let analyzers process bars.
         self.__notifyAnalyzers(lambda s: s.beforeOnBars(self, bars))
 
-        # 2: Let the strategy process current bars and submit orders.
-        self.onBars(bars)
+        try:
+            # 2: Let the strategy process current bars and submit orders.
+            self.onBars(bars)
+        except Exception as e:
+            self.__logger.exception(f'Exception in __onBars. {e}')
 
         # 3: Notify that the bars were processed.
         self.__barsProcessedEvent.emit(self, bars)
