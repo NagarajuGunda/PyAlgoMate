@@ -373,7 +373,7 @@ class OrderEvent(object):
 LiveBroker = ForwardRef('LiveBroker')
 
 class TradeMonitor(threading.Thread):
-    POLL_FREQUENCY = 0.5
+    POLL_FREQUENCY = 1
 
     RETRY_COUNT = 3
 
@@ -425,13 +425,13 @@ class TradeMonitor(threading.Thread):
                     continue
 
                 # Modify the order based on current LTP for retry 0 and convert to market for retry one
-                if retryCount > 0:
+                if retryCount == 0:
                     ltp = self.__broker.getLastPrice(order.getInstrument())
-                    logger.warning(f'Order {orderId} crossed retry interval{TradeMonitor.RETRY_INTERVAL}.'
+                    logger.warning(f'Order {orderId} crossed retry interval {TradeMonitor.RETRY_INTERVAL}.'
                                    f'Retrying attempt {self.__retryData[orderId]["retryCount"] + 1} with current LTP {ltp}')
                     self.__broker.modifyOrder(order=order, newprice_type=getPriceType(broker.Order.Type.LIMIT), newprice=ltp)
                 else:
-                    logger.warning(f'Order {orderId} crossed retry interval{TradeMonitor.RETRY_INTERVAL}.'
+                    logger.warning(f'Order {orderId} crossed retry interval {TradeMonitor.RETRY_INTERVAL}.'
                                    f'Retrying attempt {self.__retryData[orderId]["retryCount"] + 1} with market order')
                     self.__broker.modifyOrder(order=order, newprice_type=getPriceType(broker.Order.Type.MARKET))
 
@@ -850,8 +850,16 @@ class LiveBroker(broker.Broker):
             if ret.getStat() != "Ok":
                 raise Exception(ret.getErrorMessage())
 
+            oldOrder = self.__activeOrders.get(order.getId(), None)
             order.setSubmitted(ret.getId(),
-                               ret.getDateTime())
+                                ret.getDateTime())
+            
+            if oldOrder:
+                self._unregisterOrder(oldOrder)
+                self._registerOrder(order)
+
+            logger.info(
+                f'Modified {newprice_type} {"Buy" if order.isBuy() else "Sell"} order {order.getId()} at {order.getSubmitDateTime()}')
         except Exception as e:
             logger.critical(f'Could not place order for {symbol}. Reason: {e}')
 
@@ -888,8 +896,13 @@ class LiveBroker(broker.Broker):
             if orderResponse.getStat() != "Ok":
                 raise Exception(orderResponse.getErrorMessage())
 
+            oldOrder = self.__activeOrders.get(order.getId(), None)
             order.setSubmitted(orderResponse.getId(),
                                 orderResponse.getDateTime())
+            
+            if oldOrder:
+                self._unregisterOrder(oldOrder)
+                self._registerOrder(order)
             logger.info(
                 f'Placed {priceType} {"Buy" if order.isBuy() else "Sell"} order {order.getId()} at {order.getSubmitDateTime()}')
             
