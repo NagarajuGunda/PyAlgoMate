@@ -401,8 +401,13 @@ class TradeMonitor(threading.Thread):
 
             orderEvent = OrderEvent(filteredOrders[0])
 
+            order = self.__broker.getActiveOrder(orderId)
+            if order is None:
+                logger.error(f'Could not get active order using order id {orderId}')
+                continue
+
             if orderId not in self.__retryData:
-                self.__retryData[orderId] = {'retryCount': 0, 'lastRetryTime': time.time()}
+                self.__retryData[order] = {'retryCount': 0, 'lastRetryTime': time.time()}
                 
             if orderEvent.getStat() == 'Not_Ok':
                 logger.error(f'Fetching order history for {orderId} failed with reason {orderEvent.getErrorMessage()}')
@@ -418,8 +423,8 @@ class TradeMonitor(threading.Thread):
                 if order.getType() != broker.Order.Type.LIMIT:
                     continue
 
-                retryCount = self.__retryData[orderId]['retryCount']
-                lastRetryTime = self.__retryData[orderId]['lastRetryTime']
+                retryCount = self.__retryData[order]['retryCount']
+                lastRetryTime = self.__retryData[order]['lastRetryTime']
 
                 if time.time() < (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
                     continue
@@ -428,35 +433,32 @@ class TradeMonitor(threading.Thread):
                 if retryCount == 0:
                     ltp = self.__broker.getLastPrice(order.getInstrument())
                     logger.warning(f'Order {orderId} crossed retry interval {TradeMonitor.RETRY_INTERVAL}.'
-                                   f'Retrying attempt {self.__retryData[orderId]["retryCount"] + 1} with current LTP {ltp}')
+                                   f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with current LTP {ltp}')
                     self.__broker.modifyOrder(order=order, newprice_type=getPriceType(broker.Order.Type.LIMIT), newprice=ltp)
                 else:
                     logger.warning(f'Order {orderId} crossed retry interval {TradeMonitor.RETRY_INTERVAL}.'
-                                   f'Retrying attempt {self.__retryData[orderId]["retryCount"] + 1} with market order')
+                                   f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with market order')
                     self.__broker.modifyOrder(order=order, newprice_type=getPriceType(broker.Order.Type.MARKET))
 
-                self.__retryData[orderId]['retryCount'] += 1
-                self.__retryData[orderId]['lastRetryTime'] = time.time()
+                self.__retryData[order]['retryCount'] += 1
+                self.__retryData[order]['lastRetryTime'] = time.time()
             elif orderEvent.getStatus() == 'REJECTED':
-                retryCount = self.__retryData[orderId]['retryCount']
-                lastRetryTime = self.__retryData[orderId]['lastRetryTime']
+                retryCount = self.__retryData[order]['retryCount']
+                lastRetryTime = self.__retryData[order]['lastRetryTime']
 
                 if retryCount < TradeMonitor.RETRY_COUNT:
                     if time.time() > (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
-                        self.__retryData[orderId]['retryCount'] += 1
-                        self.__retryData[orderId]['lastRetryTime'] = time.time()
-                        logger.warning(f'Order {orderId} rejected. Retrying attempt {self.__retryData[orderId]["retryCount"]}')
-                        order = self.__broker.getActiveOrder(orderId)
-                        if order is None:
-                            logger.error(f'Could not get active order using order id {orderId}')
+                        self.__retryData[order]['retryCount'] += 1
+                        self.__retryData[order]['lastRetryTime'] = time.time()
+                        logger.warning(f'Order {orderId} rejected with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"]}')
                         self.__broker.placeOrder(order)
                 else:
                     logger.warning(f'Exhausted retry attempts for Order {orderId}')
                     ret.append(orderEvent)
-                    self.__retryData.pop(orderId, None)
+                    self.__retryData.pop(order, None)
             elif orderEvent.getStatus() in ['CANCELED', 'COMPLETE']:
                 ret.append(orderEvent)
-                self.__retryData.pop(orderId, None)
+                self.__retryData.pop(order, None)
             else:
                 logger.error(f'Unknown trade status {orderEvent.getStatus()}')
 
@@ -864,24 +866,26 @@ class LiveBroker(broker.Broker):
             logger.critical(f'Could not place order for {symbol}. Reason: {e}')
 
     def placeOrder(self, order: Order):
-        buyOrSell = 'B' if order.isBuy() else 'S'
-        splitStrings = order.getInstrument().split('|')
-        exchange = splitStrings[0] if len(splitStrings) > 1 else 'NSE'
-        # "C" For CNC, "M" FOR NRML, "I" FOR MIS, "B" FOR BRACKET ORDER, "H" FOR COVER ORDER
-        productType = 'I' if exchange != 'BFO' else 'M'
-        symbol = splitStrings[1] if len(
-            splitStrings) > 1 else order.getInstrument()
-        quantity = order.getQuantity()
-        price = order.getLimitPrice() if order.getType() in [
-            broker.Order.Type.LIMIT, broker.Order.Type.STOP_LIMIT] else 0
-        stopPrice = order.getStopPrice() if order.getType() in [
-            broker.Order.Type.STOP_LIMIT] else 0
-        priceType = getPriceType(order.getType())
-        retention = 'DAY'  # DAY / EOS / IOC
-
-        logger.info(
-            f'Placing {priceType} {"Buy" if order.isBuy() else "Sell"} order for {order.getInstrument()} with {quantity} quantity')
         try:
+            buyOrSell = 'B' if order.isBuy() else 'S'
+            splitStrings = order.getInstrument().split('|')
+            exchange = splitStrings[0] if len(splitStrings) > 1 else 'NSE'
+            # "C" For CNC, "M" FOR NRML, "I" FOR MIS, "B" FOR BRACKET ORDER, "H" FOR COVER ORDER
+            productType = 'I' if exchange != 'BFO' else 'M'
+            symbol = splitStrings[1] if len(
+                splitStrings) > 1 else order.getInstrument()
+            quantity = order.getQuantity()
+            price = order.getLimitPrice() if order.getType() in [
+                broker.Order.Type.LIMIT, broker.Order.Type.STOP_LIMIT] else 0
+            stopPrice = order.getStopPrice() if order.getType() in [
+                broker.Order.Type.STOP_LIMIT] else 0
+            priceType = getPriceType(order.getType())
+            retention = 'DAY'  # DAY / EOS / IOC
+
+            logger.info(
+                f'Placing order with buyOrSell={buyOrSell}, product_type={productType}, exchange={exchange}, '
+                f'tradingsymbol={symbol}, quantity={quantity}, discloseqty=0, price_type={priceType}, '
+                f'price={price}, trigger_price={stopPrice}, retention={retention}, remarks="PyAlgoMate order"')
             placedOrderResponse = self.__api.place_order(buy_or_sell=buyOrSell, product_type=productType,
                                                     exchange=exchange, tradingsymbol=symbol,
                                                     quantity=quantity, discloseqty=0, price_type=priceType,
