@@ -714,6 +714,7 @@ class LiveBroker(broker.Broker):
                 eventType = broker.OrderEvent.Type.PARTIALLY_FILLED
             self.notifyOrderEvent(broker.OrderEvent(
                 order, eventType, orderExecutionInfo))
+            logger.info(f'Order filled<{order.isFilled()}> for {order.getInstrument()} at <{orderExecutionInfo.getDateTime()}>. Avg Filled Price <{orderExecutionInfo.getPrice()}>. Quantity <{orderExecutionInfo.getQuantity()}>')
         else:
             logger.error(f'Unknown order status {trade.getStatus()}')
 
