@@ -389,37 +389,36 @@ class TradeMonitor(threading.Thread):
         self.__stop = False
         self.__retryData = dict()
 
-    def _getNewTrades(self):
+    def getNewTrades(self):
         ret: List[OrderEvent] = []
-        activeOrderIds = [order.getId() for order in self.__broker.getActiveOrders().copy()]
+        activeOrders: List[Order] = [order for order in self.__broker.getActiveOrders().copy()]
         orderBook = self.__api.get_order_book()
-        for orderId in activeOrderIds:
-            filteredOrders = [order for order in orderBook if order.get('norenordno') == orderId]
+        for order in activeOrders:
+            filteredOrders = [orderBookOrder for orderBookOrder in orderBook if orderBookOrder.get('norenordno') == order.getId()]
             if len(filteredOrders) == 0:
-                logger.warning(f'Order not found in the order book for order id {orderId}')
+                logger.warning(f'Order not found in the order book for order id {order.getId()}')
                 continue
 
             orderEvent = OrderEvent(filteredOrders[0])
 
-            order = self.__broker.getActiveOrder(orderId)
-            if order is None:
-                logger.error(f'Could not get active order using order id {orderId}')
-                continue
-
-            if orderId not in self.__retryData:
+            if order not in self.__retryData:
                 self.__retryData[order] = {'retryCount': 0, 'lastRetryTime': time.time()}
-                
+
             if orderEvent.getStat() == 'Not_Ok':
-                logger.error(f'Fetching order history for {orderId} failed with reason {orderEvent.getErrorMessage()}')
+                logger.error(f'Fetching order history for {orderEvent.getId()} failed with reason {orderEvent.getErrorMessage()}')
                 continue
             elif orderEvent.getStatus() in ['PENDING', 'TRIGGER_PENDING']:
-                continue
-            elif orderEvent.getStatus() == 'OPEN':
-                order = self.__broker.getActiveOrder(orderId)
-                if order is None:
-                    logger.error(f'Could not get active order using order id {orderId}')
-                    continue
+                # retryCount = self.__retryData[order]['retryCount']
+                # lastRetryTime = self.__retryData[order]['lastRetryTime']
 
+                # if time.time() > (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
+                #     logger.warning(f'Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL} '
+                #                    f'and still in {orderEvent.getStatus()} state. Canceling the order')
+                #     self.__broker.cancelOrder(order)
+                #     self.__retryData[order]['retryCount'] += 1
+                #     self.__retryData[order]['lastRetryTime'] = time.time()
+                pass
+            elif orderEvent.getStatus() == 'OPEN':
                 if order.getType() != broker.Order.Type.LIMIT:
                     continue
 
@@ -432,11 +431,11 @@ class TradeMonitor(threading.Thread):
                 # Modify the order based on current LTP for retry 0 and convert to market for retry one
                 if retryCount == 0:
                     ltp = self.__broker.getLastPrice(order.getInstrument())
-                    logger.warning(f'Order {orderId} crossed retry interval {TradeMonitor.RETRY_INTERVAL}.'
+                    logger.warning(f'Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}.'
                                    f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with current LTP {ltp}')
                     self.__broker.modifyOrder(order=order, newprice_type=getPriceType(broker.Order.Type.LIMIT), newprice=ltp)
                 else:
-                    logger.warning(f'Order {orderId} crossed retry interval {TradeMonitor.RETRY_INTERVAL}.'
+                    logger.warning(f'Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}.'
                                    f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with market order')
                     self.__broker.modifyOrder(order=order, newprice_type=getPriceType(broker.Order.Type.MARKET))
 
@@ -448,12 +447,12 @@ class TradeMonitor(threading.Thread):
 
                 if retryCount < TradeMonitor.RETRY_COUNT:
                     if time.time() > (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
+                        logger.warning(f'Order {order.getId()} rejected with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"] + 1}')
+                        self.__broker.placeOrder(order)
                         self.__retryData[order]['retryCount'] += 1
                         self.__retryData[order]['lastRetryTime'] = time.time()
-                        logger.warning(f'Order {orderId} rejected with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"]}')
-                        self.__broker.placeOrder(order)
                 else:
-                    logger.warning(f'Exhausted retry attempts for Order {orderId}')
+                    logger.warning(f'Exhausted retry attempts for Order {order.getId()}')
                     ret.append(orderEvent)
                     self.__retryData.pop(order, None)
             elif orderEvent.getStatus() in ['CANCELED', 'COMPLETE']:
@@ -469,7 +468,7 @@ class TradeMonitor(threading.Thread):
         return self.__queue
 
     def start(self):
-        trades = self._getNewTrades()
+        trades = self.getNewTrades()
         if len(trades):
             logger.info(
                 f'Last trade found at {trades[-1].getDateTime()}. Order id {trades[-1].getId()}')
@@ -480,7 +479,7 @@ class TradeMonitor(threading.Thread):
     def run(self):
         while not self.__stop:
             try:
-                trades = self._getNewTrades()
+                trades = self.getNewTrades()
                 if len(trades):
                     logger.info(f'{len(trades)} new trade/s found')
                     self.__queue.put((TradeMonitor.ON_USER_TRADE, trades))
@@ -629,6 +628,9 @@ class LiveBroker(broker.Broker):
     def getFeed(self):
         return self.__barFeed
 
+    def getTradeMonitor(self):
+        return self.__tradeMonitor
+    
     def getLastPrice(self, instrument):
         ret = None
         bar = self.getFeed().getLastBar(instrument)
@@ -852,17 +854,17 @@ class LiveBroker(broker.Broker):
 
             if ret.getStat() != "Ok":
                 raise Exception(ret.getErrorMessage())
-
-            oldOrder = self.__activeOrders.get(order.getId(), None)
+            
+            oldOrderId = order.getId()
+            if oldOrderId is not None:
+                self._unregisterOrder(order)
+            
             order.setSubmitted(ret.getId(),
                                 ret.getDateTime())
-            
-            if oldOrder:
-                self._unregisterOrder(oldOrder)
-                self._registerOrder(order)
+            self._registerOrder(order)
 
             logger.info(
-                f'Modified {newprice_type} {"Buy" if order.isBuy() else "Sell"} order {order.getId()} at {order.getSubmitDateTime()}')
+                f'Modified {newprice_type} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} with New order {order.getId()} at {order.getSubmitDateTime()}')
         except Exception as e:
             logger.critical(f'Could not place order for {symbol}. Reason: {e}')
 
@@ -900,17 +902,18 @@ class LiveBroker(broker.Broker):
 
             if orderResponse.getStat() != "Ok":
                 raise Exception(orderResponse.getErrorMessage())
-
-            oldOrder = self.__activeOrders.get(order.getId(), None)
+            
+            oldOrderId = order.getId()
+            if oldOrderId is not None:
+                self._unregisterOrder(order)
+            
             order.setSubmitted(orderResponse.getId(),
                                 orderResponse.getDateTime())
-            
-            if oldOrder:
-                self._unregisterOrder(oldOrder)
-                self._registerOrder(order)
+
+            self._registerOrder(order)
+
             logger.info(
-                f'Placed {priceType} {"Buy" if order.isBuy() else "Sell"} order {order.getId()} at {order.getSubmitDateTime()}')
-            
+                f'Placed {priceType} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} New order {order.getId()} at {order.getSubmitDateTime()}')            
         except Exception as e:
             logger.critical(f'Could not place order for {symbol}. Reason: {e}')
 
@@ -921,7 +924,6 @@ class LiveBroker(broker.Broker):
             order.setGoodTillCanceled(True)
 
             self.placeOrder(order)
-            self._registerOrder(order)
 
             # Switch from INITIAL -> SUBMITTED
             # IMPORTANT: Do not emit an event for this switch because when using the position interface

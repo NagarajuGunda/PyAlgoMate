@@ -86,10 +86,10 @@ class BaseStrategy(object):
     def registerPositionOrder(self, position, order):
         self.__activePositions.add(position)
         assert(order.isActive())  # Why register an inactive order ?
-        self.__orderToPosition[order.getId()] = position
+        self.__orderToPosition[order] = position
 
     def unregisterPositionOrder(self, position, order):
-        del self.__orderToPosition[order.getId()]
+        del self.__orderToPosition[order]
 
     def unregisterPosition(self, position):
         assert(not position.isOpen())
@@ -470,7 +470,7 @@ class BaseStrategy(object):
         self.onOrderUpdated(order)
 
         # Notify the position about the order event.
-        pos = self.__orderToPosition.get(order.getId(), None)
+        pos = self.__orderToPosition.get(order, None)
         if pos is not None:
             # Unlink the order from the position if its not active anymore.
             if not order.isActive():
