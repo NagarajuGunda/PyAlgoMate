@@ -54,9 +54,8 @@ class StrategyCard(ft.Card):
             on_dismiss=lambda e: print("Modal dialog dismissed!"),
         )
 
-        self.content = ft.Row(
-            height=100,
-            controls=[
+        self.content = ft.ResponsiveRow(
+            [
                 ft.Container(
                     ft.Column(
                         [
@@ -75,8 +74,9 @@ class StrategyCard(ft.Card):
                                 spacing=10),
                             ft.Row(
                                 [
-                                    self.openPositions,
-                                    self.closedPositions
+                                    ft.Column(
+                                        [self.openPositions, self.closedPositions]
+                                    )
                                 ],
                             ),
                             ft.Row(
@@ -87,8 +87,8 @@ class StrategyCard(ft.Card):
                         ],
                         alignment=ft.MainAxisAlignment.CENTER
                     ),
-                    expand=1,
-                    padding=ft.padding.only(left=50)
+                    margin=ft.margin.only(top=20, bottom=20, left=20),
+                    col={"sm": 12, "md": 2},
                 ),
                 ft.Container(
                     ft.Column(
@@ -96,7 +96,8 @@ class StrategyCard(ft.Card):
                         alignment=ft.MainAxisAlignment.CENTER,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER
                     ),
-                    expand=1
+                    #expand=2
+                    col={"sm": 12, "md": 2},
                 ),
                 ft.Container(
                     ft.Column(
@@ -104,7 +105,7 @@ class StrategyCard(ft.Card):
                         alignment=ft.MainAxisAlignment.CENTER,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER
                     ),
-                    expand=1
+                    col={"sm": 12, "md": 2},
                 ),
                 ft.Container(
                     ft.Column([ft.ElevatedButton(
@@ -116,7 +117,7 @@ class StrategyCard(ft.Card):
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         expand=1
                     ),
-                    expand=1
+                    col={"sm": 12, "md": 2},
                 ),
                 ft.Container(
                     ft.Column([ft.IconButton(
@@ -129,7 +130,7 @@ class StrategyCard(ft.Card):
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         expand=1
                     ),
-                    expand=0.5
+                    col={"sm": 12, "md": 1},
                 ),
                 ft.Container(
                     ft.Column([ft.IconButton(
@@ -142,7 +143,7 @@ class StrategyCard(ft.Card):
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         expand=1
                     ),
-                    expand=0.5
+                    col={"sm": 12, "md": 1},
                 ),
                 ft.Container(
                     ft.Column([
@@ -153,7 +154,7 @@ class StrategyCard(ft.Card):
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         expand=1
                     ),
-                    expand=1
+                    col={"sm": 12, "md": 2},
                 )
             ]
         )
@@ -163,8 +164,10 @@ class StrategyCard(ft.Card):
         pnl = self.strategy.getOverallPnL()
         self.pnlText.value = f'₹ {pnl:.2f}'
         self.pnlText.color = "green" if pnl >= 0 else "red"
-        self.openPositions.value = f'Open Pos: {len(self.strategy.openPositions)}'
-        self.closedPositions.value = f'Closed Pos: {len(self.strategy.closedPositions)}'
+        activeBuyPositions = len([pos for pos in self.strategy.getActivePositions() if pos.getEntryOrder() and pos.getEntryOrder().isBuy()])
+        activeSellPositions = len([pos for pos in self.strategy.getActivePositions() if pos.getEntryOrder() and (not pos.getEntryOrder().isBuy())])
+        self.openPositions.value = f'Open Pos (B|S): {len(self.strategy.getActivePositions())} ({activeBuyPositions}|{activeSellPositions})'
+        self.closedPositions.value = f'Closed Pos: {len(self.strategy.getClosedPositions())}'
         self.balanceAvailable.value = f'Balance Available: ₹ {self.strategy.getBroker().getCash()}'
         self.update()
 

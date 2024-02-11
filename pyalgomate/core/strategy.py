@@ -32,6 +32,7 @@ class BaseStrategy(object):
         self.__barFeed: BaseBarFeed = barFeed
         self.__broker = broker
         self.__activePositions = set()
+        self.__closedPositions = set()
         self.__orderToPosition = {}
         self.__barsProcessedEvent = observer.Event()
         self.__analyzers = []
@@ -67,6 +68,9 @@ class BaseStrategy(object):
 
     def getActivePositions(self):
         return self.__activePositions
+    
+    def getClosedPositions(self):
+        return self.__closedPositions
 
     def getOrderToPosition(self):
         return self.__orderToPosition
@@ -94,6 +98,7 @@ class BaseStrategy(object):
     def unregisterPosition(self, position):
         assert(not position.isOpen())
         self.__activePositions.remove(position)
+        self.__closedPositions.add(position)
 
     def __notifyAnalyzers(self, lambdaExpression):
         for s in self.__analyzers:

@@ -25,3 +25,4 @@ streamlit-lightweight-charts
 kaleido
 selenium
 webdriver_manager
+flet==0.3.2

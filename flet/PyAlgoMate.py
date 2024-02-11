@@ -18,6 +18,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+logging.getLogger("flet").setLevel(logging.DEBUG)
+logging.getLogger("flet_core").setLevel(logging.DEBUG)
+
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
 fileHandler = logging.FileHandler('PyAlgoMate.log')
@@ -153,8 +156,6 @@ def main(page: ft.Page):
     t = ft.Tabs(
         selected_index=0,
         animation_duration=300,
-        label_color='white90',
-        unselected_label_color='white54',
         tabs=[
             ft.Tab(
                 text="Strategies",
@@ -181,9 +182,7 @@ def main(page: ft.Page):
 if __name__ == "__main__":
     fletPath = os.getenv("FLET_PATH", '')
     fletPort = int(os.getenv("FLET_PORT", '8502'))
-    fletView = os.getenv("FLET_VIEW", ft.AppView.FLET_APP)
-    try:
-        fletView = ft.AppView(fletView)
-    except Exception as e:
+    fletView = os.getenv("FLET_VIEW", ft.FLET_APP)
+    if fletView != ft.FLET_APP:
         fletView = None
     ft.app(name=fletPath, target=main, view=fletView, port=fletPort)

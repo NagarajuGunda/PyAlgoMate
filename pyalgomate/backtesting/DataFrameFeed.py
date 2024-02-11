@@ -54,7 +54,7 @@ class DataFrameFeed(BaseBarFeed):
         return self.__dateTimes[self.__nextPos] if self.__nextPos < len(self.__dateTimes) else None
 
     def getCurrentDateTime(self):
-        return self.__currentDateTime
+        return self.__currentDateTime if self.__currentDateTime is not None else self.peekDateTime()
 
     def start(self):
         super(DataFrameFeed, self).start()
