@@ -381,11 +381,11 @@ class TradeMonitor(threading.Thread):
 
     ON_USER_TRADE = 1
 
-    def __init__(self, liveBroker: LiveBroker):
+    def __init__(self, liveBroker: LiveBroker, onUserTrades):
         super(TradeMonitor, self).__init__()
         self.__api: ShoonyaApi = liveBroker.getApi()
         self.__broker: LiveBroker = liveBroker
-        self.__queue = six.moves.queue.Queue()
+        self.__onUserTrades = onUserTrades
         self.__stop = False
         self.__retryData = dict()
 
@@ -394,6 +394,11 @@ class TradeMonitor(threading.Thread):
         activeOrders: List[Order] = [order for order in self.__broker.getActiveOrders().copy()]
         orderBook = self.__api.get_order_book()
         for order in activeOrders:
+            if order.isSubmitted():
+                order.switchState(broker.Order.State.ACCEPTED)
+                self.__broker.notifyOrderEvent(broker.OrderEvent(
+                    order, broker.OrderEvent.Type.ACCEPTED, None))
+
             filteredOrders = [orderBookOrder for orderBookOrder in orderBook if orderBookOrder.get('norenordno') == order.getId()]
             if len(filteredOrders) == 0:
                 logger.warning(f'Order not found in the order book for order id {order.getId()}')
@@ -464,15 +469,12 @@ class TradeMonitor(threading.Thread):
         # Sort by time, so older trades first.
         return sorted(ret, key=lambda t: t.getDateTime())
 
-    def getQueue(self):
-        return self.__queue
-
     def start(self):
         trades = self.getNewTrades()
         if len(trades):
             logger.info(
                 f'Last trade found at {trades[-1].getDateTime()}. Order id {trades[-1].getId()}')
-            self.__queue.put((TradeMonitor.ON_USER_TRADE, trades))
+            self.__onUserTrades(trades)
 
         super(TradeMonitor, self).start()
 
@@ -482,7 +484,7 @@ class TradeMonitor(threading.Thread):
                 trades = self.getNewTrades()
                 if len(trades):
                     logger.info(f'{len(trades)} new trade/s found')
-                    self.__queue.put((TradeMonitor.ON_USER_TRADE, trades))
+                    self.__onUserTrades(trades)
             except Exception as e:
                 logger.critical(
                     "Error retrieving user transactions", exc_info=e)
@@ -617,7 +619,7 @@ class LiveBroker(broker.Broker):
         self.__stop = False
         self.__api: ShoonyaApi = api
         self.__barFeed: BaseBarFeed = barFeed
-        self.__tradeMonitor = TradeMonitor(self)
+        self.__tradeMonitor = TradeMonitor(self, self._onUserTrades)
         self.__cash = 0
         self.__shares = {}
         self.__activeOrders: Dict[str, Order] = dict()
@@ -751,26 +753,7 @@ class LiveBroker(broker.Broker):
         return self.__stop
 
     def dispatch(self):
-        # Switch orders from SUBMITTED to ACCEPTED.
-        ordersToProcess = list(self.__activeOrders.values())
-        for order in ordersToProcess:
-            if order.isSubmitted():
-                order.switchState(broker.Order.State.ACCEPTED)
-                self.notifyOrderEvent(broker.OrderEvent(
-                    order, broker.OrderEvent.Type.ACCEPTED, None))
-
-        # Dispatch events from the trade monitor.
-        try:
-            eventType, eventData = self.__tradeMonitor.getQueue().get(
-                True, LiveBroker.QUEUE_TIMEOUT)
-
-            if eventType == TradeMonitor.ON_USER_TRADE:
-                self._onUserTrades(eventData)
-            else:
-                logger.error(
-                    "Invalid event received to dispatch: %s - %s" % (eventType, eventData))
-        except six.moves.queue.Empty:
-            pass
+        pass
 
     def peekDateTime(self):
         # Return None since this is a realtime subject.
