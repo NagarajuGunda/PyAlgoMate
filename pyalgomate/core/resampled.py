@@ -94,30 +94,41 @@ class ResampledBars():
         return self.__frequency
 
     def getBar(self, instrument) -> bar.Bar:
-        ret: bar.BasicBar = self.__grouper.getGrouped().getBar(instrument)
+        if self.__grouper is not None:
+            return self.__grouper.getGrouped().getBar(instrument)
 
-        return ret
+        return None
 
     def addBars(self, dateTime, value):
         if self.__range is None:
             self.__range = build_range(
                 dateTime, self.getFrequency())
+        if self.__grouper is None:
             self.__grouper = BarsGrouper(
                 self.__range.getBeginning(), value, self.getFrequency())
-        elif self.__range.belongs(dateTime):
+        if self.__range.belongs(dateTime):
             self.__grouper.addValue(value)
 
         barFeedFrequency = self.__barFeed.getFrequency()
         nextDateTime = dateTime + datetime.timedelta(
             seconds=barFeedFrequency if barFeedFrequency is not None and barFeedFrequency > 0 else 0)
 
-        if not self.__range.belongs(nextDateTime):
+        if self.__grouper is not None and self.__range is not None and not self.__range.belongs(nextDateTime):
             self.__values.append(self.__grouper.getGrouped())
+            self.__grouper = None
             self.__range = None
 
         if len(self.__values):
             self.__callback(self.__values.pop(0))
 
+    def checkNow(self, dateTime):
+        if self.__grouper is not None and self.__range is not None and not self.__range.belongs(dateTime):
+            self.__values.append(self.__grouper.getGrouped())
+            self.__grouper = None
+            self.__range = None
+
+        if len(self.__values):
+            self.__callback(self.__values.pop(0))
 
 if __name__ == "__main__":
     dateTime = datetime.datetime.now()
