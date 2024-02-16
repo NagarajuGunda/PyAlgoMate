@@ -224,12 +224,13 @@ class LiveTradeFeed(BaseBarFeed):
         return None
 
     def getLastUpdatedDateTime(self):
-        return self.__lastDateTime
+        return max((QuoteMessage(lastBar, self.__channels).dateTime for lastBar in self.__thread.getQuotes().copy().values()), default=None)
 
     def isDataFeedAlive(self, heartBeatInterval=5):
-        if self.__lastDateTime is None:
+        lastUpdatedDateTime = self.getLastUpdatedDateTime()
+        if lastUpdatedDateTime is None:
             return False
 
         currentDateTime = datetime.datetime.now()
-        timeSinceLastDateTime = currentDateTime - self.__lastDateTime
+        timeSinceLastDateTime = currentDateTime - lastUpdatedDateTime
         return timeSinceLastDateTime.total_seconds() <= heartBeatInterval
