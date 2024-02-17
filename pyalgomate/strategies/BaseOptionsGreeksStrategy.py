@@ -324,42 +324,22 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
         self.displaySlippage(position.getEntryOrder())
 
-    def getOpenPosition(self, id: int) -> position:
-        for position in self.getActivePositions().copy():
-            if position.getEntryOrder().getId() == id:
-                return position
-
-        return None
-
     def isPendingOrdersCompleted(self):
-        for position in list(self.getActivePositions()):
-            if position.getEntryOrder() is None or self.getOpenPosition(position.getEntryOrder().getId()) is None:
-                return False
-
-        return True
+        return len(self.getActivePositions()) == 0
 
     def onExitOk(self, position: position.Position):
         execInfo = position.getExitOrder().getExecutionInfo()
         message = f'🔔 Position Exit\n\n🔑 Order ID: {position.getExitOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getInstrument()}\n💰 Exit Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}'
         self.log(f"{message}")
 
-        openPosition = self.getOpenPosition(position.getEntryOrder().getId())
-        if openPosition is None:
-            self.log(
-                f"{execInfo.getDateTime()} - {position.getInstrument()} not found in open positions.")
-            return
-
-        entryOrder = openPosition.getEntryOrder()
         entryOrderId = position.getEntryOrder().getId()
 
         # Update the corresponding row in the tradesDf DataFrame with the exit information
-        entryPrice = entryOrder.getAvgFillPrice()
         exitPrice = position.getExitOrder().getAvgFillPrice()
         exitOrderId = position.getExitOrder().getId()
         mae = self.mae.get(entryOrderId, None)
         mfe = self.mfe.get(entryOrderId, None)
-        pnl = ((exitPrice - entryPrice) * entryOrder.getExecutionInfo().getQuantity()
-               ) if entryOrder.isBuy() else ((entryPrice - exitPrice) * entryOrder.getExecutionInfo().getQuantity())
+        pnl = position.getPnL()
 
         filteredDf = self.tradesDf[(self.tradesDf['Instrument'] == position.getInstrument()) & (
             self.tradesDf['Entry Order Id'] == entryOrderId)]
