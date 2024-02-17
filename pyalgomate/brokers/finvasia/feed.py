@@ -159,8 +159,7 @@ class LiveTradeFeed(BaseBarFeed):
         ret = False
         while True:
             try:
-                eventType, eventData = self.__thread.getQueue().get_nowait(
-                    True, LiveTradeFeed.QUEUE_TIMEOUT)
+                eventType, eventData = self.__thread.getQueue().get_nowait()
             except queue.Empty:
                 time.sleep(0.01)
                 continue
