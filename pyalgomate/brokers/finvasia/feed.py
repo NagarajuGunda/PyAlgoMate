@@ -99,7 +99,7 @@ class LiveTradeFeed(BaseBarFeed):
 
     def __init__(self, api, tokenMappings, timeout=10, maxLen=None):
         super(LiveTradeFeed, self).__init__(bar.Frequency.TRADE, maxLen)
-        self.__tradeBars = queue.Queue()
+        self.__tradeBars = queue.Queue(1000)
         self.__channels = tokenMappings
         self.__api = api
         self.__timeout = timeout
@@ -111,7 +111,7 @@ class LiveTradeFeed(BaseBarFeed):
         self.__enableReconnection = True
         self.__stopped = False
         self.__orderBookUpdateEvent = observer.Event()
-        self.__lastDataTime = None
+        self.__lastDateTime = None
 
     def getApi(self):
         return self.__api
@@ -171,7 +171,6 @@ class LiveTradeFeed(BaseBarFeed):
                 ret = True
                 if eventType == wsclient.WebSocketClient.Event.TRADE:
                     self.__onTrade(eventData)
-                    self.__lastDataTime = datetime.datetime.now()
                 elif eventType == wsclient.WebSocketClient.Event.ORDER_BOOK_UPDATE:
                     self.__orderBookUpdateEvent.emit(eventData)
                 elif eventType == wsclient.WebSocketClient.Event.DISCONNECTED:
@@ -183,17 +182,28 @@ class LiveTradeFeed(BaseBarFeed):
                 return ret
 
     def __onTrade(self, trade):
-        self.__tradeBars.put(
-            {trade.getExtraColumns().get("Instrument"): trade})
+        while True:
+            try:
+                self.__tradeBars.put_nowait(
+                    {trade.getExtraColumns().get("Instrument"): trade})
+            except queue.Full as e:
+                time.sleep(0.01)
+                continue
+            else:
+                return
 
     def barsHaveAdjClose(self):
         return False
 
     def getNextBars(self):
-        if self.__tradeBars.qsize() > 0:
-            return bar.Bars(self.__tradeBars.get())
-
-        return None
+        try:
+            tradeBars = self.__tradeBars.get_nowait()
+        except queue.Empty:
+             return None
+        else:
+            bars = bar.Bars(tradeBars)
+            self.__lastDateTime = bars.getDateTime()
+            return bars
 
     def peekDateTime(self):
         # Return None since this is a realtime subject.
@@ -244,12 +254,12 @@ class LiveTradeFeed(BaseBarFeed):
         return self.__orderBookUpdateEvent
 
     def getLastUpdatedDateTime(self):
-        return self.__lastDataTime
+        return self.__lastDateTime
 
     def isDataFeedAlive(self, heartBeatInterval=5):
-        if self.__lastDataTime is None:
+        if self.__lastDateTime is None:
             return False
 
         currentDateTime = datetime.datetime.now()
-        timeSinceLastDateTime = currentDateTime - self.__lastDataTime
+        timeSinceLastDateTime = currentDateTime - self.__lastDateTime
         return timeSinceLastDateTime.total_seconds() <= heartBeatInterval
