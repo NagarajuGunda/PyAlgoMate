@@ -5,6 +5,7 @@
 import datetime
 import logging
 import six
+import time
 import queue
 
 import abc
@@ -156,27 +157,30 @@ class LiveTradeFeed(BaseBarFeed):
 
     def __dispatchImpl(self, eventFilter):
         ret = False
-        try:
-            eventType, eventData = self.__thread.getQueue().get(
-                True, LiveTradeFeed.QUEUE_TIMEOUT)
-            if eventFilter is not None and eventType not in eventFilter:
-                return False
-
-            ret = True
-            if eventType == wsclient.WebSocketClient.Event.TRADE:
-                self.__onTrade(eventData)
-                self.__lastDataTime = datetime.datetime.now()
-            elif eventType == wsclient.WebSocketClient.Event.ORDER_BOOK_UPDATE:
-                self.__orderBookUpdateEvent.emit(eventData)
-            elif eventType == wsclient.WebSocketClient.Event.DISCONNECTED:
-                self.__onDisconnected()
+        while True:
+            try:
+                eventType, eventData = self.__thread.getQueue().get_nowait(
+                    True, LiveTradeFeed.QUEUE_TIMEOUT)
+            except queue.Empty:
+                time.sleep(0.01)
+                continue
             else:
-                ret = False
-                logger.error(
-                    "Invalid event received to dispatch: %s - %s" % (eventType, eventData))
-        except six.moves.queue.Empty:
-            pass
-        return ret
+                if eventFilter is not None and eventType not in eventFilter:
+                    return False
+
+                ret = True
+                if eventType == wsclient.WebSocketClient.Event.TRADE:
+                    self.__onTrade(eventData)
+                    self.__lastDataTime = datetime.datetime.now()
+                elif eventType == wsclient.WebSocketClient.Event.ORDER_BOOK_UPDATE:
+                    self.__orderBookUpdateEvent.emit(eventData)
+                elif eventType == wsclient.WebSocketClient.Event.DISCONNECTED:
+                    self.__onDisconnected()
+                else:
+                    ret = False
+                    logger.error(
+                        "Invalid event received to dispatch: %s - %s" % (eventType, eventData))
+                return ret
 
     def __onTrade(self, trade):
         self.__tradeBars.put(

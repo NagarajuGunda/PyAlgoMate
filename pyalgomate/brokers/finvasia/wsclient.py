@@ -7,6 +7,7 @@ import queue
 import logging
 import datetime
 import pytz
+import time
 
 from pyalgotrade import bar
 
@@ -114,9 +115,9 @@ class WebSocketClient:
         TRADE = 2
         ORDER_BOOK_UPDATE = 3
 
-    def __init__(self, queue, api, tokenMappings):
+    def __init__(self, que, api, tokenMappings):
         assert len(tokenMappings), "Missing subscriptions"
-        self.__queue = queue
+        self.__queue: queue.Queue = que
         self.__api = api
         self.__tokenMappings = tokenMappings
         self.__pending_subscriptions = list()
@@ -172,7 +173,14 @@ class WebSocketClient:
 
     def onTrade(self, trade):
         if trade.getPrice() > 0:
-            self.__queue.put((WebSocketClient.Event.TRADE, trade))
+            while True:
+                try:
+                    self.__queue.put_nowait((WebSocketClient.Event.TRADE, trade))
+                except queue.Full as e:
+                    time.sleep(0.01)
+                    continue
+                else:
+                    return None
 
     def onQuoteUpdate(self, message):
         logger.debug(message)
@@ -222,13 +230,13 @@ class WebSocketClient:
 class WebSocketClientThreadBase(threading.Thread):
     def __init__(self, wsCls, *args, **kwargs):
         super(WebSocketClientThreadBase, self).__init__()
-        self.__queue = queue.Queue()
+        self.__queue = queue.Queue(1000)
         self.__wsClient = None
         self.__wsCls = wsCls
         self.__args = args
         self.__kwargs = kwargs
 
-    def getQueue(self):
+    def getQueue(self) -> queue.Queue:
         return self.__queue
 
     def waitInitialized(self, timeout):
