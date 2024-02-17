@@ -15,10 +15,8 @@ import pyalgomate.utils as utils
 from pyalgomate.strategies import OptionGreeks
 from pyalgomate.strategy.position import LongOpenPosition, ShortOpenPosition
 from py_vollib_vectorized import vectorized_implied_volatility, get_all_greeks
-from pyalgotrade.barfeed import csvfeed
 from pyalgomate.telegram import TelegramBot
 from pyalgomate.core import State
-from pyalgomate.barfeed import resampled
 from pyalgomate.core.strategy import BaseStrategy
 
 class BaseOptionsGreeksStrategy(BaseStrategy):
@@ -41,7 +39,6 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         self.telegramMessageThreadId = telegramMessageThreadId
         self._observers = []
         self.__optionContracts = dict()
-        self.__resampledBarFeeds = []
         self.mae = dict()
         self.mfe = dict()
         self.reset()
@@ -79,27 +76,6 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             if not os.path.isfile(self.dataFileName):
                 pd.DataFrame(columns=self.dataColumns).to_csv(
                     self.dataFileName, index=False)
-
-    def onIdle(self):
-        for resampledBarFeed in self.__resampledBarFeeds:
-            resampledBarFeed.checkNow(self.getCurrentDateTime())
-
-    def resampleBarFeed(self, frequency, callback):
-        """
-        Builds a resampled barfeed that groups bars by a certain frequency.
-
-        :param frequency: The grouping frequency in seconds. Must be > 0.
-        :param callback: A function similar to onBars that will be called when new bars are available.
-        :rtype: :class:`pyalgotrade.barfeed.BaseBarFeed`.
-        """
-        ret = resampled.ResampledBarFeed(self.getFeed(), frequency)
-        ret.getNewValuesEvent().subscribe(lambda dt, bars: callback(bars))
-        self.getDispatcher().addSubject(ret)
-        self.__resampledBarFeeds.append(ret)
-        return ret
-
-    def isBacktest(self):
-        return self.getBroker().getType().lower() == "backtest"
 
     def buildOrdersFromActiveOrders(self):
         if not self.isBacktest():
@@ -146,8 +122,6 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
     def reset(self):
         self.__optionData = dict()
-        self.openPositions = set()
-        self.closedPositions = set()
         self.overallPnL = 0
         self.state = State.LIVE
 
@@ -174,8 +148,8 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             f"On Resampled Bars - Date/Time - {bars.getDateTime()}", logging.DEBUG, sendToTelegram=False)
 
         # Calculate MAE and MFE
-        for position in self.openPositions.copy():
-            pnl = self.getPnL(position)
+        for position in self.getActivePositions():
+            pnl = position.getPnL()
             orderId = position.getEntryOrder().getId()
 
             if pnl < 0:
@@ -223,11 +197,10 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
         if self.state != State.LIVE:
             combinedPremium = 0
-            for openPosition in self.openPositions.copy():
+            for openPosition in self.getActivePositions():
                 instrument = openPosition.getInstrument()
                 ltp = self.getLTP(instrument)
-                jsonData["metrics"][f"{instrument} PnL"] = jsonData["charts"][f"{instrument} PnL"] = self.getPnL(
-                    openPosition)
+                jsonData["metrics"][f"{instrument} PnL"] = jsonData["charts"][f"{instrument} PnL"] = openPosition.getPnL()
                 jsonData["metrics"][f"{instrument} LTP"] = jsonData["charts"][f"{instrument} LTP"] = ltp
                 combinedPremium += ltp
 
@@ -272,37 +245,12 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
                        'messageThreadId': self.telegramMessageThreadId}
             self.telegramBot.sendMessage(message)
 
-    def getPnL(self, position: position):
-        order = position.getEntryOrder()
-        if order is None or not self.haveLTP(order.getInstrument()):
-            return 0
-
-        entryPrice = order.getAvgFillPrice()
-        exitPrice = self.getFeed().getDataSeries(
-            order.getInstrument())[-1].getClose()
-
-        if order.isBuy():
-            return (exitPrice - entryPrice) * order.getExecutionInfo().getQuantity()
-        else:
-            return (entryPrice - exitPrice) * order.getExecutionInfo().getQuantity()
-
     def getOverallPnL(self):
         pnl = 0
-        for openPosition in self.openPositions.copy():
-            pnl += self.getPnL(openPosition)
 
-        for closedPosition in self.closedPositions.copy():
-            entryOrder = closedPosition.getEntryOrder()
-            exitOrder = closedPosition.getExitOrder()
-            entryPrice = entryOrder.getAvgFillPrice()
-            exitPrice = exitOrder.getAvgFillPrice()
+        for pos in self.getActivePositions().copy().union(self.getClosedPositions().copy()):
+            pnl += pos.getPnL()
 
-            if entryOrder.isBuy():
-                pnl += (exitPrice * exitOrder.getQuantity()) - \
-                    (entryPrice * entryOrder.getQuantity())
-            else:
-                pnl += (entryPrice * entryOrder.getQuantity()) - \
-                    (exitPrice * exitOrder.getQuantity())
         return pnl
 
     def getPnLImage(self):
@@ -319,9 +267,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         return fig.to_image(format='png')
 
     def onStart(self):
-        # build open orders from tradeDf
-        #self.buildOrdersFromActiveOrders()
-        pass
+        super().onStart()
 
     def displaySlippage(self, order: Order):
         orderType = order.getType()
@@ -337,8 +283,6 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         action = "Buy" if position.getEntryOrder().isBuy() else "Sell"
         message = f'{"🔴" if action == "Sell" else "🟢"} position opened\n\n🔑 Order ID: {position.getEntryOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getEntryOrder().getInstrument()}\n💰 Entry Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}\n✅ Position successfully initiated!'
         self.log(f"{message}")
-
-        self.openPositions.add(position)
 
         instrument = position.getInstrument()
         # Check if there is an order id already present in trade df for the same instrument
@@ -380,45 +324,22 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
         self.displaySlippage(position.getEntryOrder())
 
-    def getOpenPosition(self, id: int) -> position:
-        for position in self.openPositions.copy():
-            if position.getEntryOrder().getId() == id:
-                return position
-
-        return None
-
     def isPendingOrdersCompleted(self):
-        for position in list(self.getActivePositions()):
-            if position.getEntryOrder() is None or self.getOpenPosition(position.getEntryOrder().getId()) is None:
-                return False
-
-        return True
+        return len(self.getActivePositions()) == 0
 
     def onExitOk(self, position: position.Position):
         execInfo = position.getExitOrder().getExecutionInfo()
         message = f'🔔 Position Exit\n\n🔑 Order ID: {position.getExitOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getInstrument()}\n💰 Exit Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}'
         self.log(f"{message}")
 
-        openPosition = self.getOpenPosition(position.getEntryOrder().getId())
-        if openPosition is None:
-            self.log(
-                f"{execInfo.getDateTime()} - {position.getInstrument()} not found in open positions.")
-            return
-
-        self.openPositions.remove(openPosition)
-        self.closedPositions.add(openPosition)
-
-        entryOrder = openPosition.getEntryOrder()
         entryOrderId = position.getEntryOrder().getId()
 
         # Update the corresponding row in the tradesDf DataFrame with the exit information
-        entryPrice = entryOrder.getAvgFillPrice()
         exitPrice = position.getExitOrder().getAvgFillPrice()
         exitOrderId = position.getExitOrder().getId()
         mae = self.mae.get(entryOrderId, None)
         mfe = self.mfe.get(entryOrderId, None)
-        pnl = ((exitPrice - entryPrice) * entryOrder.getExecutionInfo().getQuantity()
-               ) if entryOrder.isBuy() else ((entryPrice - exitPrice) * entryOrder.getExecutionInfo().getQuantity())
+        pnl = position.getPnL()
 
         filteredDf = self.tradesDf[(self.tradesDf['Instrument'] == position.getInstrument()) & (
             self.tradesDf['Entry Order Id'] == entryOrderId)]
@@ -449,10 +370,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         return self.getFeed().getLastBar(instrument) is not None
 
     def getLTP(self, instrument):
-        lastBar = self.getFeed().getLastBar(instrument)
-        if lastBar:
-            return lastBar.getClose()
-        return 0
+        return self.getLastPrice(instrument)
 
     def getNearestDeltaOption(self, optionType, deltaValue, expiry, underlying=None):
         options = [opt for opt in self.__optionData.values(
@@ -490,16 +408,11 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
     def getOverallDelta(self):
         delta = 0
-        for openPosition in self.openPositions.copy():
+        for openPosition in self.getActivePositions().copy():
             delta += self.__optionData[openPosition.getInstrument()].delta if self.__optionData.get(
                 openPosition.getInstrument(), None) is not None else 0
 
         return delta
-
-    def getUnderlyingPrice(self, underlyingInstrument):
-        if not (underlyingInstrument in self.getFeed().getKeys() and len(self.getFeed().getDataSeries(underlyingInstrument)) > 0):
-            return None
-        return self.getFeed().getDataSeries(underlyingInstrument)[-1].getClose()
 
     def __calculateGreeks(self, bars):
         # Collect all the necessary data into NumPy arrays
@@ -514,8 +427,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             optionContract = self.getBroker().getOptionContract(instrument)
 
             if optionContract is not None:
-                underlyingPrice = self.getUnderlyingPrice(
-                    optionContract.underlying)
+                underlyingPrice = self.getLastPrice(optionContract.underlying)
                 if underlyingPrice is None:
                         return
                 underlyingPrices.append(underlyingPrice)

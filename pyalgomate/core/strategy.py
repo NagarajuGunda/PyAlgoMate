@@ -1,6 +1,5 @@
 import abc
 import logging
-
 import six
 
 import pyalgotrade.broker
@@ -9,9 +8,8 @@ from pyalgotrade import observer
 from pyalgotrade import dispatcher
 import pyalgotrade.strategy.position
 from pyalgotrade import logger
-from pyalgotrade.barfeed import resampled
 from pyalgomate.barfeed import BaseBarFeed
-
+from pyalgomate.core import resampled
 
 @six.add_metaclass(abc.ABCMeta)
 class BaseStrategy(object):
@@ -133,6 +131,15 @@ class BaseStrategy(object):
     def getCurrentDateTime(self):
         """Returns the :class:`datetime.datetime` for the current :class:`pyalgotrade.bar.Bars`."""
         return self.__barFeed.getCurrentDateTime()
+    
+    def isBacktest(self):
+        return self.getBroker().getType().lower() == "backtest"
+    
+    def isPaper(self):
+        return self.getBroker().getType().lower() == "paper"
+    
+    def isLive(self):
+        return self.getBroker().getType().lower() == "live"
 
     def marketOrder(self, instrument, quantity, onClose=False, goodTillCanceled=False, allOrNone=False):
         """Submits a market order.
@@ -492,6 +499,9 @@ class BaseStrategy(object):
         try:
             # 2: Let the strategy process current bars and submit orders.
             self.onBars(bars)
+
+            for resampledBarFeed in self.__resampledBarFeeds:
+                resampledBarFeed.addBars(dateTime, bars)
         except Exception as e:
             self.__logger.exception(f'Exception in __onBars. {e}')
 
@@ -546,9 +556,7 @@ class BaseStrategy(object):
         :param callback: A function similar to onBars that will be called when new bars are available.
         :rtype: :class:`pyalgotrade.barfeed.BaseBarFeed`.
         """
-        ret = resampled.ResampledBarFeed(self.getFeed(), frequency)
-        ret.getNewValuesEvent().subscribe(lambda dt, bars: callback(bars))
-        self.getDispatcher().addSubject(ret)
+        ret = resampled.ResampledBars(self.getFeed(), frequency, callback)
         self.__resampledBarFeeds.append(ret)
         return ret
 

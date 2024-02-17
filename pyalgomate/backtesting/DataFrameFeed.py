@@ -18,7 +18,7 @@ class DataFrameFeed(BaseBarFeed):
 
         super(DataFrameFeed, self).__init__(frequency, maxLen)
 
-        self.__completeDf = completeDf
+        self.__completeDf: pd.DataFrame = completeDf
         self.__df = df
         self.__frequency = frequency
         self.__haveAdjClose = False
@@ -132,4 +132,5 @@ class DataFrameFeed(BaseBarFeed):
             (self.__completeDf['Ticker'] == instrument)
         )
 
-        return self.__completeDf[mask]
+        return self.__completeDf[mask].resample(f'{interval}min', on="Date/Time").agg(
+            {"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}).reset_index().dropna()
