@@ -161,8 +161,7 @@ class LiveTradeFeed(BaseBarFeed):
             try:
                 eventType, eventData = self.__thread.getQueue().get_nowait()
             except queue.Empty:
-                time.sleep(0.01)
-                continue
+                return ret
             else:
                 if eventFilter is not None and eventType not in eventFilter:
                     return False
