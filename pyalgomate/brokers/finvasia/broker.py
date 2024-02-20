@@ -17,9 +17,10 @@ from pyalgotrade.broker import Order
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.brokers import BacktestingBroker, QuantityTraits
 from pyalgomate.strategies import OptionContract
-from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
+from NorenRestApiPy.NorenApi import NorenApi
 from pyalgomate.utils import UnderlyingIndex
 import pyalgomate.utils as utils
+import pyalgomate.brokers.finvasia as finvasia
 
 logger = logging.getLogger(__file__)
 
@@ -130,15 +131,15 @@ def getOptionSymbols(underlyingInstrument, expiry, ltp, count, strikeDifference=
     logger.info("Options symbols are " + ",".join(optionSymbols))
     return optionSymbols
 
-def getHistoricalData(api, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
+def getHistoricalData(api: NorenApi, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame:
     startTime = startTime.replace(hour=0, minute=0, second=0, microsecond=0)
     splitStrings = exchangeSymbol.split('|')
     exchange = splitStrings[0]
 
     logger.info(
         f'Retrieving {interval} timeframe historical data for {exchangeSymbol}')
-    ret = api.get_time_price_series(exchange=exchange, token=getFinvasiaToken(
-        api, exchangeSymbol), starttime=startTime.timestamp(), interval=interval)
+    ret = api.get_time_price_series(exchange=exchange, token=finvasia.getToken(exchangeSymbol),
+                                    starttime=startTime.timestamp(), interval=interval)
     if ret != None:
         df = pd.DataFrame(
             ret)[['time', 'into', 'inth', 'intl', 'intc', 'v', 'oi']]
@@ -379,7 +380,7 @@ class TradeMonitor(threading.Thread):
 
     def __init__(self, liveBroker: LiveBroker):
         super(TradeMonitor, self).__init__()
-        self.__api: ShoonyaApi = liveBroker.getApi()
+        self.__api: NorenApi = liveBroker.getApi()
         self.__broker: LiveBroker = liveBroker
         self.__queue = six.moves.queue.Queue()
         self.__stop = False
@@ -515,7 +516,7 @@ class LiveBroker(broker.Broker):
     """A Finvasia live broker.
     
     :param api: Logged in api object.
-    :type api: ShoonyaApi.
+    :type api: NorenApi.
 
     .. note::
         * Only limit orders are supported.
@@ -608,10 +609,10 @@ class LiveBroker(broker.Broker):
     def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
         return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
 
-    def __init__(self, api: ShoonyaApi, barFeed: BaseBarFeed):
+    def __init__(self, api: NorenApi, barFeed: BaseBarFeed):
         super(LiveBroker, self).__init__()
         self.__stop = False
-        self.__api: ShoonyaApi = api
+        self.__api: NorenApi = api
         self.__barFeed: BaseBarFeed = barFeed
         self.__tradeMonitor = TradeMonitor(self)
         self.__cash = 0

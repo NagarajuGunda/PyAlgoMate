@@ -10,6 +10,29 @@ import pyalgomate.utils as utils
 import inspect
 from pyalgomate.telegram import TelegramBot
 
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+logging.getLogger("flet").setLevel(logging.DEBUG)
+logging.getLogger("flet_core").setLevel(logging.DEBUG)
+
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+fileHandler = logging.FileHandler('PyAlgoMate.log')
+fileHandler.setLevel(logging.INFO)
+fileHandler.setFormatter(formatter)
+
+consoleHandler = logging.StreamHandler()
+consoleHandler.setLevel(logging.INFO)
+consoleHandler.setFormatter(formatter)
+
+logger.addHandler(fileHandler)
+logger.addHandler(consoleHandler)
+
+logging.getLogger("requests").setLevel(logging.WARNING)
+
 # ZeroMQ Context
 context = zmq.Context()
 
@@ -274,86 +297,15 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
         logger.addHandler(syslog)
         logger.setLevel(logging.INFO)
 
+    
+    optionSymbols = []
+
     if broker == 'Finvasia':
-        from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
-        from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker, getFinvasiaToken, getFinvasiaTokenMappings
         import pyalgomate.brokers.finvasia as finvasia
-        from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
+        from pyalgomate.brokers import getBroker
 
-        cred = creds[broker]
-
-        api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
-                         websocket='wss://api.shoonya.com/NorenWSTP/')
-        userToken = None
-        tokenFile = 'shoonyakey.txt'
-        if os.path.exists(tokenFile) and (datetime.datetime.fromtimestamp(os.path.getmtime(tokenFile)).date() == datetime.datetime.today().date()):
-            click.echo(f"Token has been created today already. Re-using it")
-            with open(tokenFile, 'r') as f:
-                userToken = f.read()
-            click.echo(
-                f"userid {cred['user']} password ******** usertoken {userToken}")
-            loginStatus = api.set_session(
-                userid=cred['user'], password=cred['pwd'], usertoken=userToken)
-        else:
-            click.echo(f"Logging in and persisting user token")
-            loginStatus = api.login(userid=cred['user'], password=cred['pwd'], twoFA=pyotp.TOTP(cred['factor2']).now(),
-                                    vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
-
-            if loginStatus:
-                with open(tokenFile, 'w') as f:
-                    f.write(loginStatus.get('susertoken'))
-
-                click.echo(
-                    f"{loginStatus.get('uname')}={loginStatus.get('stat')} token={loginStatus.get('susertoken')}")
-            else:
-                click.echo(f'Login failed!')
-
-        if loginStatus != None:
-            if len(underlyings) == 0:
-                underlyings = ['NSE|NIFTY BANK']
-
-            optionSymbols = []
-
-            for underlying in underlyings:                
-                underlyingToken = getFinvasiaToken(api, underlying)
-                underlyingQuotes = api.get_quotes('NSE', underlyingToken)
-                ltp = underlyingQuotes['lp']
-
-                underlyingDetails = finvasia.broker.getUnderlyingDetails(
-                    underlying)
-                index = underlyingDetails['index']
-                strikeDifference = underlyingDetails['strikeDifference']
-
-                currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-                    datetime.datetime.now().date(), index)
-                nextWeekExpiry = utils.getNextWeeklyExpiryDate(
-                    datetime.datetime.now().date(), index)
-                monthlyExpiry = utils.getNearestMonthlyExpiryDate(
-                    datetime.datetime.now().date(), index)
-
-                if "Weekly" in register_options:
-                    optionSymbols += finvasia.broker.getOptionSymbols(
-                        underlying, currentWeeklyExpiry, ltp, 10, strikeDifference)
-                if "NextWeekly" in register_options:
-                    optionSymbols += finvasia.broker.getOptionSymbols(
-                        underlying, nextWeekExpiry, ltp, 10, strikeDifference)
-                if "Monthly" in register_options:
-                    optionSymbols += finvasia.broker.getOptionSymbols(
-                        underlying, monthlyExpiry, ltp, 10, strikeDifference)
-
-            optionSymbols = list(dict.fromkeys(optionSymbols))
-
-            tokenMappings = getFinvasiaTokenMappings(
-                api, underlyings + optionSymbols)
-
-            barFeed = LiveTradeFeed(api, tokenMappings)
-
-            if mode == 'paper':
-                broker = PaperTradingBroker(200000, barFeed)
-            else:
-                broker = LiveBroker(api)
-        else:
-            exit(1)
+        barFeed, api = finvasia.getFeed(creds[broker], register_options, underlyings)
+        broker = getBroker(barFeed, api, broker, mode)
     elif broker == 'Zerodha':
         from pyalgomate.brokers.zerodha.kiteext import KiteExt
         import pyalgomate.brokers.zerodha as zerodha
@@ -380,8 +332,6 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
 
         if len(underlyings) == 0:
             underlyings = ['NSE:NIFTY BANK']
-
-        optionSymbols = []
 
         for underlying in underlyings:
             ltp = api.quote(underlying)[
@@ -440,13 +390,6 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
 
 
 def CliMain(cls):
-    # Remove all handlers associated with the root logger object.
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-
-    logging.basicConfig(filename=f'{cls.__name__}.log', level=logging.INFO)
-    logging.getLogger("requests").setLevel(logging.WARNING)
-
     try:
         global strategyClass
         strategyClass = cls

@@ -176,7 +176,7 @@ class LiveTradeFeed(BaseBarFeed):
 
         latestDateTime = max(groupedQuoteMessages.keys(), default=None)
         bars = None
-        if latestDateTime is not None:
+        if latestDateTime is not None and self.__lastDateTime != latestDateTime:
             bars = bar.Bars(groupedQuoteMessages[latestDateTime])
             self.__lastDateTime = latestDateTime
         return bars
