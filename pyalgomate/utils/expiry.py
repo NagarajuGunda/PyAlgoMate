@@ -81,6 +81,11 @@ expiryDays = {
             "weekly": pendulum.FRIDAY
         }
     },
+    UnderlyingIndex.BANKEX: {
+        (datetime.date(1900, 1, 1), datetime.date(2100, 1, 1)): {
+            "weekly": pendulum.MONDAY
+        }
+    }
 }
 
 
@@ -207,4 +212,10 @@ if __name__ == '__main__':
           f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}\n"
           f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}\n"
           f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.SENSEX)}")
+    print()
+    print(f"BANKEX\n"
+          f"Nearest Weekly expiry is\t{getNearestWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.BANKEX)}\n"
+          f"Next Weekly expiry is\t\t{getNextWeeklyExpiryDate(pendulum.now().date(), UnderlyingIndex.BANKEX)}\n"
+          f"Nearest Monthly expiry is\t{getNearestMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.BANKEX)}\n"
+          f"Next Month expiry is\t\t{getNextMonthlyExpiryDate(pendulum.now().date(), UnderlyingIndex.BANKEX)}")
     print()

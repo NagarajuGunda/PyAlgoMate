@@ -1,5 +1,6 @@
 cred.yml
 shoonyakey.txt
+finvasia_symbols.csv
 trades*.csv
 trades*.xlsx
 pyalgomate/backtesting/data/test.parquet

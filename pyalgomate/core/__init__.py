@@ -30,6 +30,7 @@ class UnderlyingIndex(IntEnum):
     FINNIFTY = 3
     MIDCAPNIFTY = 4
     SENSEX = 5
+    BANKEX = 6
 
     def __str__(self):
         return self.name

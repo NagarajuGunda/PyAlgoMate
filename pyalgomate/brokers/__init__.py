@@ -177,7 +177,7 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
         return DataFrameFeed(data, filteredData, underlyings=['BANKNIFTY']), None
     elif broker == 'Finvasia':
         from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
-        from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker, getFinvasiaToken, getFinvasiaTokenMappings
+        from pyalgomate.brokers.finvasia.broker import getOptionSymbols
         import pyalgomate.brokers.finvasia as finvasia
         from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
         import pyotp
@@ -215,10 +215,10 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
                 underlyings = ['NSE|NIFTY BANK']
 
             optionSymbols = []
-
+            tokenMappings = finvasia.getTokenMappings()
             for underlying in underlyings:
                 exchange = underlying.split('|')[0]
-                underlyingToken = getFinvasiaToken(api, underlying)
+                underlyingToken = tokenMappings[underlying].split('|')[1]
                 logger.info(
                     f'Token id for <{underlying}> is <{underlyingToken}>')
                 if underlyingToken is None:
@@ -242,25 +242,21 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
                         datetime.datetime.now().date(), index)
 
                     if "Weekly" in registerOptions:
-                        optionSymbols += finvasia.broker.getOptionSymbols(
+                        optionSymbols += getOptionSymbols(
                             underlying, currentWeeklyExpiry, ltp, 20, strikeDifference)
                     if "NextWeekly" in registerOptions:
-                        optionSymbols += finvasia.broker.getOptionSymbols(
+                        optionSymbols += getOptionSymbols(
                             underlying, nextWeekExpiry, ltp, 20, strikeDifference)
                     if "Monthly" in registerOptions:
-                        optionSymbols += finvasia.broker.getOptionSymbols(
+                        optionSymbols += getOptionSymbols(
                             underlying, monthlyExpiry, ltp, 20, strikeDifference)
                 except Exception as e:
                     logger.exception(f'Exception: {e}')
 
             optionSymbols = list(dict.fromkeys(optionSymbols))
 
-            logger.info('Getting token mappings')
-            tokenMappings = getFinvasiaTokenMappings(
-                api, underlyings + optionSymbols)
-
             logger.info('Creating feed object')
-            barFeed = LiveTradeFeed(api, tokenMappings)
+            barFeed = LiveTradeFeed(api, tokenMappings, underlyings + optionSymbols)
         else:
             exit(1)
     elif broker == 'Zerodha':

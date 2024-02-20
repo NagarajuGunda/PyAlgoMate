@@ -24,6 +24,12 @@ import pyalgomate.utils as utils
 logger = logging.getLogger(__file__)
 
 underlyingMapping = {
+    'NSE|MIDCPNIFTY': {
+        'optionPrefix': 'NFO|MIDCPNIFTY',
+        'index': UnderlyingIndex.MIDCAPNIFTY,
+        'lotSize': 75,
+        'strikeDifference': 25
+    },
     'NSE|NIFTY MID SELECT': {
         'optionPrefix': 'NFO|MIDCPNIFTY',
         'index': UnderlyingIndex.MIDCAPNIFTY,
@@ -48,10 +54,28 @@ underlyingMapping = {
         'lotSize': 40,
         'strikeDifference': 50
     },
+    'NSE|FINNIFTY': {
+        'optionPrefix': 'NFO|FINNIFTY',
+        'index': UnderlyingIndex.FINNIFTY,
+        'lotSize': 40,
+        'strikeDifference': 50
+    },
     'BSE|BSE SENSEX': {
         'optionPrefix': 'BFO|SENSEX',
         'index': UnderlyingIndex.SENSEX,
         'lotSize': 10,
+        'strikeDifference': 100
+    },
+    'BSE|SENSEX': {
+        'optionPrefix': 'BFO|SENSEX',
+        'index': UnderlyingIndex.SENSEX,
+        'lotSize': 10,
+        'strikeDifference': 100
+    },
+    'BSE|BANKEX': {
+        'optionPrefix': 'BFO|BANKEX',
+        'index': UnderlyingIndex.BANKEX,
+        'lotSize': 15,
         'strikeDifference': 100
     }
 }
@@ -105,34 +129,6 @@ def getOptionSymbols(underlyingInstrument, expiry, ltp, count, strikeDifference=
 
     logger.info("Options symbols are " + ",".join(optionSymbols))
     return optionSymbols
-
-def getFinvasiaToken(api, exchangeSymbol):
-    splitStrings = exchangeSymbol.split('|')
-    exchange = splitStrings[0]
-    symbol = splitStrings[1]
-    ret = api.searchscrip(exchange=exchange, searchtext=symbol)
-
-    if ret != None:
-        for value in ret['values']:
-            if value['instname'] in ['OPTIDX', 'EQ'] and value['tsym'] == symbol:
-                return value['token']
-            if value['instname'] == 'UNDIND' and value['cname'] == symbol:
-                return value['token']
-            if value['instname'] in ['FUTIDX', 'EQ'] and value['dname'] == symbol:
-                return value['token']
-
-    return None
-
-
-def getFinvasiaTokenMappings(api, exchangeSymbols):
-    tokenMappings = {}
-
-    for exchangeSymbol in exchangeSymbols:
-        tokenMappings["{0}|{1}".format(exchangeSymbol.split(
-            '|')[0], getFinvasiaToken(api, exchangeSymbol))] = exchangeSymbol
-
-    return tokenMappings
-
 
 def getHistoricalData(api, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
     startTime = startTime.replace(hour=0, minute=0, second=0, microsecond=0)
