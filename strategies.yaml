@@ -1,22 +1,23 @@
 Broker: Finvasia
-Streamlit:
-  Port: 5680
+Underlyings:
+  - NSE|NIFTY BANK
+  - NSE|NIFTY INDEX
+  - NSE|FINNIFTY
+  - NSE|MIDCPNIFTY
+  - BSE|SENSEX
+  - BSE|BANKEX
 
 Strategies:
-  Strategy1:
-    Class: BreakoutV1
-    Path: pyalgomate/strategies/BreakoutV1.py
-    Mode: paper
+  SuperTrend1:
+    Class: SuperTrendV1
+    Path: pyalgomate/strategies/SuperTrendV1.py
+    Mode: live
     Args:
       - underlying: NSE|NIFTY BANK
-      - lotSize: 15
-      - collectData: True
 
-  Strategy2:
-    Class: ATMStraddleV1
-    Path: pyalgomate/strategies/ATMStraddleV1.py
+  SuperTrendV2:
+    Class: SuperTrendV1
+    Path: pyalgomate/strategies/SuperTrendV1.py
     Mode: paper
     Args:
-      - underlying: NSE|NIFTY BANK
-      - lotSize: 15
-      - collectData: True
+      - underlying: BSE|BANKEX

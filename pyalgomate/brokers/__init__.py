@@ -6,6 +6,7 @@ import datetime
 import re
 import pandas as pd
 import logging
+import pyotp
 
 from pyalgotrade import broker
 from pyalgotrade.broker import fillstrategy
@@ -176,93 +177,8 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
         filteredData = data.query("'2023-08-22' <= `Date/Time` <= '2023-08-25'")
         return DataFrameFeed(data, filteredData, underlyings=['BANKNIFTY']), None
     elif broker == 'Finvasia':
-        from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
-        from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker, getFinvasiaToken, getFinvasiaTokenMappings
         import pyalgomate.brokers.finvasia as finvasia
-        from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
-        import pyotp
-
-        cred = creds[broker]
-
-        api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
-                         websocket='wss://api.shoonya.com/NorenWSTP/')
-        userToken = None
-        tokenFile = 'shoonyakey.txt'
-        if os.path.exists(tokenFile) and (datetime.datetime.fromtimestamp(os.path.getmtime(tokenFile)).date() == datetime.datetime.today().date()):
-            logger.info(f"Token has been created today already. Re-using it")
-            with open(tokenFile, 'r') as f:
-                userToken = f.read()
-            logger.info(
-                f"userid {cred['user']} password ******** usertoken {userToken}")
-            loginStatus = api.set_session(
-                userid=cred['user'], password=cred['pwd'], usertoken=userToken)
-        else:
-            logger.info(f"Logging in and persisting user token")
-            loginStatus = api.login(userid=cred['user'], password=cred['pwd'], twoFA=pyotp.TOTP(cred['factor2']).now(),
-                                    vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
-
-            if loginStatus:
-                with open(tokenFile, 'w') as f:
-                    f.write(loginStatus.get('susertoken'))
-
-                logger.info(
-                    f"{loginStatus.get('uname')}={loginStatus.get('stat')} token={loginStatus.get('susertoken')}")
-            else:
-                logger.info(f'Login failed!')
-
-        if loginStatus != None:
-            if len(underlyings) == 0:
-                underlyings = ['NSE|NIFTY BANK']
-
-            optionSymbols = []
-
-            for underlying in underlyings:
-                exchange = underlying.split('|')[0]
-                underlyingToken = getFinvasiaToken(api, underlying)
-                logger.info(
-                    f'Token id for <{underlying}> is <{underlyingToken}>')
-                if underlyingToken is None:
-                    logger.error(
-                        f'Error getting token id for {underlyingToken}')
-                    exit(1)
-                underlyingQuotes = api.get_quotes(exchange, underlyingToken)
-                ltp = underlyingQuotes['lp']
-
-                try:
-                    underlyingDetails = finvasia.broker.getUnderlyingDetails(
-                        underlying)
-                    index = underlyingDetails['index']
-                    strikeDifference = underlyingDetails['strikeDifference']
-
-                    currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-                        datetime.datetime.now().date(), index)
-                    nextWeekExpiry = utils.getNextWeeklyExpiryDate(
-                        datetime.datetime.now().date(), index)
-                    monthlyExpiry = utils.getNearestMonthlyExpiryDate(
-                        datetime.datetime.now().date(), index)
-
-                    if "Weekly" in registerOptions:
-                        optionSymbols += finvasia.broker.getOptionSymbols(
-                            underlying, currentWeeklyExpiry, ltp, 20, strikeDifference)
-                    if "NextWeekly" in registerOptions:
-                        optionSymbols += finvasia.broker.getOptionSymbols(
-                            underlying, nextWeekExpiry, ltp, 20, strikeDifference)
-                    if "Monthly" in registerOptions:
-                        optionSymbols += finvasia.broker.getOptionSymbols(
-                            underlying, monthlyExpiry, ltp, 20, strikeDifference)
-                except Exception as e:
-                    logger.exception(f'Exception: {e}')
-
-            optionSymbols = list(dict.fromkeys(optionSymbols))
-
-            logger.info('Getting token mappings')
-            tokenMappings = getFinvasiaTokenMappings(
-                api, underlyings + optionSymbols)
-
-            logger.info('Creating feed object')
-            barFeed = LiveTradeFeed(api, tokenMappings)
-        else:
-            exit(1)
+        return finvasia.getFeed(creds[broker], registerOptions, underlyings)
     elif broker == 'Zerodha':
         from pyalgomate.brokers.zerodha.kiteext import KiteExt
         import pyalgomate.brokers.zerodha as zerodha

@@ -11,6 +11,7 @@ from pyalgotrade import bar
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.barfeed.BasicBarEx import BasicBarEx
 from pyalgomate.brokers.finvasia import wsclient
+from NorenRestApiPy.NorenApi import NorenApi
 
 logger = logging.getLogger(__name__)
 
@@ -112,14 +113,15 @@ class LiveTradeFeed(BaseBarFeed):
         Note that a Bar will be created for every trade, so open, high, low and close values will all be the same.
     """
 
-    def __init__(self, api, tokenMappings, timeout=10, maxLen=None):
+    def __init__(self, api: NorenApi, tokenMappings: dict, instruments: list, timeout=10, maxLen=None):
         super(LiveTradeFeed, self).__init__(bar.Frequency.TRADE, maxLen)
-        self.__channels = tokenMappings
-        self.__reverseTokenMappings = {value: key for key, value in tokenMappings.items()}
+        self.__instruments = instruments
+        self.__instrumentToTokenIdMapping = {instrument: tokenMappings[instrument] for instrument in self.__instruments if instrument in tokenMappings}
+        self.__channels = {value: key for key, value in self.__instrumentToTokenIdMapping.items()}
         self.__api = api
         self.__timeout = timeout
 
-        for key, value in tokenMappings.items():
+        for key, value in self.__instrumentToTokenIdMapping.items():
             self.registerDataSeries(value)
 
         self.__thread = None
@@ -160,7 +162,7 @@ class LiveTradeFeed(BaseBarFeed):
         return False
 
     def getLastBar(self, instrument) -> bar.Bar:
-        lastBarQuote = self.__thread.getQuotes().get(self.__reverseTokenMappings[instrument], None)
+        lastBarQuote = self.__thread.getQuotes().get(self.__instrumentToTokenIdMapping[instrument], None)
         if lastBarQuote:
             return QuoteMessage(lastBarQuote, self.__channels).getBar()
         return None
@@ -174,10 +176,9 @@ class LiveTradeFeed(BaseBarFeed):
 
         latestDateTime = max(groupedQuoteMessages.keys(), default=None)
         bars = None
-        if latestDateTime is not None:
+        if latestDateTime is not None and self.__lastDateTime != latestDateTime:
             bars = bar.Bars(groupedQuoteMessages[latestDateTime])
-            if self.__lastDateTime is None:
-                self.__lastDateTime = latestDateTime
+            self.__lastDateTime = latestDateTime
         return bars
 
     def peekDateTime(self):
