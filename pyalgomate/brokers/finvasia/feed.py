@@ -173,8 +173,11 @@ class LiveTradeFeed(BaseBarFeed):
             groupedQuoteMessages[quoteBar.getDateTime()][quoteBar.getInstrument()] = quoteBar
 
         latestDateTime = max(groupedQuoteMessages.keys(), default=None)
-        bars = bar.Bars(groupedQuoteMessages[latestDateTime]) if latestDateTime is not None and latestDateTime > self.__lastDateTime else None
-        self.__lastDateTime = latestDateTime
+        bars = None
+        if latestDateTime is not None:
+            bars = bar.Bars(groupedQuoteMessages[latestDateTime])
+            if self.__lastDateTime is None:
+                self.__lastDateTime = latestDateTime
         return bars
 
     def peekDateTime(self):
