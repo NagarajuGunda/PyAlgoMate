@@ -79,7 +79,7 @@ class WebSocketClient:
 
     def onQuoteUpdate(self, message):
         key = message['e'] + '|' + message['tk']
-        message['ct'] = datetime.datetime.now().replace(microsecond=0)
+        message['ct'] = datetime.datetime.now()
 
         if key in self.__quotes:
             symbolInfo =  self.__quotes[key]

@@ -60,8 +60,8 @@ class QuoteMessage(object):
 
     @property
     def dateTime(self):
-        #return datetime.datetime.fromtimestamp(int(self.__eventDict['ft']))
-        return self.__eventDict["ct"]
+        return datetime.datetime.fromtimestamp(int(self.__eventDict['ft']))
+        #return self.__eventDict["ct"]
 
     @property
     def price(self): return float(self.__eventDict.get('lp', 0))
@@ -173,7 +173,7 @@ class LiveTradeFeed(BaseBarFeed):
             groupedQuoteMessages[quoteBar.getDateTime()][quoteBar.getInstrument()] = quoteBar
 
         latestDateTime = max(groupedQuoteMessages.keys(), default=None)
-        bars = bar.Bars(groupedQuoteMessages[latestDateTime]) if latestDateTime is not None and self.__lastDateTime != latestDateTime else None
+        bars = bar.Bars(groupedQuoteMessages[latestDateTime]) if latestDateTime is not None and latestDateTime > self.__lastDateTime else None
         self.__lastDateTime = latestDateTime
         return bars
 
