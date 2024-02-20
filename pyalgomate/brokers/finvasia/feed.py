@@ -4,80 +4,97 @@
 
 import datetime
 import logging
-import six
-import time
 import queue
 
-import abc
-
-from pyalgotrade.dataseries import bards
-from pyalgotrade import feed
-from pyalgotrade import dispatchprio
-
+from collections import defaultdict
 from pyalgotrade import bar
 from pyalgomate.barfeed import BaseBarFeed
-from pyalgotrade import observer
+from pyalgomate.barfeed.BasicBarEx import BasicBarEx
 from pyalgomate.brokers.finvasia import wsclient
 
 logger = logging.getLogger(__name__)
 
 
-class TradeBar(bar.Bar):
-    def __init__(self, trade):
-        self.__dateTime = trade.getDateTime()
-        self.__trade = trade
+class QuoteMessage(object):
+    # t	tk	‘tk’ represents touchline acknowledgement
+    # e	NSE, BSE, NFO ..	Exchange name
+    # tk	22	Scrip Token
+    # pp	2 for NSE, BSE & 4 for CDS USDINR	Price precision
+    # ts		Trading Symbol
+    # ti		Tick size
+    # ls		Lot size
+    # lp		LTP
+    # pc		Percentage change
+    # v		volume
+    # o		Open price
+    # h		High price
+    # l		Low price
+    # c		Close price
+    # ap		Average trade price
+    # oi		Open interest
+    # poi		Previous day closing Open Interest
+    # toi		Total open interest for underlying
+    # bq1		Best Buy Quantity 1
+    # bp1		Best Buy Price 1
+    # sq1		Best Sell Quantity 1
+    # sp1		Best Sell Price 1
 
-    def getInstrument(self):
-        return self.__trade.getExtraColumns().get("instrument")
+    def __init__(self, eventDict, tokenMappings):
+        self.__eventDict = eventDict
+        self.__tokenMappings = tokenMappings
 
-    def setUseAdjustedValue(self, useAdjusted):
-        if useAdjusted:
-            raise Exception("Adjusted close is not available")
+    def __str__(self):
+        return f'{self.__eventDict}'
 
-    def getTrade(self):
-        return self.__trade
+    @property
+    def field(self):
+        return self.__eventDict["t"]
 
-    def getTradeId(self):
-        return self.__trade.getId()
+    @property
+    def exchange(self):
+        return self.__eventDict["e"]
 
-    def getFrequency(self):
-        return bar.Frequency.TRADE
+    @property
+    def scriptToken(self):
+        return self.__eventDict["tk"]
 
-    def getDateTime(self):
-        return self.__dateTime
+    @property
+    def dateTime(self):
+        return datetime.datetime.fromtimestamp(int(self.__eventDict['ft']))
+        #return self.__eventDict["ct"]
 
-    def getOpen(self, adjusted=False):
-        return self.__trade.getPrice()
+    @property
+    def price(self): return float(self.__eventDict.get('lp', 0))
 
-    def getHigh(self, adjusted=False):
-        return self.__trade.getPrice()
+    @property
+    def volume(self): return float(self.__eventDict.get('v', 0))
 
-    def getLow(self, adjusted=False):
-        return self.__trade.getPrice()
+    @property
+    def openInterest(self): return float(self.__eventDict.get('oi', 0))
 
-    def getClose(self, adjusted=False):
-        return self.__trade.getPrice()
+    @property
+    def seq(self): return int(self.dateTime)
 
-    def getVolume(self):
-        return self.__trade.getAmount()
+    @property
+    def instrument(self): return f"{self.exchange}|{self.__tokenMappings[f'{self.exchange}|{self.scriptToken}'].split('|')[1]}"
 
-    def getAdjClose(self):
-        return None
+    def getBar(self) -> BasicBarEx:
+        open = high = low = close = self.price
 
-    def getTypicalPrice(self):
-        return self.__trade.getPrice()
-
-    def getPrice(self):
-        return self.__trade.getPrice()
-
-    def getUseAdjValue(self):
-        return False
-
-    def isBuy(self):
-        return self.__trade.isBuy()
-
-    def isSell(self):
-        return not self.__trade.isBuy()
+        return BasicBarEx(self.dateTime,                
+                    open,
+                    high,
+                    low,
+                    close,
+                    self.volume,
+                    None,
+                    bar.Frequency.TRADE,
+                    {
+                        "Instrument": self.instrument,
+                        "Open Interest": self.openInterest,
+                        "Message": self.__eventDict
+                    }
+                )
 
 class LiveTradeFeed(BaseBarFeed):
 
@@ -95,12 +112,10 @@ class LiveTradeFeed(BaseBarFeed):
         Note that a Bar will be created for every trade, so open, high, low and close values will all be the same.
     """
 
-    QUEUE_TIMEOUT = 0.01
-
     def __init__(self, api, tokenMappings, timeout=10, maxLen=None):
         super(LiveTradeFeed, self).__init__(bar.Frequency.TRADE, maxLen)
-        self.__tradeBars = queue.Queue(1000)
         self.__channels = tokenMappings
+        self.__reverseTokenMappings = {value: key for key, value in tokenMappings.items()}
         self.__api = api
         self.__timeout = timeout
 
@@ -108,9 +123,7 @@ class LiveTradeFeed(BaseBarFeed):
             self.registerDataSeries(value)
 
         self.__thread = None
-        self.__enableReconnection = True
         self.__stopped = False
-        self.__orderBookUpdateEvent = observer.Event()
         self.__lastDateTime = None
 
     def getApi(self):
@@ -122,9 +135,6 @@ class LiveTradeFeed(BaseBarFeed):
 
     def getCurrentDateTime(self):
         return datetime.datetime.now()
-
-    def enableReconection(self, enableReconnection):
-        self.__enableReconnection = enableReconnection
 
     def __initializeClient(self):
         logger.info("Initializing websocket client")
@@ -146,62 +156,26 @@ class LiveTradeFeed(BaseBarFeed):
             logger.error("Initialization failed")
         return initialized
 
-    def __onDisconnected(self):
-        if self.__enableReconnection:
-            logger.info("Reconnecting")
-            while not self.__stopped and not self.__initializeClient():
-                pass
-        elif not self.__stopped:
-            logger.info("Stopping")
-            self.__stopped = True
-
-    def __dispatchImpl(self, eventFilter):
-        ret = False
-        while True:
-            try:
-                eventType, eventData = self.__thread.getQueue().get_nowait()
-            except queue.Empty:
-                return ret
-            else:
-                if eventFilter is not None and eventType not in eventFilter:
-                    return False
-
-                ret = True
-                if eventType == wsclient.WebSocketClient.Event.TRADE:
-                    self.__onTrade(eventData)
-                elif eventType == wsclient.WebSocketClient.Event.ORDER_BOOK_UPDATE:
-                    self.__orderBookUpdateEvent.emit(eventData)
-                elif eventType == wsclient.WebSocketClient.Event.DISCONNECTED:
-                    self.__onDisconnected()
-                else:
-                    ret = False
-                    logger.error(
-                        "Invalid event received to dispatch: %s - %s" % (eventType, eventData))
-                return ret
-
-    def __onTrade(self, trade):
-        while True:
-            try:
-                self.__tradeBars.put_nowait(
-                    {trade.getExtraColumns().get("Instrument"): trade})
-            except queue.Full as e:
-                time.sleep(0.01)
-                continue
-            else:
-                return
-
     def barsHaveAdjClose(self):
         return False
 
+    def getLastBar(self, instrument) -> bar.Bar:
+        lastBarQuote = self.__thread.getQuotes().get(self.__reverseTokenMappings[instrument], None)
+        if lastBarQuote:
+            return QuoteMessage(lastBarQuote, self.__channels).getBar()
+        return None
+
     def getNextBars(self):
-        try:
-            tradeBars = self.__tradeBars.get_nowait()
-        except queue.Empty:
-             return None
-        else:
-            bars = bar.Bars(tradeBars)
-            self.__lastDateTime = bars.getDateTime()
-            return bars
+        groupedQuoteMessages = defaultdict(dict)
+        for lastBar in self.__thread.getQuotes().copy().values():
+            quoteBar = QuoteMessage(lastBar, self.__channels).getBar()
+
+            groupedQuoteMessages[quoteBar.getDateTime()][quoteBar.getInstrument()] = quoteBar
+
+        latestDateTime = max(groupedQuoteMessages.keys(), default=None)
+        bars = bar.Bars(groupedQuoteMessages[latestDateTime]) if latestDateTime is not None and latestDateTime > self.__lastDateTime else None
+        self.__lastDateTime = latestDateTime
+        return bars
 
     def peekDateTime(self):
         # Return None since this is a realtime subject.
@@ -222,8 +196,6 @@ class LiveTradeFeed(BaseBarFeed):
         # Note that we may return True even if we didn't dispatch any Bar
         # event.
         ret = False
-        if self.__dispatchImpl(None):
-            ret = True
         if super(LiveTradeFeed, self).dispatch():
             ret = True
         return ret
@@ -249,7 +221,7 @@ class LiveTradeFeed(BaseBarFeed):
 
         :rtype: :class:`pyalgotrade.observer.Event`.
         """
-        return self.__orderBookUpdateEvent
+        return None
 
     def getLastUpdatedDateTime(self):
         return self.__lastDateTime
