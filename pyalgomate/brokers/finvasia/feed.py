@@ -60,8 +60,8 @@ class QuoteMessage(object):
 
     @property
     def dateTime(self):
-        #return datetime.datetime.fromtimestamp(int(self.__eventDict['ft']))
-        return self.__eventDict["ct"]
+        return datetime.datetime.fromtimestamp(int(self.__eventDict['ft']))
+        #return self.__eventDict["ct"]
 
     @property
     def price(self): return float(self.__eventDict.get('lp', 0))
@@ -173,7 +173,7 @@ class LiveTradeFeed(BaseBarFeed):
             groupedQuoteMessages[quoteBar.getDateTime()][quoteBar.getInstrument()] = quoteBar
 
         latestDateTime = max(groupedQuoteMessages.keys(), default=None)
-        bars = bar.Bars(groupedQuoteMessages[latestDateTime]) if latestDateTime is not None and self.__lastDateTime != latestDateTime else None
+        bars = bar.Bars(groupedQuoteMessages[latestDateTime]) if latestDateTime is not None and latestDateTime > self.__lastDateTime else None
         self.__lastDateTime = latestDateTime
         return bars
 
@@ -224,13 +224,12 @@ class LiveTradeFeed(BaseBarFeed):
         return None
 
     def getLastUpdatedDateTime(self):
-        return max((QuoteMessage(lastBar, self.__channels).dateTime for lastBar in self.__thread.getQuotes().copy().values()), default=None)
+        return self.__lastDateTime
 
     def isDataFeedAlive(self, heartBeatInterval=5):
-        lastUpdatedDateTime = self.getLastUpdatedDateTime()
-        if lastUpdatedDateTime is None:
+        if self.__lastDateTime is None:
             return False
 
         currentDateTime = datetime.datetime.now()
-        timeSinceLastDateTime = currentDateTime - lastUpdatedDateTime
+        timeSinceLastDateTime = currentDateTime - self.__lastDateTime
         return timeSinceLastDateTime.total_seconds() <= heartBeatInterval
