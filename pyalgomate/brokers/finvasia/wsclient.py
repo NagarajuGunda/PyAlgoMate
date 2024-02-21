@@ -15,6 +15,8 @@ class WebSocketClient:
     def __init__(self, quotes, api, tokenMappings):
         assert len(tokenMappings), "Missing subscriptions"
         self.__quotes = quotes
+        self.lastQuoteDateTime = None
+        self.lastReceivedDateTime = None
         self.__api: NorenApi = api
         self.__tokenMappings = tokenMappings
         self.__pending_subscriptions = list()
@@ -79,7 +81,10 @@ class WebSocketClient:
 
     def onQuoteUpdate(self, message):
         key = message['e'] + '|' + message['tk']
-        message['ct'] = datetime.datetime.now()
+        self.lastReceivedDateTime = datetime.datetime.now()
+        message['ct'] = self.lastReceivedDateTime
+        self.lastQuoteDateTime = datetime.datetime.fromtimestamp(int(message['ft'])) if 'ft' in message else self.lastReceivedDateTime.replace(microsecond=0)
+        message['ft'] = self.lastQuoteDateTime
 
         if key in self.__quotes:
             symbolInfo =  self.__quotes[key]
@@ -94,7 +99,7 @@ class WebSocketClient:
 
 class WebSocketClientThreadBase(threading.Thread):
     def __init__(self, wsCls, *args, **kwargs):
-        super(WebSocketClientThreadBase, self).__init__()
+        super(WebSocketClientThreadBase, self).__init__(name='WebSocketClientThread')
         self.__quotes = dict()
         self.__wsClient = None
         self.__wsCls = wsCls
@@ -103,6 +108,12 @@ class WebSocketClientThreadBase(threading.Thread):
 
     def getQuotes(self):
         return self.__quotes
+    
+    def getLastQuoteDateTime(self):
+        return self.__wsClient.lastQuoteDateTime
+        
+    def getLastReceivedDateTime(self):
+        return self.__wsClient.lastReceivedDateTime
 
     def waitInitialized(self, timeout):
         return self.__wsClient is not None and self.__wsClient.waitInitialized(timeout)

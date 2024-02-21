@@ -61,7 +61,7 @@ class QuoteMessage(object):
 
     @property
     def dateTime(self):
-        return datetime.datetime.fromtimestamp(int(self.__eventDict['ft'])) if 'ft' in self.__eventDict else self.__eventDict["ct"].replace(microsecond=0)
+        return self.__eventDict["ft"]
         #return self.__eventDict["ct"]
 
     @property
@@ -126,7 +126,8 @@ class LiveTradeFeed(BaseBarFeed):
 
         self.__thread = None
         self.__stopped = False
-        self.__lastDateTime = None
+        self.__nextBarsTime = None
+        self.__lastUpdateTime = None
 
     def getApi(self):
         return self.__api
@@ -163,22 +164,26 @@ class LiveTradeFeed(BaseBarFeed):
 
     def getLastBar(self, instrument) -> bar.Bar:
         lastBarQuote = self.__thread.getQuotes().get(self.__instrumentToTokenIdMapping[instrument], None)
-        if lastBarQuote:
+        if lastBarQuote is not None:
             return QuoteMessage(lastBarQuote, self.__channels).getBar()
         return None
 
     def getNextBars(self):
-        groupedQuoteMessages = defaultdict(dict)
-        for lastBar in self.__thread.getQuotes().copy().values():
-            quoteBar = QuoteMessage(lastBar, self.__channels).getBar()
+        def getBar(lastBar):
+            bar = QuoteMessage(lastBar, self.__channels).getBar()
+            return bar.getInstrument(), bar
 
-            groupedQuoteMessages[quoteBar.getDateTime()][quoteBar.getInstrument()] = quoteBar
-
-        latestDateTime = max(groupedQuoteMessages.keys(), default=None)
         bars = None
-        if latestDateTime is not None and self.__lastDateTime != latestDateTime:
-            bars = bar.Bars(groupedQuoteMessages[latestDateTime])
-            self.__lastDateTime = latestDateTime
+        lastQuoteDateTime = self.__thread.getLastQuoteDateTime()
+        if self.__lastUpdateTime != lastQuoteDateTime:
+            bars = bar.Bars({
+                instrument: bar
+                for lastBar in self.__thread.getQuotes().values()
+                if lastQuoteDateTime == lastBar.get('ft')
+                for instrument, bar in [getBar(lastBar)]
+            })
+            self.__nextBarsTime = datetime.datetime.now()
+            self.__lastUpdateTime = lastQuoteDateTime
         return bars
 
     def peekDateTime(self):
@@ -228,12 +233,18 @@ class LiveTradeFeed(BaseBarFeed):
         return None
 
     def getLastUpdatedDateTime(self):
-        return self.__lastDateTime
+        return self.__thread.getLastQuoteDateTime()
 
+    def getLastReceivedDateTime(self):
+        return self.__thread.getLastReceivedDateTime()
+    
+    def getNextBarsDateTime(self):
+        return self.__nextBarsTime
+    
     def isDataFeedAlive(self, heartBeatInterval=5):
-        if self.__lastDateTime is None:
+        if self.__lastUpdateTime is None:
             return False
 
         currentDateTime = datetime.datetime.now()
-        timeSinceLastDateTime = currentDateTime - self.__lastDateTime
+        timeSinceLastDateTime = currentDateTime - self.__lastUpdateTime
         return timeSinceLastDateTime.total_seconds() <= heartBeatInterval

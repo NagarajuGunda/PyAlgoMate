@@ -261,7 +261,7 @@ class StrategiesContainer(ft.Container):
 
         self.feedIcon = ft.Icon(name=ft.icons.CIRCLE_ROUNDED)
         self.feedText = ft.Text(
-            'Last Updated Timestamp: ', size=10, italic=True)
+            'Timestamps', size=10, italic=True)
         feedRow = ft.Container(
             ft.Container(
                 ft.Column(
@@ -274,7 +274,7 @@ class StrategiesContainer(ft.Container):
                     ],
                 ),
                 padding=ft.padding.all(20),
-                width=250,
+                width=300,
                 bgcolor='white54',
                 border_radius=10,
             ),
@@ -320,7 +320,7 @@ class StrategiesContainer(ft.Container):
         self.totalMtm.value = f'₹ {totalMtm:.2f}'
         self.totalMtm.color = "green" if totalMtm >= 0 else "red"
         self.feedIcon.color = "green" if self.feed.isDataFeedAlive() else "red"
-        self.feedText.value = f'Last Updated Timestamp: {self.feed.getLastUpdatedDateTime()}'
+        self.feedText.value = f'Quote       : {self.feed.getLastUpdatedDateTime()}\nReceived  : {self.feed.getLastReceivedDateTime()}\nBars        : {self.feed.getNextBarsDateTime()}'
         self.update()
 
 
