@@ -61,7 +61,7 @@ class QuoteMessage(object):
 
     @property
     def dateTime(self):
-        return datetime.datetime.fromtimestamp(int(self.__eventDict['ft']))
+        return datetime.datetime.fromtimestamp(int(self.__eventDict['ft'])) if 'ft' in self.__eventDict else self.__eventDict["ct"].replace(microsecond=0)
         #return self.__eventDict["ct"]
 
     @property
@@ -122,7 +122,7 @@ class LiveTradeFeed(BaseBarFeed):
         self.__timeout = timeout
 
         for key, value in self.__instrumentToTokenIdMapping.items():
-            self.registerDataSeries(value)
+            self.registerDataSeries(key)
 
         self.__thread = None
         self.__stopped = False
