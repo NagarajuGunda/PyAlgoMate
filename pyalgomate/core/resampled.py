@@ -122,8 +122,7 @@ class ResampledBars():
             self.__callback(self.__values.pop(0))
 
     def checkNow(self, dateTime):
-        nextDateTime = dateTime + datetime.timedelta(seconds=1)
-        if (self.__grouper is not None) and (self.__range is not None) and (not self.__range.belongs(nextDateTime)):
+        if (self.__grouper is not None) and (self.__range is not None) and (not self.__range.belongs(dateTime)):
             self.__values.append(self.__grouper.getGrouped())
             self.__grouper = None
             self.__range = None
