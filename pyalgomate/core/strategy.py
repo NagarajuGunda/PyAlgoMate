@@ -473,7 +473,7 @@ class BaseStrategy(object):
         # Force a resample check to avoid depending solely on the underlying
         # barfeed events.
         for resampledBarFeed in self.__resampledBarFeeds:
-            resampledBarFeed.checkNow(self.getCurrentDateTime())
+            resampledBarFeed.checkNow(self.getFeed().getLastUpdatedDateTime())
 
         self.onIdle()
 

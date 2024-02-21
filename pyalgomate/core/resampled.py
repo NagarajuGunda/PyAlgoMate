@@ -113,7 +113,7 @@ class ResampledBars():
         nextDateTime = dateTime + datetime.timedelta(
             seconds=barFeedFrequency if barFeedFrequency is not None and barFeedFrequency > 0 else 0)
 
-        if self.__grouper is not None and self.__range is not None and not self.__range.belongs(nextDateTime):
+        if (self.__grouper is not None) and (self.__range is not None) and (not self.__range.belongs(nextDateTime)):
             self.__values.append(self.__grouper.getGrouped())
             self.__grouper = None
             self.__range = None
@@ -122,7 +122,8 @@ class ResampledBars():
             self.__callback(self.__values.pop(0))
 
     def checkNow(self, dateTime):
-        if self.__grouper is not None and self.__range is not None and not self.__range.belongs(dateTime):
+        nextDateTime = dateTime + datetime.timedelta(seconds=1)
+        if (self.__grouper is not None) and (self.__range is not None) and (not self.__range.belongs(nextDateTime)):
             self.__values.append(self.__grouper.getGrouped())
             self.__grouper = None
             self.__range = None
