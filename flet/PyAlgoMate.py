@@ -1,10 +1,11 @@
 import os
 import yaml
 import logging
-import threading
 import traceback
 import socket
 import time
+import multiprocessing
+
 from logging.handlers import SysLogHandler
 from importlib import import_module
 
@@ -138,7 +139,7 @@ feed, strategies = GetFeedNStrategies(creds)
 threads = []
 
 for strategyObject in strategies:
-    thread = threading.Thread(target=threadTarget, args=(strategyObject,))
+    thread = multiprocessing.Process(target=threadTarget, args=(strategyObject,))
     thread.daemon = True
     thread.start()
     threads.append(thread)
