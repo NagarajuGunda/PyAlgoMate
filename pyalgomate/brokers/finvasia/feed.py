@@ -4,9 +4,7 @@
 
 import datetime
 import logging
-import queue
 
-from collections import defaultdict
 from pyalgotrade import bar
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.barfeed.BasicBarEx import BasicBarEx

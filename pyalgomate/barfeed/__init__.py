@@ -132,9 +132,14 @@ class BaseBarFeed(feed.BaseFeed):
     def getDispatchPriority(self):
         return dispatchprio.BAR_FEED
 
-    @abc.abstractmethod    
     def getLastUpdatedDateTime(self):
-        raise NotImplementedError()
+        raise None
+
+    def getLastReceivedDateTime(self):
+        return None
+    
+    def getNextBarsDateTime(self):
+        return None
 
     def isDataFeedAlive(self, heartBeatInterval):
         return False
