@@ -8,7 +8,7 @@ import logging
 from pyalgotrade import bar
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.barfeed.BasicBarEx import BasicBarEx
-from pyalgomate.brokers.finvasia import wsclient
+from pyalgomate.brokers.finvasia.wsclient import WebSocketClient
 from NorenRestApiPy.NorenApi import NorenApi
 
 logger = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ class LiveTradeFeed(BaseBarFeed):
         for key, value in self.__instrumentToTokenIdMapping.items():
             self.registerDataSeries(key)
 
-        self.__thread = None
+        self.__wsClient: WebSocketClient = None
         self.__stopped = False
         self.__nextBarsTime = None
         self.__lastUpdateTime = None
@@ -130,26 +130,15 @@ class LiveTradeFeed(BaseBarFeed):
     def getApi(self):
         return self.__api
 
-    # Factory method for testing purposes.
-    def buildWebSocketClientThread(self):
-        return wsclient.WebSocketClientThread(self.__api, self.__channels)
-
     def getCurrentDateTime(self):
         return datetime.datetime.now()
 
     def __initializeClient(self):
         logger.info("Initializing websocket client")
-        initialized = False
-        try:
-            # Start the thread that runs the client.
-            self.__thread = self.buildWebSocketClientThread()
-            self.__thread.start()
-        except Exception as e:
-            logger.error("Error connecting : %s" % str(e))
-
+        self.__wsClient = WebSocketClient(self.__api, self.__channels)
+        self.__wsClient.startClient()
         logger.info("Waiting for websocket initialization to complete")
-        while not initialized and not self.__stopped:
-            initialized = self.__thread.waitInitialized(self.__timeout)
+        initialized = self.__wsClient.waitInitialized(self.__timeout)
 
         if initialized:
             logger.info("Initialization completed")
@@ -161,7 +150,7 @@ class LiveTradeFeed(BaseBarFeed):
         return False
 
     def getLastBar(self, instrument) -> bar.Bar:
-        lastBarQuote = self.__thread.getQuotes().get(self.__instrumentToTokenIdMapping[instrument], None)
+        lastBarQuote = self.__wsClient.getQuotes().get(self.__instrumentToTokenIdMapping[instrument], None)
         if lastBarQuote is not None:
             return QuoteMessage(lastBarQuote, self.__channels).getBar()
         return None
@@ -172,11 +161,11 @@ class LiveTradeFeed(BaseBarFeed):
             return bar.getInstrument(), bar
 
         bars = None
-        lastQuoteDateTime = self.__thread.getLastQuoteDateTime()
+        lastQuoteDateTime = self.__wsClient.getLastQuoteDateTime()
         if self.__lastUpdateTime != lastQuoteDateTime:
             bars = bar.Bars({
                 instrument: bar
-                for lastBar in self.__thread.getQuotes().values()
+                for lastBar in self.__wsClient.getQuotes().values()
                 if lastQuoteDateTime == lastBar.get('ft')
                 for instrument, bar in [getBar(lastBar)]
             })
@@ -190,10 +179,10 @@ class LiveTradeFeed(BaseBarFeed):
 
     # This may raise.
     def start(self):
-        if self.__thread is not None:
-            logger.info("Already running!")
+        if self.__wsClient is not None:
+            logger.info("Already initialized!")
             return
-        
+
         super(LiveTradeFeed, self).start()
         if not self.__initializeClient():
             self.__stopped = True
@@ -209,12 +198,11 @@ class LiveTradeFeed(BaseBarFeed):
 
     # This should not raise.
     def stop(self):
-        pass
+        self.__wsClient.stopClient()
 
     # This should not raise.
     def join(self):
-        if self.__thread is not None:
-            self.__thread.join()
+        pass
 
     def eof(self):
         return self.__stopped
@@ -231,10 +219,10 @@ class LiveTradeFeed(BaseBarFeed):
         return None
 
     def getLastUpdatedDateTime(self):
-        return self.__thread.getLastQuoteDateTime()
+        return self.__wsClient.getLastQuoteDateTime()
 
     def getLastReceivedDateTime(self):
-        return self.__thread.getLastReceivedDateTime()
+        return self.__wsClient.getLastReceivedDateTime()
     
     def getNextBarsDateTime(self):
         return self.__nextBarsTime

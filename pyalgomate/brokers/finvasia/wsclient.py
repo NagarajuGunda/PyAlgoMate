@@ -12,16 +12,25 @@ from NorenRestApiPy.NorenApi import NorenApi
 logger = logging.getLogger(__name__)
 
 class WebSocketClient:
-    def __init__(self, quotes, api, tokenMappings):
+    def __init__(self, api, tokenMappings):
         assert len(tokenMappings), "Missing subscriptions"
-        self.__quotes = quotes
-        self.lastQuoteDateTime = None
-        self.lastReceivedDateTime = None
+        self.__quotes = dict()
+        self.__lastQuoteDateTime = None
+        self.__lastReceivedDateTime = None
         self.__api: NorenApi = api
         self.__tokenMappings = tokenMappings
         self.__pending_subscriptions = list()
         self.__connected = False
         self.__connectionOpened = threading.Event()
+
+    def getQuotes(self):
+        return self.__quotes
+
+    def getLastQuoteDateTime(self):
+        return self.__lastQuoteDateTime
+    
+    def getLastReceivedDateTime(self):
+        return self.__lastReceivedDateTime
 
     def startClient(self):
         self.__api.start_websocket(order_update_callback=self.onOrderBookUpdate,
@@ -33,7 +42,7 @@ class WebSocketClient:
     def stopClient(self):
         try:
             if self.__connected:
-                self.close()
+                self.__api.close_websocket()
         except Exception as e:
             logger.error("Failed to close connection: %s" % e)
 
@@ -81,10 +90,10 @@ class WebSocketClient:
 
     def onQuoteUpdate(self, message):
         key = message['e'] + '|' + message['tk']
-        self.lastReceivedDateTime = datetime.datetime.now()
-        message['ct'] = self.lastReceivedDateTime
-        self.lastQuoteDateTime = datetime.datetime.fromtimestamp(int(message['ft'])) if 'ft' in message else self.lastReceivedDateTime.replace(microsecond=0)
-        message['ft'] = self.lastQuoteDateTime
+        self.__lastReceivedDateTime = datetime.datetime.now()
+        message['ct'] = self.__lastReceivedDateTime
+        self.__lastQuoteDateTime = datetime.datetime.fromtimestamp(int(message['ft'])) if 'ft' in message else self.__lastReceivedDateTime.replace(microsecond=0)
+        message['ft'] = self.__lastQuoteDateTime
 
         if key in self.__quotes:
             symbolInfo =  self.__quotes[key]
@@ -95,55 +104,3 @@ class WebSocketClient:
 
     def onOrderBookUpdate(self, message):
         pass
-
-
-class WebSocketClientThreadBase(threading.Thread):
-    def __init__(self, wsCls, *args, **kwargs):
-        super(WebSocketClientThreadBase, self).__init__(name='WebSocketClientThread')
-        self.__quotes = dict()
-        self.__wsClient = None
-        self.__wsCls = wsCls
-        self.__args = args
-        self.__kwargs = kwargs
-
-    def getQuotes(self):
-        return self.__quotes
-    
-    def getLastQuoteDateTime(self):
-        return self.__wsClient.lastQuoteDateTime
-        
-    def getLastReceivedDateTime(self):
-        return self.__wsClient.lastReceivedDateTime
-
-    def waitInitialized(self, timeout):
-        return self.__wsClient is not None and self.__wsClient.waitInitialized(timeout)
-
-    def run(self):
-        # We create the WebSocketClient right in the thread, instead of doing so in the constructor,
-        # because it has thread affinity.
-        try:
-            self.__wsClient = self.__wsCls(
-                self.__quotes, *self.__args, **self.__kwargs)
-            logger.debug("Running websocket client")
-            self.__wsClient.startClient()
-        except Exception as e:
-            logger.exception("Unhandled exception %s" % e)
-            self.__wsClient.stopClient()
-
-    def stop(self):
-        try:
-            if self.__wsClient is not None:
-                logger.debug("Stopping websocket client")
-                self.__wsClient.stopClient()
-        except Exception as e:
-            logger.error("Error stopping websocket client: %s" % e)
-
-
-class WebSocketClientThread(WebSocketClientThreadBase):
-    """
-    This thread class is responsible for running a WebSocketClient.
-    """
-
-    def __init__(self, api, tokenMappings):
-        super(WebSocketClientThread, self).__init__(
-            WebSocketClient, api, tokenMappings)

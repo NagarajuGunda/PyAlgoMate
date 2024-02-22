@@ -14,14 +14,12 @@ from pyalgomate.telegram import TelegramBot
 from pyalgomate.brokers import getFeed, getBroker
 from pyalgomate.core import State
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-logging.getLogger("flet").setLevel(logging.DEBUG)
-logging.getLogger("flet_core").setLevel(logging.DEBUG)
-
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter(
+    "[%(levelname)-5s]|[%(asctime)s]|[PID:%(process)d::TID:%(thread)d]|[%(name)s::%(module)s::%(funcName)s::%(lineno)d]|=> %(message)s"
+)
 
 fileHandler = logging.FileHandler('PyAlgoMate.log')
 fileHandler.setLevel(logging.INFO)
