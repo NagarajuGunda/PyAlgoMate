@@ -115,6 +115,10 @@ class LiveTradeFeed(BaseBarFeed):
         super(LiveTradeFeed, self).__init__(bar.Frequency.TRADE, maxLen)
         self.__instruments = instruments
         self.__instrumentToTokenIdMapping = {instrument: tokenMappings[instrument] for instrument in self.__instruments if instrument in tokenMappings}
+
+        if len(self.__instruments) != len(self.__instrumentToTokenIdMapping):
+            raise Exception(f'Could not get tokens for the instruments {[instrument for instrument in self.__instruments if instrument not in tokenMappings]}')
+
         self.__channels = {value: key for key, value in self.__instrumentToTokenIdMapping.items()}
         self.__api = api
         self.__timeout = timeout

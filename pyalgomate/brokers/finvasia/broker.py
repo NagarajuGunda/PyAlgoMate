@@ -74,7 +74,7 @@ def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
     optionPrefix = underlyingDetails['optionPrefix']
     index = underlyingDetails['index']
 
-    if index != UnderlyingIndex.SENSEX:
+    if index not in [UnderlyingIndex.SENSEX, UnderlyingIndex.BANKEX]:
         dayMonthYear = f"{expiry.day:02d}" + \
             calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
         return optionPrefix + dayMonthYear + callOrPut + str(strikePrice)
