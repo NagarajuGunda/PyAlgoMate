@@ -10,29 +10,6 @@ import pyalgomate.utils as utils
 import inspect
 from pyalgomate.telegram import TelegramBot
 
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-logging.getLogger("flet").setLevel(logging.DEBUG)
-logging.getLogger("flet_core").setLevel(logging.DEBUG)
-
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-
-fileHandler = logging.FileHandler('PyAlgoMate.log')
-fileHandler.setLevel(logging.INFO)
-fileHandler.setFormatter(formatter)
-
-consoleHandler = logging.StreamHandler()
-consoleHandler.setLevel(logging.INFO)
-consoleHandler.setFormatter(formatter)
-
-logger.addHandler(fileHandler)
-logger.addHandler(consoleHandler)
-
-logging.getLogger("requests").setLevel(logging.WARNING)
-
 # ZeroMQ Context
 context = zmq.Context()
 
@@ -390,6 +367,26 @@ def runLiveTrade(strategyClass, broker, mode, underlying, collect_data, port, se
 
 
 def CliMain(cls):
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    formatter = logging.Formatter(
+        "[%(levelname)s]|[%(asctime)s]|[%(process)d::%(thread)d]|[%(name)s::%(module)s::%(funcName)s::%(lineno)d]|=> %(message)s"
+    )
+
+    fileHandler = logging.FileHandler('PyAlgoMate.log')
+    fileHandler.setLevel(logging.INFO)
+    fileHandler.setFormatter(formatter)
+
+    consoleHandler = logging.StreamHandler()
+    consoleHandler.setLevel(logging.INFO)
+    consoleHandler.setFormatter(formatter)
+
+    logger.addHandler(fileHandler)
+    logger.addHandler(consoleHandler)
+
+    logging.getLogger("requests").setLevel(logging.WARNING)
+
     try:
         global strategyClass
         strategyClass = cls

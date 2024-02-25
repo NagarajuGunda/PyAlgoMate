@@ -31,12 +31,6 @@ underlyingMapping = {
         'lotSize': 75,
         'strikeDifference': 25
     },
-    'NSE|NIFTY MID SELECT': {
-        'optionPrefix': 'NFO|MIDCPNIFTY',
-        'index': UnderlyingIndex.MIDCAPNIFTY,
-        'lotSize': 75,
-        'strikeDifference': 25
-    },
     'NSE|NIFTY BANK': {
         'optionPrefix': 'NFO|BANKNIFTY',
         'index': UnderlyingIndex.BANKNIFTY,
@@ -49,23 +43,11 @@ underlyingMapping = {
         'lotSize': 50,
         'strikeDifference': 50
     },
-    'NSE|FIN NIFTY': {
-        'optionPrefix': 'NFO|FINNIFTY',
-        'index': UnderlyingIndex.FINNIFTY,
-        'lotSize': 40,
-        'strikeDifference': 50
-    },
     'NSE|FINNIFTY': {
         'optionPrefix': 'NFO|FINNIFTY',
         'index': UnderlyingIndex.FINNIFTY,
         'lotSize': 40,
         'strikeDifference': 50
-    },
-    'BSE|BSE SENSEX': {
-        'optionPrefix': 'BFO|SENSEX',
-        'index': UnderlyingIndex.SENSEX,
-        'lotSize': 10,
-        'strikeDifference': 100
     },
     'BSE|SENSEX': {
         'optionPrefix': 'BFO|SENSEX',
@@ -92,7 +74,7 @@ def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
     optionPrefix = underlyingDetails['optionPrefix']
     index = underlyingDetails['index']
 
-    if index != UnderlyingIndex.SENSEX:
+    if index not in [UnderlyingIndex.SENSEX, UnderlyingIndex.BANKEX]:
         dayMonthYear = f"{expiry.day:02d}" + \
             calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
         return optionPrefix + dayMonthYear + callOrPut + str(strikePrice)

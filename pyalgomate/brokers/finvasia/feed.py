@@ -4,13 +4,11 @@
 
 import datetime
 import logging
-import queue
 
-from collections import defaultdict
 from pyalgotrade import bar
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.barfeed.BasicBarEx import BasicBarEx
-from pyalgomate.brokers.finvasia import wsclient
+from pyalgomate.brokers.finvasia.wsclient import WebSocketClient
 from NorenRestApiPy.NorenApi import NorenApi
 
 logger = logging.getLogger(__name__)
@@ -61,7 +59,7 @@ class QuoteMessage(object):
 
     @property
     def dateTime(self):
-        return datetime.datetime.fromtimestamp(int(self.__eventDict['ft'])) if 'ft' in self.__eventDict else self.__eventDict["ct"].replace(microsecond=0)
+        return self.__eventDict["ft"]
         #return self.__eventDict["ct"]
 
     @property
@@ -117,6 +115,10 @@ class LiveTradeFeed(BaseBarFeed):
         super(LiveTradeFeed, self).__init__(bar.Frequency.TRADE, maxLen)
         self.__instruments = instruments
         self.__instrumentToTokenIdMapping = {instrument: tokenMappings[instrument] for instrument in self.__instruments if instrument in tokenMappings}
+
+        if len(self.__instruments) != len(self.__instrumentToTokenIdMapping):
+            raise Exception(f'Could not get tokens for the instruments {[instrument for instrument in self.__instruments if instrument not in tokenMappings]}')
+
         self.__channels = {value: key for key, value in self.__instrumentToTokenIdMapping.items()}
         self.__api = api
         self.__timeout = timeout
@@ -124,33 +126,23 @@ class LiveTradeFeed(BaseBarFeed):
         for key, value in self.__instrumentToTokenIdMapping.items():
             self.registerDataSeries(key)
 
-        self.__thread = None
+        self.__wsClient: WebSocketClient = None
         self.__stopped = False
-        self.__lastDateTime = None
+        self.__nextBarsTime = None
+        self.__lastUpdateTime = None
 
     def getApi(self):
         return self.__api
-
-    # Factory method for testing purposes.
-    def buildWebSocketClientThread(self):
-        return wsclient.WebSocketClientThread(self.__api, self.__channels)
 
     def getCurrentDateTime(self):
         return datetime.datetime.now()
 
     def __initializeClient(self):
         logger.info("Initializing websocket client")
-        initialized = False
-        try:
-            # Start the thread that runs the client.
-            self.__thread = self.buildWebSocketClientThread()
-            self.__thread.start()
-        except Exception as e:
-            logger.error("Error connecting : %s" % str(e))
-
+        self.__wsClient = WebSocketClient(self.__api, self.__channels)
+        self.__wsClient.startClient()
         logger.info("Waiting for websocket initialization to complete")
-        while not initialized and not self.__stopped:
-            initialized = self.__thread.waitInitialized(self.__timeout)
+        initialized = self.__wsClient.waitInitialized(self.__timeout)
 
         if initialized:
             logger.info("Initialization completed")
@@ -162,23 +154,27 @@ class LiveTradeFeed(BaseBarFeed):
         return False
 
     def getLastBar(self, instrument) -> bar.Bar:
-        lastBarQuote = self.__thread.getQuotes().get(self.__instrumentToTokenIdMapping[instrument], None)
-        if lastBarQuote:
+        lastBarQuote = self.__wsClient.getQuotes().get(self.__instrumentToTokenIdMapping[instrument], None)
+        if lastBarQuote is not None:
             return QuoteMessage(lastBarQuote, self.__channels).getBar()
         return None
 
     def getNextBars(self):
-        groupedQuoteMessages = defaultdict(dict)
-        for lastBar in self.__thread.getQuotes().copy().values():
-            quoteBar = QuoteMessage(lastBar, self.__channels).getBar()
+        def getBar(lastBar):
+            bar = QuoteMessage(lastBar, self.__channels).getBar()
+            return bar.getInstrument(), bar
 
-            groupedQuoteMessages[quoteBar.getDateTime()][quoteBar.getInstrument()] = quoteBar
-
-        latestDateTime = max(groupedQuoteMessages.keys(), default=None)
         bars = None
-        if latestDateTime is not None and self.__lastDateTime != latestDateTime:
-            bars = bar.Bars(groupedQuoteMessages[latestDateTime])
-            self.__lastDateTime = latestDateTime
+        lastQuoteDateTime = self.__wsClient.getLastQuoteDateTime()
+        if self.__lastUpdateTime != lastQuoteDateTime:
+            bars = bar.Bars({
+                instrument: bar
+                for lastBar in self.__wsClient.getQuotes().values()
+                if lastQuoteDateTime == lastBar.get('ft')
+                for instrument, bar in [getBar(lastBar)]
+            })
+            self.__nextBarsTime = datetime.datetime.now()
+            self.__lastUpdateTime = lastQuoteDateTime
         return bars
 
     def peekDateTime(self):
@@ -187,10 +183,10 @@ class LiveTradeFeed(BaseBarFeed):
 
     # This may raise.
     def start(self):
-        if self.__thread is not None:
-            logger.info("Already running!")
+        if self.__wsClient is not None:
+            logger.info("Already initialized!")
             return
-        
+
         super(LiveTradeFeed, self).start()
         if not self.__initializeClient():
             self.__stopped = True
@@ -206,12 +202,11 @@ class LiveTradeFeed(BaseBarFeed):
 
     # This should not raise.
     def stop(self):
-        pass
+        self.__wsClient.stopClient()
 
     # This should not raise.
     def join(self):
-        if self.__thread is not None:
-            self.__thread.join()
+        pass
 
     def eof(self):
         return self.__stopped
@@ -228,12 +223,18 @@ class LiveTradeFeed(BaseBarFeed):
         return None
 
     def getLastUpdatedDateTime(self):
-        return self.__lastDateTime
+        return self.__wsClient.getLastQuoteDateTime()
 
+    def getLastReceivedDateTime(self):
+        return self.__wsClient.getLastReceivedDateTime()
+    
+    def getNextBarsDateTime(self):
+        return self.__nextBarsTime
+    
     def isDataFeedAlive(self, heartBeatInterval=5):
-        if self.__lastDateTime is None:
+        if self.__lastUpdateTime is None:
             return False
 
         currentDateTime = datetime.datetime.now()
-        timeSinceLastDateTime = currentDateTime - self.__lastDateTime
+        timeSinceLastDateTime = currentDateTime - self.__lastUpdateTime
         return timeSinceLastDateTime.total_seconds() <= heartBeatInterval
