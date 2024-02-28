@@ -77,10 +77,10 @@ class QuoteMessage(object):
     @property
     def instrument(self): return f"{self.exchange}|{self.__tokenMappings[f'{self.exchange}|{self.scriptToken}'].split('|')[1]}"
 
-    def getBar(self) -> BasicBarEx:
+    def getBar(self, dateTime=None) -> BasicBarEx:
         open = high = low = close = self.price
 
-        return BasicBarEx(self.dateTime,                
+        return BasicBarEx(self.dateTime if dateTime is None else dateTime,                
                     open,
                     high,
                     low,
@@ -160,8 +160,8 @@ class LiveTradeFeed(BaseBarFeed):
         return None
 
     def getNextBars(self):
-        def getBar(lastBar):
-            bar = QuoteMessage(lastBar, self.__channels).getBar()
+        def getBar(lastBar, lastQuoteDateTime):
+            bar = QuoteMessage(lastBar, self.__channels).getBar(lastQuoteDateTime)
             return bar.getInstrument(), bar
 
         bars = None
@@ -170,8 +170,7 @@ class LiveTradeFeed(BaseBarFeed):
             bars = bar.Bars({
                 instrument: bar
                 for lastBar in self.__wsClient.getQuotes().values()
-                if lastQuoteDateTime == lastBar.get('ft')
-                for instrument, bar in [getBar(lastBar)]
+                for instrument, bar in [getBar(lastBar, lastQuoteDateTime)]
             })
             self.__nextBarsTime = datetime.datetime.now()
             self.__lastUpdateTime = lastQuoteDateTime
