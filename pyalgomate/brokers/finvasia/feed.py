@@ -4,6 +4,7 @@
 
 import datetime
 import logging
+import traceback
 
 from pyalgotrade import bar
 from pyalgomate.barfeed import BaseBarFeed
@@ -192,12 +193,17 @@ class LiveTradeFeed(BaseBarFeed):
             raise Exception("Initialization failed")
 
     def dispatch(self):
-        # Note that we may return True even if we didn't dispatch any Bar
-        # event.
-        ret = False
-        if super(LiveTradeFeed, self).dispatch():
-            ret = True
-        return ret
+        try:
+            # Note that we may return True even if we didn't dispatch any Bar
+            # event.
+            ret = False
+            if super(LiveTradeFeed, self).dispatch():
+                ret = True
+            return ret
+        except Exception as e:
+            logger.error(
+                f'Exception: {e}')
+            logger.exception(traceback.format_exc())
 
     # This should not raise.
     def stop(self):
