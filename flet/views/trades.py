@@ -1,5 +1,6 @@
 import flet as ft
 
+from pyalgotrade.strategy.position import Position
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 
 class TradesView(ft.View):
@@ -16,12 +17,15 @@ class TradesView(ft.View):
 
         columns=[
             ft.DataColumn(ft.Text("Instrument")),
-            ft.DataColumn(ft.Text("Entry Price"), numeric=True),
+            ft.DataColumn(ft.Text("B/S")),
             ft.DataColumn(ft.Text("Entry Time"), on_sort=lambda e: print(f"{e.column_index}, {e.ascending}")),
-            ft.DataColumn(ft.Text("Exit Price"), numeric=True),
+            ft.DataColumn(ft.Text("Entry Price"), numeric=True),
+            ft.DataColumn(ft.Text("Entry Quantity"), numeric=True),
             ft.DataColumn(ft.Text("Exit Time")),
-            ft.DataColumn(ft.Text("PNL"), numeric=True),
-            ft.DataColumn(ft.Text("Exit"))
+            ft.DataColumn(ft.Text("Exit Price"), numeric=True),
+            ft.DataColumn(ft.Text("Exit Quantity"), numeric=True),
+            ft.DataColumn(ft.Text("PNL"), numeric=True, on_sort=lambda e: print(f"{e.column_index}, {e.ascending}")),
+            ft.DataColumn(ft.Text("Close"))
         ]
 
         self.datatable = ft.DataTable(
@@ -37,21 +41,28 @@ class TradesView(ft.View):
     
     def getRows(self):
         rows = []
-        for position in self.strategy.getActivePositions().copy().union(self.strategy.getClosedPositions().copy()):
-            entryPrice = round(position.getEntryOrder().getAvgFillPrice(), 2) if (position.getEntryOrder() and position.getEntryOrder().getAvgFillPrice()) else None
-            exitPrice = round(position.getExitOrder().getAvgFillPrice(), 2) if (position.getExitOrder() and position.getExitOrder().getAvgFillPrice()) else None
+        for pos in self.strategy.getActivePositions().copy().union(self.strategy.getClosedPositions().copy()):
+            position: Position = pos
+            icon = ft.icons.ARROW_CIRCLE_UP_SHARP if position.getEntryOrder().isBuy() else  ft.icons.ARROW_CIRCLE_DOWN_SHARP
+            entryPrice = round(position.getEntryOrder().getAvgFillPrice(), 2) if position.entryFilled() else None
+            entryQuantity = position.getEntryOrder().getQuantity() if position.entryFilled() else None
+            exitPrice = round(position.getExitOrder().getAvgFillPrice(), 2) if position.exitFilled() else None
+            exitQuantity = position.getExitOrder().getQuantity() if position.exitFilled() else None
             pnl = position.getPnL()
             pnlText = ft.Text(f'{pnl:.2f}', color="green" if pnl >= 0 else "red")
             rows.append(
                 ft.DataRow(
                     [
                         ft.DataCell(ft.Text(position.getInstrument())),
-                        ft.DataCell(ft.Text(entryPrice)),
+                        ft.DataCell(ft.Icon(name=icon, color='green' if position.getEntryOrder().isBuy() else 'red')),
                         ft.DataCell(ft.Text(position.getEntryOrder().getSubmitDateTime() if position.getEntryOrder() else '')),
-                        ft.DataCell(ft.Text(exitPrice)),
+                        ft.DataCell(ft.Text(entryPrice)),
+                        ft.DataCell(ft.Text(entryQuantity)),
                         ft.DataCell(ft.Text(position.getExitOrder().getSubmitDateTime() if position.getExitOrder() else '')),
+                        ft.DataCell(ft.Text(exitPrice)),
+                        ft.DataCell(ft.Text(exitQuantity)),
                         ft.DataCell(pnlText),
-                        ft.DataCell(ft.TextButton(icon="close_rounded", icon_color="red400")),
+                        ft.DataCell(ft.Icon(name=ft.icons.CLOSE_SHARP, color="red400") if position.exitActive() else ft.Text('')),
                     ]
                 )
             )
