@@ -23,28 +23,40 @@ class TradesView(ft.View):
             ft.DataColumn(ft.Text("PNL"), numeric=True),
             ft.DataColumn(ft.Text("Exit"))
         ]
+
+        self.datatable = ft.DataTable(
+            sort_column_index=2,
+            sort_ascending=True,
+            columns=columns,
+            rows=self.getRows())
+
+        self.controls = [
+            ft.ElevatedButton("Go Home", on_click=lambda _: page.go("/")),
+            self.datatable
+        ]
+    
+    def getRows(self):
         rows = []
-        for position in self.strategy.getActivePositions().copy():
+        for position in self.strategy.getActivePositions().copy().union(self.strategy.getClosedPositions().copy()):
+            entryPrice = round(position.getEntryOrder().getAvgFillPrice(), 2) if (position.getEntryOrder() and position.getEntryOrder().getAvgFillPrice()) else None
+            exitPrice = round(position.getExitOrder().getAvgFillPrice(), 2) if (position.getExitOrder() and position.getExitOrder().getAvgFillPrice()) else None
+            pnl = position.getPnL()
+            pnlText = ft.Text(f'{pnl:.2f}', color="green" if pnl >= 0 else "red")
             rows.append(
                 ft.DataRow(
                     [
                         ft.DataCell(ft.Text(position.getInstrument())),
-                        ft.DataCell(ft.Text(position.getEntryOrder().getAvgFillPrice() if position.getEntryOrder() else '')),
+                        ft.DataCell(ft.Text(entryPrice)),
                         ft.DataCell(ft.Text(position.getEntryOrder().getSubmitDateTime() if position.getEntryOrder() else '')),
-                        ft.DataCell(ft.Text(position.getExitOrder().getAvgFillPrice() if position.getExitOrder() else '')),
+                        ft.DataCell(ft.Text(exitPrice)),
                         ft.DataCell(ft.Text(position.getExitOrder().getSubmitDateTime() if position.getExitOrder() else '')),
-                        ft.DataCell(ft.Text(position.getPnL())),
+                        ft.DataCell(pnlText),
                         ft.DataCell(ft.TextButton(icon="close_rounded", icon_color="red400")),
                     ]
                 )
             )
-        datatable = ft.DataTable(
-            sort_column_index=2,
-            sort_ascending=True,
-            columns=columns,
-            rows=rows)
-
-        self.controls = [
-            ft.ElevatedButton("Go Home", on_click=lambda _: page.go("/")),
-            datatable
-        ]
+        return rows
+    
+    def update(self):
+        self.datatable.rows = self.getRows()
+        super().update()
