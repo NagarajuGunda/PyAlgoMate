@@ -1,13 +1,8 @@
 import base64
-import logging
 import json
-from flet_core.control import OptionalNumber
-from flet_core.ref import Ref
-from flet_core.types import ResponsiveNumber
 import pandas as pd
 import flet as ft
-from typing import Any, List, Optional, Union
-
+from typing import List
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.core import State
@@ -111,7 +106,8 @@ class StrategyCard(ft.Card):
                     ft.Column([ft.ElevatedButton(
                         text='Trades',
                         color='white',
-                        bgcolor='#263F6A'
+                        bgcolor='#263F6A',
+                        on_click=lambda _: self.page.go("/trades", strategyName=self.strategy.strategyName)
                     )],
                         alignment=ft.MainAxisAlignment.CENTER,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -248,38 +244,18 @@ class StrategyCard(ft.Card):
         self.page.update()
 
 
-class StrategiesContainer(ft.Container):
+class StrategiesView(ft.View):
     def __init__(self, page: ft.Page, feed: BaseBarFeed, strategies: List[BaseOptionsGreeksStrategy]):
-        super().__init__()
-        self.padding = ft.padding.only(top=20)
-        self.strategies = strategies
+        super().__init__(route="/")
+        self.padding = ft.padding.all(10)
+        self.scroll = ft.ScrollMode.HIDDEN
         self.page = page
+        self.strategies = strategies
         self.feed = feed
 
         self.totalMtm = ft.Text(
             '₹ 0', size=25)
-
-        self.feedIcon = ft.Icon(name=ft.icons.CIRCLE_ROUNDED)
-        self.feedText = ft.Text(
-            'Timestamps', size=10, italic=True)
-        feedRow = ft.Container(
-            ft.Container(
-                ft.Column(
-                    [
-                        ft.Container(ft.Row([
-                            ft.Text('Feed', size=15, weight='w700'),
-                            self.feedIcon,
-                        ])),
-                        self.feedText
-                    ],
-                ),
-                padding=ft.padding.all(20),
-                width=300,
-                bgcolor='white54',
-                border_radius=10,
-            ),
-            alignment=ft.alignment.top_right,
-        )
+        
         totalMtmRow = ft.Container(
             ft.Column([
                 ft.Container(ft.Text('Total MTM', size=15, weight=ft.FontWeight.BOLD,
@@ -295,23 +271,56 @@ class StrategiesContainer(ft.Container):
                         top=35, left=10, right=10, bottom=10)
                 )
             ]),
-            width=200,
-            height=200,
+            col={"sm": 6, "md": 2},
             bgcolor='#263F6A',
-            border_radius=10
+            border_radius=10,
+            height=200,
+        )
+
+        self.feedIcon = ft.Icon(name=ft.icons.CIRCLE_ROUNDED)
+        self.feedText = ft.Text(
+            'Timestamps', size=10, italic=True)
+        feedRow = ft.Container(
+            ft.Container(
+                ft.Column(
+                    [
+                        ft.Row([
+                            ft.Text('Feed', size=15, weight='w700'),
+                            self.feedIcon,
+                        ]),
+                        self.feedText
+                    ],
+                ),
+                padding=ft.padding.only(
+                    top=35, left=20, right=20, bottom=20),
+            ),
+            col={"sm": 6, "md": 2},
+            bgcolor='#ecf0f1',
+            border_radius=10,
+            height=200,
+            alignment=ft.alignment.center,
         )
 
         self.strategyCards = [StrategyCard(
             strategy, page) for strategy in self.strategies]
-        rows = [feedRow, totalMtmRow]
+        rows = [
+            ft.ResponsiveRow([
+                    totalMtmRow, feedRow
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+            )
+        ]
         rows.append(ft.ListView([ft.Row([strategyCard])
                     for strategyCard in self.strategyCards]))
-        self.content = ft.Column(
-            rows,
-            scroll=ft.ScrollMode.HIDDEN
-        )
+        self.controls = [
+            ft.AppBar(title=ft.Text("Strategies"), bgcolor=ft.colors.SURFACE_VARIANT),
+            ft.Column(
+                rows,
+                scroll=ft.ScrollMode.HIDDEN
+            )
+        ]
 
-    def updateStrategies(self):
+    def update(self):
         for strategyCard in self.strategyCards:
             strategyCard.updateStrategy()
 
@@ -321,37 +330,4 @@ class StrategiesContainer(ft.Container):
         self.totalMtm.color = "green" if totalMtm >= 0 else "red"
         self.feedIcon.color = "green" if self.feed.isDataFeedAlive() else "red"
         self.feedText.value = f'Quote       : {self.feed.getLastUpdatedDateTime()}\nReceived  : {self.feed.getLastReceivedDateTime()}\nBars        : {self.feed.getNextBarsDateTime()}'
-        self.update()
-
-
-class CallbackHandler(logging.Handler):
-    def __init__(self, callback):
-        super(CallbackHandler, self).__init__()
-        self.callback = callback
-
-    def emit(self, record):
-        log_message = self.format(record)
-        self.callback(log_message)
-
-
-class LoggingControl(ft.UserControl):
-    def __init__(self, logger):
-        super().__init__()
-        logger.addHandler(CallbackHandler(self.logCallback))
-        self.list = ft.ListView(expand=True, spacing=0, auto_scroll=True)
-        self.canUpdate = False
-
-    def setCanUpdate(self):
-        self.canUpdate = True
-
-    def logCallback(self, message):
-        self.list.controls.append(ft.Text(message,
-                                  color=ft.colors.WHITE,
-                                  selectable=True,
-                                  font_family="Consolas"))
-
-        if self.canUpdate:
-            self.update()
-
-    def build(self):
-        return ft.Container(self.list, expand=True, bgcolor='black')
+        super().update()
