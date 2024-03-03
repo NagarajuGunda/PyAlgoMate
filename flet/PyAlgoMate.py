@@ -8,8 +8,11 @@ import time
 from urllib.parse import parse_qs, urlparse
 from logging.handlers import SysLogHandler
 from importlib import import_module
-
 import flet as ft
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)))
+
 from views.strategies import StrategiesView
 from views.trades import TradesView
 from pyalgomate.telegram import TelegramBot

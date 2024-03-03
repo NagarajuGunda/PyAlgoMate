@@ -1,3 +1,5 @@
+import pandas as pd
+from typing import List
 import flet as ft
 
 from pyalgotrade.strategy.position import Position
@@ -100,9 +102,14 @@ class TradesView(ft.View):
         ]
 
     def getRows(self):
+        positions: List[Position] = [
+            position for position in sorted(
+                self.strategy.getActivePositions().copy().union(self.strategy.getClosedPositions().copy()),
+                key=lambda position: position.getEntryOrder().getSubmitDateTime() if position.entryFilled() else pd.Timestamp.min
+            )
+        ]
         rows = []
-        for pos in self.strategy.getActivePositions().copy().union(self.strategy.getClosedPositions().copy()):
-            position: Position = pos
+        for position in positions:
             icon = ft.icons.ARROW_CIRCLE_UP_SHARP if position.getEntryOrder().isBuy() else  ft.icons.ARROW_CIRCLE_DOWN_SHARP
             entryPrice = round(position.getEntryOrder().getAvgFillPrice(), 2) if position.entryFilled() else None
             entryQuantity = position.getEntryOrder().getQuantity() if position.entryFilled() else None
