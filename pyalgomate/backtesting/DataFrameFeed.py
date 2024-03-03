@@ -115,6 +115,12 @@ class DataFrameFeed(BaseBarFeed):
 
     def getLastUpdatedDateTime(self):
         return self.__currentDateTime
+    
+    def getLastReceivedDateTime(self):
+        return self.__currentDateTime
+    
+    def getNextBarsDateTime(self):
+        return self.__currentDateTime
 
     def isDataFeedAlive(self, heartBeatInterval=5):
         return True

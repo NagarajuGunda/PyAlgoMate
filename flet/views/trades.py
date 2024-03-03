@@ -20,6 +20,7 @@ class TradesView(ft.View):
         self.collectedPremiumText = ft.Text("₹ 0", color=ft.colors.GREEN, size=25)
         self.currentPremiumText = ft.Text("₹ 0", color=ft.colors.GREEN, size=25)
         self.mtmText = ft.Text("₹ 0", color=ft.colors.GREEN, size=25)
+        self.unrealizedMtmText = ft.Text("₹ 0", color=ft.colors.GREEN, size=25)
         self.premiumsCard = ft.Card(
             ft.Container(
                 ft.Row(
@@ -59,6 +60,20 @@ class TradesView(ft.View):
                                     ),
                                     ft.Container(
                                         content=self.mtmText
+                                    ),
+                            ],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            expand=True,
+                        ),
+                        ft.VerticalDivider(color=ft.colors.BLACK38, thickness=2, opacity=0.5),
+                        ft.Column(
+                            [
+                                    ft.Container(
+                                        content=ft.Text("Unrealized MTM", color=ft.colors.BLACK38, size=15)
+                                    ),
+                                    ft.Container(
+                                        content=self.unrealizedMtmText
                                     ),
                             ],
                             alignment=ft.MainAxisAlignment.CENTER,
@@ -145,7 +160,7 @@ class TradesView(ft.View):
         collectedPremium = sum(
                 [
                     position.getEntryOrder().getAvgFillPrice() * position.getEntryOrder().getQuantity()
-                    for position in openPositions.union(closedPositions)
+                    for position in openPositions
                     if position.entryFilled() and position.getEntryOrder().isSell()
                 ]
             )
@@ -172,3 +187,12 @@ class TradesView(ft.View):
         self.mtmText.value = f'₹ {mtm:.2f}'
         self.mtmText.color = "green" if mtm >= 0 else "red"
         self.mtmText.update()
+
+        unrealizedMtm = sum(
+            [
+                position.getPnL() for position in openPositions
+            ]
+        )
+        self.unrealizedMtmText.value = f'₹ {unrealizedMtm:.2f}'
+        self.unrealizedMtmText.color = "green" if unrealizedMtm >= 0 else "red"
+        self.unrealizedMtmText.update()
