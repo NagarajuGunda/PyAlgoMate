@@ -48,6 +48,18 @@ underlyingMapping = {
         'index': UnderlyingIndex.FINNIFTY,
         'lotSize': 40,
         'strikeDifference': 50
+    },
+    'SENSEX': {
+        'optionPrefix': 'SENSEX',
+        'index': UnderlyingIndex.SENSEX,
+        'lotSize': 10,
+        'strikeDifference': 100
+    },
+    'BANKEX': {
+        'optionPrefix': 'BANKEX',
+        'index': UnderlyingIndex.BANKEX,
+        'lotSize': 15,
+        'strikeDifference': 100
     }
 }
 

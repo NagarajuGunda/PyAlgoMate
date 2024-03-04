@@ -120,7 +120,7 @@ def getHistoricalData(api: NorenApi, exchangeSymbol: str, startTime: datetime.da
 
     logger.info(
         f'Retrieving {interval} timeframe historical data for {exchangeSymbol}')
-    ret = api.get_time_price_series(exchange=exchange, token=finvasia.getToken(exchangeSymbol),
+    ret = api.get_time_price_series(exchange=exchange, token=finvasia.getToken(exchangeSymbol).split("|")[1],
                                     starttime=startTime.timestamp(), interval=interval)
     if ret != None:
         df = pd.DataFrame(
