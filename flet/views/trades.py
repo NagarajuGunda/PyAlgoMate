@@ -108,12 +108,16 @@ class TradesView(ft.View):
             sort_column_index=2,
             sort_ascending=True,
             columns=columns,
-            rows=self.getRows())
+            rows=self.getRows()
+        )
 
         self.controls = [
             ft.ElevatedButton("Go Home", on_click=lambda _: page.go("/")),
             self.premiumsCard,
-            self.datatable
+            ft.Container(
+                self.datatable,
+                alignment=ft.alignment.center
+            )
         ]
 
     def getRows(self):
