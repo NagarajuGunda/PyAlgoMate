@@ -26,7 +26,7 @@ formatter = logging.Formatter(
     "[%(levelname)-5s]|[%(asctime)s]|[PID:%(process)d::TID:%(thread)d]|[%(name)s::%(module)s::%(funcName)s::%(lineno)d]|=> %(message)s"
 )
 
-fileHandler = logging.FileHandler('PyAlgoMate.log', 'w', 'utf-8')
+fileHandler = logging.FileHandler('PyAlgoMate.log', 'a', 'utf-8')
 fileHandler.setLevel(logging.INFO)
 fileHandler.setFormatter(formatter)
 
