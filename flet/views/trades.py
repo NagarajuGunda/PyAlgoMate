@@ -97,6 +97,7 @@ class TradesView(ft.View):
             ft.DataColumn(ft.Text("Entry Time"), on_sort=lambda e: print(f"{e.column_index}, {e.ascending}")),
             ft.DataColumn(ft.Text("Entry Price"), numeric=True),
             ft.DataColumn(ft.Text("Entry Quantity"), numeric=True),
+            ft.DataColumn(ft.Text('LTP'), numeric=True),
             ft.DataColumn(ft.Text("Exit Time")),
             ft.DataColumn(ft.Text("Exit Price"), numeric=True),
             ft.DataColumn(ft.Text("Exit Quantity"), numeric=True),
@@ -112,7 +113,6 @@ class TradesView(ft.View):
         )
 
         self.controls = [
-            ft.ElevatedButton("Go Home", on_click=lambda _: page.go("/")),
             self.premiumsCard,
             ft.Container(
                 self.datatable,
@@ -144,11 +144,12 @@ class TradesView(ft.View):
                         ft.DataCell(ft.Text(position.getEntryOrder().getSubmitDateTime() if position.getEntryOrder() else '')),
                         ft.DataCell(ft.Text(entryPrice)),
                         ft.DataCell(ft.Text(entryQuantity)),
+                        ft.DataCell(ft.Text(position.getLastPrice())),
                         ft.DataCell(ft.Text(position.getExitOrder().getSubmitDateTime() if position.getExitOrder() else '')),
                         ft.DataCell(ft.Text(exitPrice)),
                         ft.DataCell(ft.Text(exitQuantity)),
                         ft.DataCell(pnlText),
-                        ft.DataCell(ft.Icon(name=ft.icons.CLOSE_SHARP, color="red400") if position.exitActive() else ft.Text('')),
+                        ft.DataCell(ft.Icon(name=ft.icons.CLOSE_SHARP, color="red400") if not position.exitFilled() else ft.Text('')),
                     ]
                 )
             )
