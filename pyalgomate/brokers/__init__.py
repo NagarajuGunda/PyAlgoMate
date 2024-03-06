@@ -196,13 +196,6 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
         profile = api.profile()
         logger.info(f"Welcome {profile.get('user_name')}")
 
-        currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-            datetime.datetime.now().date())
-        nextWeekExpiry = utils.getNextWeeklyExpiryDate(
-            datetime.datetime.now().date())
-        monthlyExpiry = utils.getNearestMonthlyExpiryDate(
-            datetime.datetime.now().date())
-
         if len(underlyings) == 0:
             underlyings = ['NSE:NIFTY BANK']
 
@@ -211,16 +204,26 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
         for underlying in underlyings:
             ltp = api.quote(underlying)[
                 underlying]["last_price"]
+            
+            underlyingDetails = zerodha.broker.getUnderlyingDetails(underlying)
+            index = underlyingDetails['index']
+            strikeDifference = underlyingDetails['strikeDifference']
+            currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
+                datetime.datetime.now().date(), index)
+            nextWeekExpiry = utils.getNextWeeklyExpiryDate(
+                datetime.datetime.now().date(), index)
+            monthlyExpiry = utils.getNearestMonthlyExpiryDate(
+                datetime.datetime.now().date(), index)
 
             if "Weekly" in registerOptions:
                 optionSymbols += zerodha.broker.getOptionSymbols(
-                    underlying, currentWeeklyExpiry, ltp, 10)
+                    underlying, currentWeeklyExpiry, ltp, 10, strikeDifference)
             if "NextWeekly" in registerOptions:
                 optionSymbols += zerodha.broker.getOptionSymbols(
-                    underlying, nextWeekExpiry, ltp, 10)
+                    underlying, nextWeekExpiry, ltp, 10, strikeDifference)
             if "Monthly" in registerOptions:
                 optionSymbols += zerodha.broker.getOptionSymbols(
-                    underlying, monthlyExpiry, ltp, 10)
+                    underlying, monthlyExpiry, ltp, 10, strikeDifference)
 
         optionSymbols = list(dict.fromkeys(optionSymbols))
 
