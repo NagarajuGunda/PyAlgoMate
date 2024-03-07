@@ -287,7 +287,9 @@ class TelegramBot:
             except Exception as e:
                 await update.message.reply_text(f'Exception occured while sending trade book. Error: {e}')
         elif action == EXIT_ALL_POSITIONS:
-            # strategy.exitAllPositions()
+            strategy.exitAllPositions()
+            strategy.state = State.PLACING_ORDERS
+            strategy.closeAllPositions()
             exit_message = f"Exiting all positions for {selected_strategy}..."
             await update.message.reply_text(exit_message)
         else:
