@@ -28,7 +28,7 @@ class UnderlyingIndex(IntEnum):
     NIFTY = 0
     BANKNIFTY = 1
     FINNIFTY = 3
-    MIDCAPNIFTY = 4
+    MIDCPNIFTY = 4
     SENSEX = 5
     BANKEX = 6
 

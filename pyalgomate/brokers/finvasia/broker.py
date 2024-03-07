@@ -27,7 +27,7 @@ logger = logging.getLogger(__file__)
 underlyingMapping = {
     'NSE|MIDCPNIFTY': {
         'optionPrefix': 'NFO|MIDCPNIFTY',
-        'index': UnderlyingIndex.MIDCAPNIFTY,
+        'index': UnderlyingIndex.MIDCPNIFTY,
         'lotSize': 75,
         'strikeDifference': 25
     },
