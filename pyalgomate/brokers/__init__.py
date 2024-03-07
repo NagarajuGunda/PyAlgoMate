@@ -25,9 +25,9 @@ logger = logging.getLogger()
 # strategy.
 
 underlyingMapping = {
-    'MIDCAPNIFTY': {
-        'optionPrefix': 'MIDCAPNIFTY',
-        'index': UnderlyingIndex.MIDCAPNIFTY,
+    'MIDCPNIFTY': {
+        'optionPrefix': 'MIDCPNIFTY',
+        'index': UnderlyingIndex.MIDCPNIFTY,
         'lotSize': 75,
         'strikeDifference': 25
     },
