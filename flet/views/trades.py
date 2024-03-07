@@ -1,7 +1,7 @@
 import pandas as pd
 from typing import List
 import flet as ft
-
+from .paginated_dt import PaginatedDataTable
 from pyalgotrade.strategy.position import Position
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 
@@ -111,11 +111,11 @@ class TradesView(ft.View):
             columns=columns,
             rows=self.getRows()
         )
-
+        self.paginatedDataTable = PaginatedDataTable(self.datatable)
         self.controls = [
             self.premiumsCard,
             ft.Container(
-                self.datatable,
+                self.paginatedDataTable,
                 alignment=ft.alignment.center
             )
         ]
@@ -156,9 +156,6 @@ class TradesView(ft.View):
         return rows
 
     def update(self):
-        self.datatable.rows = self.getRows()
-        self.datatable.update()
-
         openPositions = self.strategy.getActivePositions().copy()
         closedPositions = self.strategy.getClosedPositions().copy()
 
@@ -201,3 +198,6 @@ class TradesView(ft.View):
         self.unrealizedMtmText.value = f'₹ {unrealizedMtm:.2f}'
         self.unrealizedMtmText.color = "green" if unrealizedMtm >= 0 else "red"
         self.unrealizedMtmText.update()
+
+        self.datatable.rows = self.getRows()
+        self.paginatedDataTable.refresh_data()
