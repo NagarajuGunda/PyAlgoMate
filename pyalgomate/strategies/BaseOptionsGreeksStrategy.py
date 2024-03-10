@@ -121,6 +121,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
                 time.sleep(2)
 
     def reset(self):
+        super().reset()
         self.__optionData = dict()
         self.overallPnL = 0
         self.state = State.LIVE
