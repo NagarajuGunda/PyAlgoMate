@@ -326,7 +326,13 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         self.displaySlippage(position.getEntryOrder())
 
     def isPendingOrdersCompleted(self):
-        return len(self.getActivePositions()) == 0
+        for position in self.getActivePositions().copy():
+            if position.entryActive():
+                return False
+            elif position.exitActive() and position.getExitOrder().getType() != Order.Type.STOP_LIMIT:
+                return False
+
+        return True
 
     def onExitOk(self, position: position.Position):
         execInfo = position.getExitOrder().getExecutionInfo()
