@@ -115,7 +115,7 @@ class SuperTrendV1(BaseOptionsGreeksStrategy):
             self.overallPnL = self.getOverallPnL()
 
             if bars.getDateTime().time() >= self.exitTime:
-                if self.state != State.EXITED:
+                if self.state != State.EXITED and len(self.getActivePositions()) > 0:
                     self.log(f"Current time {bars.getDateTime().time()} is >= Exit time {self.exitTime}. Closing all positions!")
                     for position in list(self.getActivePositions()):
                         if not position.exitActive():
