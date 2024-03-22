@@ -1,6 +1,8 @@
 import base64
 import json
 import pandas as pd
+import numpy as np
+import plotly.express as px
 import flet as ft
 from typing import List
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
@@ -261,14 +263,24 @@ class StrategiesView(ft.View):
                 ft.Container(ft.Text('Total MTM', size=15, weight=ft.FontWeight.BOLD,
                              color='white'), padding=ft.padding.only(top=10, left=10)),
                 ft.Container(self.totalMtm, padding=ft.padding.only(left=10)),
+                ft.Column([
+                            ft.Divider(color='white')
+                ]),
                 ft.Container(
-                    ft.Column([
-                        ft.Divider(color='white'),
-                        ft.Text('MTM Graph  -->', size=15,
+                    ft.Row([
+                        ft.Column([
+                            ft.Text('Total MTM Graph ->', size=15,
                                 weight=ft.FontWeight.W_400, color='white')
+                        ]),
+                        ft.Column([
+                            ft.IconButton(icon=ft.icons.INSERT_CHART_ROUNDED,
+                                      icon_size=40,
+                                      icon_color='white',
+                                      on_click=self.onChartButtonClicked,tooltip="MTM of all Strategies running")
+                        ])   
                     ]),
                     padding=ft.padding.only(
-                        top=35, left=10, right=10, bottom=10)
+                        top=35, right=10, bottom=10)
                 )
             ]),
             col={"sm": 6, "md": 2},
@@ -319,7 +331,33 @@ class StrategiesView(ft.View):
                 scroll=ft.ScrollMode.HIDDEN
             )
         ]
-
+    def onChartButtonClicked(self, e):
+        pnlDf = pd.DataFrame()
+        pnl = int(0)
+        for strategyCard in self.strategyCards:
+            strategy = strategyCard.strategy
+            pnl = pnl + strategy.getOverallPnL()
+            tempPnlDf = strategy.getPnLs()
+            tempPnlDf['strategy'] = strategyCard.strategy.strategyName
+            pnlDf = pd.concat([pnlDf, tempPnlDf], ignore_index=True)
+            
+        values = pd.to_numeric(pnlDf['PnL'])
+        color = np.where(values < 0, 'loss', 'profit')
+        fig = px.area(pnlDf, x="Date/Time", y=values, title=f"Total MTM | Current PnL:  ₹{round(pnl, 2)}",
+                        color=color, color_discrete_map={'loss': 'orangered', 'profit': 'lightgreen'})
+        fig.update_layout(
+            title_x=0.5, title_xanchor='center', yaxis_title='PnL')
+        base64Img = base64.b64encode(
+             fig.to_image(format='png')).decode('utf-8')
+        dlg = ft.AlertDialog(
+            content=ft.Container(
+                ft.Image(src_base64=base64Img)
+            )
+        )
+        self.page.dialog = dlg
+        dlg.open = True
+        self.page.update()
+        
     def update(self):
         for strategyCard in self.strategyCards:
             strategyCard.updateStrategy()
