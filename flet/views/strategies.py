@@ -342,7 +342,7 @@ class StrategiesView(ft.View):
             pnlDf = pd.concat([pnlDf, tempPnlDf], ignore_index=True)
             
         pnlDf.index =pnlDf['Date/Time']
-        cummPnlDf = pnlDf['PnL'].resample('5T').agg({'PnL':'sum'}) 
+        cummPnlDf = pnlDf['PnL'].resample('1T').agg({'PnL':'sum'})
         cummPnlDf.reset_index(inplace=True)
 
         values = pd.to_numeric(cummPnlDf['PnL'])
