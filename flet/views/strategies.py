@@ -341,9 +341,13 @@ class StrategiesView(ft.View):
             tempPnlDf['strategy'] = strategyCard.strategy.strategyName
             pnlDf = pd.concat([pnlDf, tempPnlDf], ignore_index=True)
             
-        values = pd.to_numeric(pnlDf['PnL'])
+        pnlDf.index =pnlDf['Date/Time']
+        cummPnlDf = pnlDf['PnL'].resample('5T').agg({'PnL':'sum'}) 
+        cummPnlDf.reset_index(inplace=True)
+
+        values = pd.to_numeric(cummPnlDf['PnL'])
         color = np.where(values < 0, 'loss', 'profit')
-        fig = px.area(pnlDf, x="Date/Time", y=values, title=f"Total MTM | Current PnL:  ₹{round(pnl, 2)}",
+        fig = px.area(cummPnlDf, x="Date/Time", y=values, title=f"Total MTM | Current PnL:  ₹{round(pnl, 2)}",
                         color=color, color_discrete_map={'loss': 'orangered', 'profit': 'lightgreen'})
         fig.update_layout(
             title_x=0.5, title_xanchor='center', yaxis_title='PnL')
