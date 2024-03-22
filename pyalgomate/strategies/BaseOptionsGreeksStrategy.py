@@ -246,6 +246,13 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
                        'messageThreadId': self.telegramMessageThreadId}
             self.telegramBot.sendMessage(message)
 
+    def sendImageToTelegram(self, imageBytes):
+        if self.telegramBot:
+            message = {'channelId': self.telegramChannelId,
+                       'message': imageBytes,
+                       'messageThreadId': self.telegramMessageThreadId}
+            self.telegramBot.sendMessage(message)
+
     def getOverallPnL(self):
         pnl = 0
 
