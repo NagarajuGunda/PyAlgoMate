@@ -3,11 +3,14 @@ import json
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 import flet as ft
 from typing import List
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.core import State
+
+
 
 
 class StrategyCard(ft.Card):
