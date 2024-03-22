@@ -276,7 +276,7 @@ class StrategiesView(ft.View):
                             ft.IconButton(icon=ft.icons.INSERT_CHART_ROUNDED,
                                       icon_size=40,
                                       icon_color='white',
-                                      on_click=self.onChartButtonClicked,tooltip="MTM of all Strategies running")
+                                      on_click=self.onTotalMTMChartButtonClicked,tooltip="MTM of all Strategies running")
                         ])   
                     ]),
                     padding=ft.padding.only(
@@ -331,7 +331,7 @@ class StrategiesView(ft.View):
                 scroll=ft.ScrollMode.HIDDEN
             )
         ]
-    def onChartButtonClicked(self, e):
+    def onTotalMTMChartButtonClicked(self, e):
         pnlDf = pd.DataFrame()
         pnl = int(0)
         for strategyCard in self.strategyCards:
