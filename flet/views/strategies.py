@@ -11,8 +11,6 @@ from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.core import State
 
 
-
-
 class StrategyCard(ft.Card):
     def __init__(self, strategy: BaseOptionsGreeksStrategy, page: ft.Page):
         super().__init__()
@@ -354,6 +352,14 @@ class StrategiesView(ft.View):
                         color=color, color_discrete_map={'loss': 'orangered', 'profit': 'lightgreen'})
         fig.update_layout(
             title_x=0.5, title_xanchor='center', yaxis_title='PnL')
+        
+        fig.add_traces(
+            [
+                go.Scatter(x=pnlDf.query(f'strategy=="{strategy}"')["Date/Time"], y=pnlDf.query(f'strategy=="{strategy}"')['PnL'],
+                                mode='lines',
+                                name=f'{strategy}') for strategy in pnlDf.strategy.unique()
+            ]
+        )
         base64Img = base64.b64encode(
              fig.to_image(format='png')).decode('utf-8')
         dlg = ft.AlertDialog(
