@@ -12,6 +12,7 @@ import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import pyotp
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
+from pyalgomate.brokers import getDefaultUnderlyings, getExpiryDates
 from pyalgomate.brokers.finvasia.broker import getOptionSymbols, getUnderlyingDetails
 from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
 import pyalgomate.utils as utils
@@ -96,7 +97,7 @@ def getFeed(cred, registerOptions, underlyings):
 
     if loginStatus != None:
         if len(underlyings) == 0:
-            underlyings = ['NSE|NIFTY BANK']
+            underlyings = [underlying.replace(":","|") for underlying in getDefaultUnderlyings()]
 
         optionSymbols = []
         tokenMappings = getTokenMappings()
@@ -118,12 +119,7 @@ def getFeed(cred, registerOptions, underlyings):
                 index = underlyingDetails['index']
                 strikeDifference = underlyingDetails['strikeDifference']
 
-                currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-                    datetime.datetime.now().date(), index)
-                nextWeekExpiry = utils.getNextWeeklyExpiryDate(
-                    datetime.datetime.now().date(), index)
-                monthlyExpiry = utils.getNearestMonthlyExpiryDate(
-                    datetime.datetime.now().date(), index)
+                (currentWeeklyExpiry,nextWeekExpiry,monthlyExpiry) = getExpiryDates(index)
 
                 if "Weekly" in registerOptions:
                     optionSymbols += getOptionSymbols(

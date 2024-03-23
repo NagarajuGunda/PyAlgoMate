@@ -180,57 +180,8 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
         import pyalgomate.brokers.finvasia as finvasia
         return finvasia.getFeed(creds[broker], registerOptions, underlyings)
     elif broker == 'Zerodha':
-        from pyalgomate.brokers.zerodha.kiteext import KiteExt
         import pyalgomate.brokers.zerodha as zerodha
-        from pyalgomate.brokers.zerodha.broker import getZerodhaTokensList
-        from pyalgomate.brokers.zerodha.feed import ZerodhaLiveFeed
-        from pyalgomate.brokers.zerodha.broker import ZerodhaPaperTradingBroker, ZerodhaLiveBroker
-
-        cred = creds[broker]
-
-        api = KiteExt()
-        twoFA = pyotp.TOTP(cred['factor2']).now()
-        api.login_with_credentials(
-            userid=cred['user'], password=cred['pwd'], twofa=twoFA)
-
-        profile = api.profile()
-        logger.info(f"Welcome {profile.get('user_name')}")
-
-        if len(underlyings) == 0:
-            underlyings = ['NSE:NIFTY BANK']
-
-        optionSymbols = []
-
-        for underlying in underlyings:
-            ltp = api.quote(underlying)[
-                underlying]["last_price"]
-            
-            underlyingDetails = zerodha.broker.getUnderlyingDetails(underlying)
-            index = underlyingDetails['index']
-            strikeDifference = underlyingDetails['strikeDifference']
-            currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-                datetime.datetime.now().date(), index)
-            nextWeekExpiry = utils.getNextWeeklyExpiryDate(
-                datetime.datetime.now().date(), index)
-            monthlyExpiry = utils.getNearestMonthlyExpiryDate(
-                datetime.datetime.now().date(), index)
-
-            if "Weekly" in registerOptions:
-                optionSymbols += zerodha.broker.getOptionSymbols(
-                    underlying, currentWeeklyExpiry, ltp, 10, strikeDifference)
-            if "NextWeekly" in registerOptions:
-                optionSymbols += zerodha.broker.getOptionSymbols(
-                    underlying, nextWeekExpiry, ltp, 10, strikeDifference)
-            if "Monthly" in registerOptions:
-                optionSymbols += zerodha.broker.getOptionSymbols(
-                    underlying, monthlyExpiry, ltp, 10, strikeDifference)
-
-        optionSymbols = list(dict.fromkeys(optionSymbols))
-
-        tokenMappings = getZerodhaTokensList(
-            api, underlyings + optionSymbols)
-
-        barFeed = ZerodhaLiveFeed(api, tokenMappings)
+        return zerodha.getFeed(creds[broker], registerOptions, underlyings)
     elif broker == 'Kotak':
         from neo_api_client import NeoAPI
         import pyalgomate.brokers.kotak as kotak
@@ -318,3 +269,17 @@ def getBroker(feed, api, broker, mode, capital=200000):
             brokerInstance = LiveBroker(api)
 
     return brokerInstance
+
+
+def getDefaultUnderlyings() -> list[str]:
+    return  ['NSE:NIFTY BANK']
+
+def getExpiryDates(index: UnderlyingIndex ):
+    currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
+            datetime.datetime.now().date(), index)
+    nextWeekExpiry = utils.getNextWeeklyExpiryDate(
+        datetime.datetime.now().date(), index)
+    monthlyExpiry = utils.getNearestMonthlyExpiryDate(
+        datetime.datetime.now().date(), index)
+    
+    return currentWeeklyExpiry, nextWeekExpiry, monthlyExpiry

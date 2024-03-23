@@ -34,7 +34,11 @@ class WebSocketClient:
         self.__pending_subscriptions = list(tokenMappings.keys())
         self.__connected = False
         self.__initialized = threading.Event()
+        self.__lastReceivedDateTime = None
 
+    def getLastQuoteDateTime(self):
+        return self.__lastQuoteDateTime
+    
     def startClient(self):
         self.__kws = self.__api.kws()
         # Assign the callbacks.
@@ -93,6 +97,8 @@ class WebSocketClient:
 
     def onQuoteUpdate(self, ws, ticks):
         logger.debug(ticks)
+        self.__lastReceivedDateTime = datetime.datetime.now()
+        self.__lastQuoteDateTime = self.__lastReceivedDateTime.replace(microsecond=0)
 
         for tick in ticks:
             tokenId = tick['instrument_token']
@@ -140,6 +146,9 @@ class WebSocketClientThreadBase(threading.Thread):
         self.__args = args
         self.__kwargs = kwargs
 
+    def getWsClient(self) -> WebSocketClient:
+        return self.__wsClient
+        
     def getQueue(self):
         return self.__queue
 
