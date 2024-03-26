@@ -6,7 +6,7 @@ import datetime
 import re
 import pandas as pd
 import logging
-import pyotp
+from typing import List
 
 from pyalgotrade import broker
 from pyalgotrade.broker import fillstrategy
@@ -271,7 +271,7 @@ def getBroker(feed, api, broker, mode, capital=200000):
     return brokerInstance
 
 
-def getDefaultUnderlyings() -> list[str]:
+def getDefaultUnderlyings() -> List[str]:
     return  ['NSE:NIFTY BANK']
 
 def getExpiryDates(index: UnderlyingIndex ):
