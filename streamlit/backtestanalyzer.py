@@ -108,6 +108,17 @@ def box(col, key, value, percentage=None, color='green'):
             unsafe_allow_html=True
         )
 
+def formatINR(number):
+    number = float(number)
+    number = round(number,2)
+    is_negative = number < 0
+    number = abs(number)
+    s, *d = str(number).partition(".")
+    r = ",".join([s[x-2:x] for x in range(-3, -len(s), -2)][::-1] + [s[-3:]])
+    value = "".join([r] + d)
+    if is_negative:
+       value = '-' + value
+    return '₹'+ value
 
 def showStats(initialCapital: int, numOfFiles: int, tradesData: pd.DataFrame):
     if tradesData.empty:
@@ -119,14 +130,14 @@ def showStats(initialCapital: int, numOfFiles: int, tradesData: pd.DataFrame):
     maxLoss = tradesData['PnL'].min()
 
     col1, col2, col3, col4, col5 = st.columns(5, gap='small')
-    box(col1, 'Initial Capital', f'₹{initialCapital}')
+    box(col1, 'Initial Capital', f'{formatINR(initialCapital)}')
     box(col2, 'Overall Profit/Loss',
-        f'₹{round(overallPnL, 2)}', f'{round((overallPnL/initialCapital)*100, 2)}%')
-    box(col3, 'Average Day Profit', f'₹{round(averageProfit, 2)}',
+        f'{formatINR(overallPnL)}', f'{round((overallPnL/initialCapital)*100, 2)}%')
+    box(col3, 'Average Day Profit', f'{formatINR(averageProfit)}',
         f'{round((averageProfit/initialCapital)*100, 2)}%', color='yellow')
-    box(col4, 'Max Profit', f'₹{round(maxProfit, 2)}',
+    box(col4, 'Max Profit', f'{formatINR(maxProfit)}',
         f'{round((maxProfit/initialCapital)*100, 2)}%')
-    box(col5, 'Max Loss', f'₹{round(maxLoss, 2)}',
+    box(col5, 'Max Loss', f'{formatINR(maxLoss)}',
         f'{round((maxLoss/initialCapital)*100, 2)}%', color='red')
     st.write('')
 
@@ -144,12 +155,12 @@ def showStats(initialCapital: int, numOfFiles: int, tradesData: pd.DataFrame):
     box(col1, 'Win% (Days)', f'{round(winPercentage, 2)} ({wins})')
     box(col2, 'Loss% (Days)',
         f'{round(lossPercentage, 2)} ({losses})', color='red')
-    box(col3, 'Avg Monthly Profit', '₹{:.2f}'.format(
-        monthlyProfit), f'{round((monthlyProfit/initialCapital)*100, 2)}%', color='yellow')
-    box(col4, 'Avg Profit On Win Days', '₹{:.2f}'.format(
-        averageProfitOnWins), f'{round((averageProfitOnWins/initialCapital)*100, 2)}%', initialCapital)
-    box(col5, 'Avg Loss On Loss Days', '₹{:.2f}'.format(
-        averageLossOnLosses), f'{round((averageLossOnLosses/initialCapital)*100, 2)}%', color='red')
+    box(col3, 'Avg Monthly Profit', '{}'.format(
+        formatINR(monthlyProfit)), f'{round((monthlyProfit/initialCapital)*100, 2)}%', color='yellow')
+    box(col4, 'Avg Profit On Win Days', '{}'.format(
+        formatINR(averageProfitOnWins)), f'{round((averageProfitOnWins/initialCapital)*100, 2)}%', initialCapital)
+    box(col5, 'Avg Loss On Loss Days', '{}'.format(
+        formatINR(averageLossOnLosses)), f'{round((averageLossOnLosses/initialCapital)*100, 2)}%', color='red')
     st.write('')
 
     cumulativePnL = tradesData['PnL'].cumsum()
@@ -220,11 +231,11 @@ def showStats(initialCapital: int, numOfFiles: int, tradesData: pd.DataFrame):
 
     col1, col2, col3 = st.columns(3, gap='small')
     box(col1, 'Max Drawdown (MDD)',
-        f'{mdd:.2f}', f'{(mdd/initialCapital)*100:.2f}%', color='red')
+        f'{formatINR(mdd)}', f'{(mdd/initialCapital)*100:.2f}%', color='red')
     box(col2, 'MDD Days (Recovery Days)',
         f'{mddDays}', mddDateRange, color='red')
     box(col3, 'Return to MDD Ratio',
-        'Requires minimum 1Yr data' if returnToMddRatio is not None else f'{returnToMddRatio:.2f}')
+        'Requires minimum 1Yr data' if returnToMddRatio is None else f'{returnToMddRatio:.2f}')
     st.write('')
 
     maxWinningStreak, maxLosingStreak = GetStreaks(tradesData)
@@ -237,7 +248,6 @@ def showStats(initialCapital: int, numOfFiles: int, tradesData: pd.DataFrame):
         f'{maxLosingStreak}', color='red')
     box(col4, 'Expectancy', f'{expectancy:.2f}')
     st.write('')
-
 
 def plotScatterMAE(tradesData):
     tradesData[['MAE', 'MFE', 'PnL']] = tradesData[[
