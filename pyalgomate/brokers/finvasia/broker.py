@@ -117,11 +117,13 @@ def getHistoricalData(api: NorenApi, exchangeSymbol: str, startTime: datetime.da
     startTime = startTime.replace(hour=0, minute=0, second=0, microsecond=0)
     splitStrings = exchangeSymbol.split('|')
     exchange = splitStrings[0]
+    token=finvasia.getToken(exchangeSymbol)
+    if '|' in token :
+        token = token.split('|')[1]
 
     logger.info(
         f'Retrieving {interval} timeframe historical data for {exchangeSymbol}')
-    ret = api.get_time_price_series(exchange=exchange, token=finvasia.getToken(exchangeSymbol),
-                                    starttime=startTime.timestamp(), interval=interval)
+    ret = api.get_time_price_series(exchange=exchange, token=token, starttime=startTime.timestamp(), interval=interval)
     if ret != None:
         df = pd.DataFrame(
             ret)[['time', 'into', 'inth', 'intl', 'intc', 'v', 'oi']]

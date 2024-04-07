@@ -168,13 +168,13 @@ class LiveTradeFeed(BaseBarFeed):
         bars = None
         lastQuoteDateTime = self.__wsClient.getLastQuoteDateTime()
         if self.__lastUpdateTime != lastQuoteDateTime:
+            self.__nextBarsTime = datetime.datetime.now()
+            self.__lastUpdateTime = lastQuoteDateTime
             bars = bar.Bars({
                 instrument: bar
                 for lastBar in self.__wsClient.getQuotes().values()
-                for instrument, bar in [getBar(lastBar, lastQuoteDateTime)]
+                for instrument, bar in [getBar(lastBar, self.__nextBarsTime.replace(microsecond=0))]
             })
-            self.__nextBarsTime = datetime.datetime.now()
-            self.__lastUpdateTime = lastQuoteDateTime
         return bars
 
     def peekDateTime(self):

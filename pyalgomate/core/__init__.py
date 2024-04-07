@@ -11,6 +11,8 @@ class State(IntEnum):
     PLACING_ORDERS = 2
     ENTERED = 3
     EXITED = 4
+    SQUARING_OFF = 5
+    MANUAL = 6
 
     def __str__(self):
         return self.name
