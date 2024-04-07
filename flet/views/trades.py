@@ -141,11 +141,11 @@ class TradesView(ft.View):
                     [
                         ft.DataCell(ft.Text(position.getInstrument())),
                         ft.DataCell(ft.Icon(name=icon, color='green' if position.getEntryOrder().isBuy() else 'red')),
-                        ft.DataCell(ft.Text(position.getEntryOrder().getSubmitDateTime() if position.entryFilled() else '')),
+                        ft.DataCell(ft.Text(position.getEntryOrder().getExecutionInfo().getDateTime() if position.entryFilled() else '')),
                         ft.DataCell(ft.Text(entryPrice)),
                         ft.DataCell(ft.Text(entryQuantity)),
                         ft.DataCell(ft.Text(position.getLastPrice())),
-                        ft.DataCell(ft.Text(position.getExitOrder().getSubmitDateTime() if position.exitFilled() else '')),
+                        ft.DataCell(ft.Text(position.getExitOrder().getExecutionInfo().getDateTime() if position.exitFilled() else '')),
                         ft.DataCell(ft.Text(exitPrice)),
                         ft.DataCell(ft.Text(exitQuantity)),
                         ft.DataCell(pnlText),

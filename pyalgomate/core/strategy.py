@@ -51,6 +51,10 @@ class BaseStrategy(object):
         # Initialize logging.
         self.__logger = logger.getLogger(BaseStrategy.LOGGER_NAME)
 
+    def reset(self):
+        self.__activePositions = set()
+        self.__closedPositions = set()
+
     # Only valid for testing purposes.
     def _setBroker(self, broker):
         self.__broker = broker

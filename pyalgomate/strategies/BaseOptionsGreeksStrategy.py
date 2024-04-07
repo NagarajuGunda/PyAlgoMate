@@ -121,6 +121,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
                 time.sleep(2)
 
     def reset(self):
+        super().reset()
         self.__optionData = dict()
         self.overallPnL = 0
         self.state = State.LIVE
@@ -245,6 +246,13 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
                        'messageThreadId': self.telegramMessageThreadId}
             self.telegramBot.sendMessage(message)
 
+    def sendImageToTelegram(self, imageBytes):
+        if self.telegramBot:
+            message = {'channelId': self.telegramChannelId,
+                       'message': imageBytes,
+                       'messageThreadId': self.telegramMessageThreadId}
+            self.telegramBot.sendMessage(message)
+
     def getOverallPnL(self):
         pnl = 0
 
@@ -325,7 +333,13 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         self.displaySlippage(position.getEntryOrder())
 
     def isPendingOrdersCompleted(self):
-        return len(self.getActivePositions()) == 0
+        for position in self.getActivePositions().copy():
+            if position.entryActive():
+                return False
+            elif position.exitActive() and position.getExitOrder().getType() != Order.Type.STOP_LIMIT:
+                return False
+
+        return True
 
     def onExitOk(self, position: position.Position):
         execInfo = position.getExitOrder().getExecutionInfo()
