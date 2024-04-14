@@ -3,6 +3,7 @@ wheel
 yfinance
 pyalgotrade @ git+https://git@github.com/NagarajuGunda/pyalgotrade@master
 pyyaml
+https://raw.githubusercontent.com/Shoonya-Dev/ShoonyaApi-py/master/dist/NorenRestApi-0.0.28-py2.py3-none-any.whl
 pyotp
 six
 fastparquet

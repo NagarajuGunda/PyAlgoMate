@@ -17,7 +17,6 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 fileHandler = logging.FileHandler('PyAlgoMate.log')
 fileHandler.setLevel(logging.INFO)
 fileHandler.setFormatter(formatter)
-# TODO: Add log rotation
 
 consoleHandler = logging.StreamHandler()
 consoleHandler.setLevel(logging.INFO)

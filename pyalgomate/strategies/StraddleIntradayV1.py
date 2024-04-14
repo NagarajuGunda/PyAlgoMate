@@ -7,15 +7,15 @@ from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStr
 from pyalgomate.core import State, Expiry
 from pyalgomate.cli import CliMain
 
+
 class StraddleIntradayV1(BaseOptionsGreeksStrategy):
     def __init__(self, feed, broker, underlying=None, strategyName=None, registeredOptionsCount=None,
-                 callback=None, resampleFrequency=None, lotSize=None, collectData=None, telegramBot=None):
+                 callback=None, lotSize=None, collectData=None, telegramBot=None):
         super(StraddleIntradayV1, self).__init__(feed, broker,
                                                  strategyName=strategyName if strategyName else __class__.__name__,
                                                  logger=logging.getLogger(
                                                      __file__),
                                                  callback=callback,
-                                                 resampleFrequency=resampleFrequency,
                                                  collectData=collectData,
                                                  telegramBot=telegramBot)
 
@@ -92,7 +92,8 @@ class StraddleIntradayV1(BaseOptionsGreeksStrategy):
                 return
 
             # Return if we do not have LTP for selected options yet
-            if not (self.haveLTP(selectedCallOption.optionContract.symbol) and self.haveLTP(selectedPutOption.optionContract.symbol)):
+            if not (self.haveLTP(selectedCallOption.optionContract.symbol) and self.haveLTP(
+                    selectedPutOption.optionContract.symbol)):
                 return
 
             # Place initial delta-neutral positions
@@ -157,7 +158,7 @@ class StraddleIntradayV1(BaseOptionsGreeksStrategy):
                     entryPrice = entryOrder.getAvgFillPrice()
 
                     pnLPercentage = (
-                        pnl / (entryPrice * self.quantity)) * 100
+                                            pnl / (entryPrice * self.quantity)) * 100
 
                     if pnLPercentage <= -self.buySL:
                         self.log(

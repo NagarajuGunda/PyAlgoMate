@@ -8,10 +8,12 @@ from talipp.indicators import SuperTrend
 from talipp.indicators.SuperTrend import Trend
 from talipp.ohlcv import OHLCV
 import pandas as pd
+import log_setup  # noqa
 
 import pyalgomate.utils as utils
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 from pyalgomate.core import State
+
 
 logger = logging.getLogger(__file__)
 
@@ -44,8 +46,8 @@ class ResampledBars():
             return None
 
         dayMonthYear = f"{currentExpiry.day:02d}" + \
-            calendar.month_abbr[currentExpiry.month].upper(
-            ) + str(currentExpiry.year % 100)
+                       calendar.month_abbr[currentExpiry.month].upper(
+                       ) + str(currentExpiry.year % 100)
 
         ticker = f'{self.__strategy.getUnderlying()}{dayMonthYear}{name}'
 
@@ -88,7 +90,7 @@ class ResampledBars():
 
             if combinedATMBar is not None:
                 barDict[combinedATMBar.getExtraColumns()['Instrument']
-                        ] = combinedATMBar
+                ] = combinedATMBar
 
         bars = bar.Bars(barDict)
 
@@ -137,14 +139,13 @@ class ATMStraddleV1(BaseOptionsGreeksStrategy):
         self.entryTime = datetime.time(hour=9, minute=17)
         self.exitTime = datetime.time(hour=15, minute=15)
         self.lots = 1
-        self.quantity = self.lotSize * self.lots
         self.portfolioSL = 2000
         self.underlying = underlying
         underlyingDetails = self.getBroker().getUnderlyingDetails(self.underlying)
         self.underlyingIndex = underlyingDetails['index']
         self.strikeDifference = underlyingDetails['strikeDifference']
         self.lotSize = underlyingDetails['lotSize']
-
+        self.quantity = self.lotSize * self.lots
         self.__reset__()
 
         self.dataColumns = ["Ticker", "Date/Time", "Open", "High",
@@ -163,7 +164,8 @@ class ATMStraddleV1(BaseOptionsGreeksStrategy):
 
         # get historical data
         historicalData = self.getBroker().getHistoricalData(self.underlying, datetime.datetime.now() -
-                                                            datetime.timedelta(days=20), self.resampleFrequency.replace("T", ""))
+                                                            datetime.timedelta(days=20),
+                                                            self.resampleFrequency.replace("T", ""))
 
         for index, row in historicalData.iterrows():
             self.addSuperTrend(row['Date/Time'], row['Open'], row['High'],
@@ -204,7 +206,7 @@ class ATMStraddleV1(BaseOptionsGreeksStrategy):
         ohlcv = OHLCV(open, high, low,
                       close, volume, dateTime)
 
-        self.supertrend[self.underlying].add_input_value(ohlcv)
+        self.supertrend[self.underlying].add(ohlcv)
 
     def getUnderlying(self):
         return self.underlying
@@ -231,39 +233,40 @@ class ATMStraddleV1(BaseOptionsGreeksStrategy):
         self.positionBearish = self.positionBullish = None
 
     def onBars(self, bars):
-        self.log(f"Bar date times - {bars.getDateTime()}", logging.DEBUG)
-
         self.overallPnL = self.getOverallPnL()
 
         if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+            if (len(self.getActivePositions()) + len(self.getClosedPositions())) > 0:
                 self.log(
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
                 self.__reset__()
         # Exit all positions if exit time is met or portfolio SL is hit
-        elif (bars.getDateTime().time() >= self.exitTime):
+        elif bars.getDateTime().time() >= self.exitTime:
             if self.state != State.EXITED:
                 self.log(
                     f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}. Closing all positions!')
                 self.closeAllPositions()
-        elif (self.overallPnL <= -self.portfolioSL):
+        elif self.overallPnL <= -self.portfolioSL:
             if self.state != State.EXITED:
                 self.log(
-                    f'Current PnL <{self.overallPnL}> has crossed potfolio SL <{self.portfolioSL}>. Closing all positions!')
+                    f'Current PnL <{self.overallPnL}> has crossed potfolio SL <{self.portfolioSL}>.'
+                    f' Closing all positions!')
                 self.closeAllPositions()
         elif (self.state == State.LIVE) and (self.entryTime <= bars.getDateTime().time() < self.exitTime):
             if self.atmStrike is None:
                 self.atmStrike = self.getATMStrike(
                     self.getLTP(self.getUnderlying()), 100)
 
-            if self.underlying in self.supertrend and len(self.supertrend[self.underlying]) > self.indicatorValuesToBeAvailable:
+            if self.underlying in self.supertrend and len(
+                    self.supertrend[self.underlying]) > self.indicatorValuesToBeAvailable:
                 currentExpiry = utils.getNearestWeeklyExpiryDate(
                     bars.getDateTime().date(), self.underlyingIndex)
                 supertrendValue = self.supertrend[self.underlying][-1]
                 lastClose = self.resampledDict[self.underlying]['Close'][-1]
                 self.log(
-                    f'{bars.getDateTime()} - {self.underlying} - LTP <{lastClose}> Supertrend <{supertrendValue.value}>', logging.DEBUG)
+                    f'{bars.getDateTime()} - {self.underlying} - LTP <{lastClose}> Supertrend <{supertrendValue.value}>',
+                    logging.DEBUG)
 
                 # Green
                 if supertrendValue.trend == Trend.UP:
@@ -314,4 +317,5 @@ class ATMStraddleV1(BaseOptionsGreeksStrategy):
 
 if __name__ == "__main__":
     from pyalgomate.cli import CliMain
+
     CliMain(ATMStraddleV1)

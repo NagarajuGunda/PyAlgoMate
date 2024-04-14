@@ -10,6 +10,7 @@ from logging.handlers import SysLogHandler
 from importlib import import_module
 import flet as ft
 import sys
+import sentry_sdk
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)))
 
@@ -23,7 +24,8 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 formatter = logging.Formatter(
-    "[%(levelname)-5s]|[%(asctime)s]|[PID:%(process)d::TID:%(thread)d]|[%(name)s::%(module)s::%(funcName)s::%(lineno)d]|=> %(message)s"
+    "[%(levelname)-5s]|[%(asctime)s]|[PID:%(process)d::TID:%(thread)d]|[%(name)s::%(module)s::%(funcName)s::%("
+    "lineno)d]|=> %(message)s"
 )
 
 fileHandler = logging.FileHandler('PyAlgoMate.log', 'a', 'utf-8')
@@ -39,6 +41,7 @@ logger.addHandler(consoleHandler)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
+
 def GetFeedNStrategies(creds):
     with open("strategies.yaml", "r") as file:
         config = yaml.safe_load(file)
@@ -50,10 +53,9 @@ def GetFeedNStrategies(creds):
 
     strategies = []
 
-    feed, api = getFeed(
-        creds, broker=config['Broker'], underlyings=config['Underlyings'])
+    _feed, api = getFeed(creds, broker=config['Broker'], underlyings=config['Underlyings'])
 
-    feed.start()
+    _feed.start()
 
     for strategyName, details in config['Strategies'].items():
         try:
@@ -71,7 +73,7 @@ def GetFeedNStrategies(creds):
             strategyArgsDict = {
                 key: value for item in strategyArgs for key, value in item.items()}
 
-            broker = getBroker(feed, api, config['Broker'], strategyMode)
+            broker = getBroker(_feed, api, config['Broker'], strategyMode)
 
             if hasattr(strategyClass, 'getAdditionalArgs') and callable(getattr(strategyClass, 'getAdditionalArgs')):
                 additionalArgs = strategyClass.getAdditionalArgs(broker)
@@ -82,7 +84,7 @@ def GetFeedNStrategies(creds):
                             strategyArgsDict[key] = value
 
             strategyInstance = strategyClass(
-                feed=feed, broker=broker, **strategyArgsDict)
+                feed=_feed, broker=broker, **strategyArgsDict)
 
             strategies.append(strategyInstance)
         except Exception as e:
@@ -90,7 +92,7 @@ def GetFeedNStrategies(creds):
                 f'Error in creating strategy instance for <{strategyName}>. Error: {e}')
             logger.exception(traceback.format_exc())
 
-    return feed, strategies
+    return _feed, strategies
 
 
 def runStrategy(strategy):
@@ -117,8 +119,15 @@ creds = None
 with open('cred.yml') as f:
     creds = yaml.load(f, Loader=yaml.FullLoader)
 
+sentry_dns = creds.get('SENTRY', {}).get('SENTRY_DNS')
+env_local = creds.get('ENV', {}).get('LOCAL')
+prod_provider = creds.get('ENV', {}).get('PROD_PROVIDER')
+
 if 'PaperTrail' in creds:
     papertrailCreds = creds['PaperTrail']['address'].split(':')
+
+if sentry_dns and env_local == 'True':
+    sentry_sdk.init(sentry_dns, server_name=prod_provider)
 
     class ContextFilter(logging.Filter):
         hostname = socket.gethostname()
@@ -127,16 +136,18 @@ if 'PaperTrail' in creds:
             record.hostname = ContextFilter.hostname
             return True
 
+
     syslog = SysLogHandler(
         address=(papertrailCreds[0], int(papertrailCreds[1])))
     syslog.addFilter(ContextFilter())
-    format = '%(asctime)s [%(hostname)s] [%(processName)s:%(process)d] [%(threadName)s:%(thread)d] [%(name)s] [%(levelname)s] - %(message)s'
+    format = ('%(asctime)s [%(hostname)s] [%(processName)s:%(process)d] [%(threadName)s:%(thread)d] [%(name)s] [%('
+              'levelname)s] - %(message)s')
     formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
     syslog.setFormatter(formatter)
     logger.addHandler(syslog)
     logger.setLevel(logging.INFO)
 
-feed, strategies = GetFeedNStrategies(creds)
+_feed, strategies = GetFeedNStrategies(creds)
 
 threads = []
 
@@ -153,7 +164,7 @@ def main(page: ft.Page):
     page.padding = ft.padding.only(left=50, right=50)
     page.scroll = ft.ScrollMode.HIDDEN
 
-    strategiesView = StrategiesView(page, feed, strategies)
+    strategiesView = StrategiesView(page, _feed, strategies)
 
     def route_change(route):
         route = urlparse(route.route)
@@ -183,6 +194,7 @@ def main(page: ft.Page):
     while True:
         page.views[-1].update()
         time.sleep(0.5)
+
 
 if __name__ == "__main__":
     fletPath = os.getenv("FLET_PATH", '')

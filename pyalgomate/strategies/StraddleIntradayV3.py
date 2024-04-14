@@ -7,6 +7,7 @@ from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStr
 from pyalgomate.core import State
 from pyalgomate.cli import CliMain
 
+import log_setup  # noqa
 logger = logging.getLogger(__file__)
 
 '''
@@ -28,7 +29,7 @@ class StraddleIntradayV3(BaseOptionsGreeksStrategy):
                                                  collectData=collectData,
                                                  telegramBot=telegramBot)
 
-        self.entryTime = datetime.time(hour=9, minute=30)
+        self.entryTime = datetime.time(hour=10, minute=5)
         self.exitTime = datetime.time(hour=15, minute=15)
         self.marketEndTime = datetime.time(hour=15, minute=30)
         self.underlying = underlying
@@ -129,18 +130,18 @@ class StraddleIntradayV3(BaseOptionsGreeksStrategy):
         self.overallPnL = self.getOverallPnL()
 
         if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+            if (len(self.getActivePositions()) + len(self.getClosedPositions())) > 0:
                 self.log(
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
                 self.__reset__()
         # Exit all positions if exit time is met or portfolio SL is hit
-        elif (bars.getDateTime().time() >= self.exitTime):
+        elif bars.getDateTime().time() >= self.exitTime:
             if self.state != State.EXITED:
                 self.log(
                     f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}. Closing all positions!')
                 self.closeAllPositions()
-        elif (self.overallPnL <= -self.portfolioSL):
+        elif self.overallPnL <= -self.portfolioSL:
             if self.state != State.EXITED:
                 self.log(
                     f'Current PnL <{self.overallPnL}> has crossed potfolio SL <{self.portfolioSL}>. Closing all positions!')

@@ -31,21 +31,24 @@ def get_data():
 def get_placeholder():
     return st.empty()
 
+
 def refreshData():
     print('Refreshing mydata.py')
     filePath = os.path.join(os.path.dirname(__file__), 'mydata.py')
     with open(filePath, 'w') as f:
         f.write("")
 
+
 def plotChart(df, name):
     value = pd.to_numeric(df['Value'])
     color = np.where(value < 0, 'loss', 'profit')
 
     fig = px.area(df, x="Date/Time", y=value, title=name, color=color, color_discrete_map={'loss': 'orangered',
-                                                                         'profit': 'lightgreen'})
+                                                                                           'profit': 'lightgreen'})
     fig.for_each_trace(lambda trace: trace.update(fillcolor=trace.line.color))
 
     st.plotly_chart(fig, use_container_width=True)
+
 
 async def subscribe():
     context = zmq.asyncio.Context.instance()
@@ -76,9 +79,10 @@ async def subscribe():
                         lists[strategy]["charts"] = pd.DataFrame(
                             columns=['Date/Time', 'Name', 'Value'])
                     for chart in charts:
-                        lists[strategy]["charts"] = pd.concat([lists[strategy]["charts"], pd.DataFrame({'Date/Time': [strategyData['datetime']],
-                                                                                                        'Name': [chart],
-                                                                                                        'Value': [charts[chart]]})], ignore_index=True)
+                        lists[strategy]["charts"] = pd.concat(
+                            [lists[strategy]["charts"], pd.DataFrame({'Date/Time': [strategyData['datetime']],
+                                                                      'Name': [chart],
+                                                                      'Value': [charts[chart]]})], ignore_index=True)
                 elif key == 'optionChain':
                     optionChainDict = strategyData[key]
                     df = pd.DataFrame.from_dict(
@@ -86,9 +90,9 @@ async def subscribe():
                     if df.shape[1] > 1:
                         columnsList = df.columns
                         df.columns = [column.capitalize()
-                                    for column in columnsList]
+                                      for column in columnsList]
                         df = df[['Symbol', 'Strike', 'Expiry', 'Price',
-                                'Delta', 'Gamma', 'Theta', 'Vega', 'Iv']]
+                                 'Delta', 'Gamma', 'Theta', 'Vega', 'Iv']]
                         lists[strategy]["optionChain"] = df
                 elif key == "trades":
                     lists[strategy]["trades"] = pd.read_json(strategyData[key])
@@ -141,10 +145,10 @@ def plotPayOff(dataframe: pd.DataFrame):
 
     # Define the strike price range for the options payoff chart
     midStrike = int((trades_df["Strike"].min() +
-                    trades_df["Strike"].max()) / 2)
+                     trades_df["Strike"].max()) / 2)
     minStrike = midStrike - (20 * 100)
     maxStrike = midStrike + (20 * 100)
-    strikes = list(range(minStrike, maxStrike+100, 100))
+    strikes = list(range(minStrike, maxStrike + 100, 100))
 
     # Create a DataFrame to store the payoff for each underlying
     payoff_df = pd.DataFrame({'Underlying': strikes})
@@ -157,7 +161,7 @@ def plotPayOff(dataframe: pd.DataFrame):
                 if trade['Strike'] > underlying:
                     if getOptionType(trade['Instrument']) == 'C':
                         payoffs.append(-(trade['Entry Price']
-                                       * trade['Quantity']))
+                                         * trade['Quantity']))
                     else:
                         payoffs.append(
                             (trade['Strike'] - underlying - trade['Entry Price']) * trade['Quantity'])
@@ -167,7 +171,7 @@ def plotPayOff(dataframe: pd.DataFrame):
                             (underlying - trade['Strike'] - trade['Entry Price']) * trade['Quantity'])
                     else:
                         payoffs.append(-(trade['Entry Price']
-                                       * trade['Quantity']))
+                                         * trade['Quantity']))
             else:
                 if trade['Strike'] > underlying:
                     if getOptionType(trade['Instrument']) == 'C':
@@ -229,9 +233,9 @@ def plotCandlestickChart(dfIn, ticker, timeframe):
     timeframe = f"{timeframe}min"
     df = (
         dfIn.resample(timeframe, on="Date/Time")
-          .agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"})
-          .reset_index()
-          .dropna()
+        .agg({"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"})
+        .reset_index()
+        .dropna()
     )
     COLOR_BULL = 'rgba(38,166,154,0.9)'  # 26a69a
     COLOR_BEAR = 'rgba(239,83,80,0.9)'  # #ef5350
@@ -367,8 +371,8 @@ def plotCandlestickChart(dfIn, ticker, timeframe):
 
 def plotOHLC(ohlcData):
     def updateTicker():
-            st.session_state["oldTicker"] = st.session_state["selectedTicker"]
-            st.session_state["selectedTicker"] = st.session_state.newTicker
+        st.session_state["oldTicker"] = st.session_state["selectedTicker"]
+        st.session_state["selectedTicker"] = st.session_state.newTicker
 
     def updateDateRange():
         st.session_state["oldFromDate"] = st.session_state["selectedFromDate"]
@@ -412,9 +416,9 @@ def plotOHLC(ohlcData):
         if isinstance(st.session_state["selectedFromDate"], tuple) and len(st.session_state["selectedFromDate"]) == 2:
             filteredData = ohlcData[
                 (ohlcData["Date/Time"].dt.date >=
-                    st.session_state["selectedFromDate"][0])
+                 st.session_state["selectedFromDate"][0])
                 & (ohlcData["Date/Time"].dt.date <= st.session_state["selectedFromDate"][1])
-            ]
+                ]
         else:
             filteredData = ohlcData[ohlcData["Date/Time"].dt.date >=
                                     st.session_state["selectedFromDate"]]
@@ -422,9 +426,9 @@ def plotOHLC(ohlcData):
         if isinstance(st.session_state["selectedToDate"], tuple) and len(st.session_state["selectedToDate"]) == 2:
             filteredData = ohlcData[
                 (ohlcData["Date/Time"].dt.date >=
-                    st.session_state["selectedToDate"][0])
+                 st.session_state["selectedToDate"][0])
                 & (ohlcData["Date/Time"].dt.date <= st.session_state["selectedToDate"][1])
-            ]
+                ]
         else:
             filteredData = ohlcData[ohlcData["Date/Time"].dt.date <=
                                     st.session_state["selectedToDate"]]
@@ -484,6 +488,7 @@ def plotOHLC(ohlcData):
     plotCandlestickChart(
         filteredData, st.session_state["selectedTicker"], st.session_state["selectedTimeFrame"])
 
+
 def displayData():
     def updatedSelectedStrategy():
         st.session_state["oldStrategy"] = st.session_state["selectedStrategy"]
@@ -517,7 +522,8 @@ def displayData():
                 optionChainData = strategyData["optionChain"]
                 mergedData = pd.merge(mergedData, optionChainData.rename(columns={
                     "Symbol": "Instrument", "Price": "LTP"}), on="Instrument", how="inner")
-                reOrderedColumns = ["Instrument", "Buy/Sell", "Entry Date/Time", "Exit Date/Time", "Quantity", "Entry Price", "Exit Price", "LTP",
+                reOrderedColumns = ["Instrument", "Buy/Sell", "Entry Date/Time", "Exit Date/Time", "Quantity",
+                                    "Entry Price", "Exit Price", "LTP",
                                     "Strike", "Expiry", "Delta", "Gamma", "Theta", "Vega", "Iv"]
                 mergedData = mergedData[reOrderedColumns]
 
@@ -565,13 +571,13 @@ def startSubscriber():
         startSubscriber()
 
 
-
 def displayDataInLoop():
     # while True:
     #     print('Displaying data')
     #     displayData()
     #     time.sleep(1)
     displayData()
+
 
 def run():
     if 'subscriberThread' not in st.session_state:
@@ -580,6 +586,7 @@ def run():
         add_script_run_ctx(subscriberThread)
         subscriberThread.start()
         st.session_state.subscriberThread = subscriberThread
+
 
 def main():
     run()

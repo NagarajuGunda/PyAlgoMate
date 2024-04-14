@@ -84,7 +84,7 @@ class BollingerBandsV1(BaseOptionsGreeksStrategy):
             self.bollingBands[self.underlying] = BB(
                 self.bollingerBandPeriod, self.bollingerBandStdDevMultiplier)
 
-        self.bollingBands[self.underlying].add_input_value(close)
+        self.bollingBands[self.underlying].add(close)
 
     def onResampledBars(self, bars):
         bar = bars.getBar(self.underlying)
@@ -114,7 +114,7 @@ class BollingerBandsV1(BaseOptionsGreeksStrategy):
             return
 
         if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+            if (len(self.getActivePositions()) + len(self.getClosedPositions())) > 0:
                 self.log(
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
@@ -138,7 +138,8 @@ class BollingerBandsV1(BaseOptionsGreeksStrategy):
 
             currentExpiry = utils.getNearestWeeklyExpiryDate(
                 bars.getDateTime().date())
-
+            if self.bollingBands[self.underlying][-2] is None:
+                return
             if (self.resampledDict[self.underlying]['Close'][-2] <= self.bollingBands[self.underlying][-2].ub) and \
                     (self.resampledDict[self.underlying]['Close'][-1] > self.bollingBands[self.underlying][-1].ub):
                 if bar.getHigh() > self.resampledDict[self.underlying]['High'][-1]:

@@ -12,13 +12,14 @@ from pyalgomate.core import State
 
 logger = logging.getLogger(__file__)
 
-'''
+"""
 TimeFrame: 5 minute
+
 1. Buy conditions: Supertrend turns buy and RSI !> 85
 2. Exit conditions: RSI < 55 or Supertrend turns sell
 3. Sell conditions: Supertrend turns sell and RSI !< 25
 4. Exit conditions: RSI > 45 or Supertrend turns buy
-'''
+"""
 
 
 class SuperTrendRSIV1(BaseOptionsGreeksStrategy):
@@ -60,7 +61,8 @@ class SuperTrendRSIV1(BaseOptionsGreeksStrategy):
 
         # get historical data
         historicalData = self.getBroker().getHistoricalData(self.underlying, datetime.datetime.now() -
-                                                            datetime.timedelta(days=20), self.resampleFrequency.replace("T", ""))
+                                                            datetime.timedelta(days=20),
+                                                            self.resampleFrequency.replace("T", ""))
 
         self.indicators['supertrend'][self.underlying] = SuperTrend(
             self.supertrendLength, self.supertrendMultiplier)
@@ -104,15 +106,19 @@ class SuperTrendRSIV1(BaseOptionsGreeksStrategy):
         ohlcv = OHLCV(open, high, low,
                       close, volume, dateTime)
 
-        self.indicators['supertrend'][self.underlying].add_input_value(ohlcv)
-        self.indicators['rsi'][self.underlying].add_input_value(ohlcv.close)
+        self.indicators['supertrend'][self.underlying].add(ohlcv)
+        self.indicators['rsi'][self.underlying].add(ohlcv.close)
 
-        if (len(self.indicators['supertrend'][self.underlying]) < self.indicatorValuesToBeAvailable) or (len(self.indicators['rsi'][self.underlying]) < self.indicatorValuesToBeAvailable):
+        if ((len(self.indicators['supertrend'][self.underlying]) < self.indicatorValuesToBeAvailable)
+                or (len(self.indicators['rsi'][self.underlying]) < self.indicatorValuesToBeAvailable)):
             return
 
-        self.log(f"{dateTime} - LTP <{self.resampledDict[self.underlying]['Close'][-1]}> Supertrend <{self.indicators['supertrend'][self.underlying][-1].trend}> <{self.indicators['supertrend'][self.underlying][-1].value}> RSI <{self.indicators['rsi'][self.underlying][-1]}>", logging.DEBUG)
+        self.log(f"{dateTime} - LTP <{self.resampledDict[self.underlying]['Close'][-1]}> "
+                 f"Supertrend <{self.indicators['supertrend'][self.underlying][-1].trend}> "
+                 f"<{self.indicators['supertrend'][self.underlying][-1].value}> RSI "
+                 f"<{self.indicators['rsi'][self.underlying][-1]}>", logging.DEBUG)
 
-    def on5MinBars(self, bars):
+    def on5MinBars(self, bars: pyalgotrade.bar.Bars):
         bar = bars.getBar(self.underlying)
 
         if bar is None:
@@ -122,7 +128,8 @@ class SuperTrendRSIV1(BaseOptionsGreeksStrategy):
                            bar.getClose(), bar.getVolume(), bar.getExtraColumns().get("Open Interest", 0))
 
         if (self.state == State.LIVE) and (self.entryTime <= bars.getDateTime().time() < self.exitTime):
-            if (len(self.indicators['supertrend'][self.underlying]) < self.indicatorValuesToBeAvailable) or (len(self.indicators['rsi'][self.underlying]) < self.indicatorValuesToBeAvailable):
+            if ((len(self.indicators['supertrend'][self.underlying]) < self.indicatorValuesToBeAvailable)
+                    or (len(self.indicators['rsi'][self.underlying]) < self.indicatorValuesToBeAvailable)):
                 return
             currentExpiry = utils.getNearestWeeklyExpiryDate(
                 bars.getDateTime().date())
@@ -132,12 +139,15 @@ class SuperTrendRSIV1(BaseOptionsGreeksStrategy):
             lastClose = self.resampledDict[self.underlying]['Close'][-1]
 
             self.log(
-                f'{bars.getDateTime()} - {self.underlying} - LTP <{lastClose}> Supertrend <{supertrendValue.value}> RSI <{rsiValue}>', logging.DEBUG)
+                f'{bars.getDateTime()} - {self.underlying} - LTP <{lastClose}> Supertrend '
+                f'<{supertrendValue.value}> RSI <{rsiValue}>', logging.DEBUG)
 
             if (supertrendValue.trend == Trend.UP) and (self.rsiBuyExitLevel < rsiValue < self.rsiOverboughtLevel):
                 if self.positionBearish is not None:
                     self.log(
-                        f'{bars.getDateTime()} - Supertrend trend <{supertrendValue.value}> is UP and RSI <{rsiValue}> is between <{self.rsiBuyExitLevel}> & <{self.rsiOverboughtLevel}>. Exiting last position')
+                        f'{bars.getDateTime()} - Supertrend trend <{supertrendValue.value}> is UP and '
+                        f'RSI <{rsiValue}> is between <{self.rsiBuyExitLevel}> & <{self.rsiOverboughtLevel}>. '
+                        f'Exiting last position')
                     self.positionBearish.exitMarket()
                     self.positionBearish = None
                 if self.positionBullish is None:
@@ -146,14 +156,18 @@ class SuperTrendRSIV1(BaseOptionsGreeksStrategy):
                     symbol = self.getOptionSymbol(
                         self.underlying, currentExpiry, atmStrike, 'c')
                     self.log(
-                        f'{bars.getDateTime()} - Supertrend trend <{supertrendValue.value}> is UP and RSI <{rsiValue}> is between <{self.rsiBuyExitLevel}> & <{self.rsiOverboughtLevel}>. Entering {symbol} Long')
+                        f'{bars.getDateTime()} - Supertrend trend <{supertrendValue.value}> is UP and'
+                        f' RSI <{rsiValue}> is between <{self.rsiBuyExitLevel}> & <{self.rsiOverboughtLevel}>. '
+                        f'Entering {symbol} Long')
                     self.state = State.PLACING_ORDERS
                     self.positionBullish = self.enterLong(
                         symbol, self.quantity)
             elif (supertrendValue.trend == Trend.DOWN) and (self.rsiOversoldLevel < rsiValue < self.rsiSellExitLevel):
                 if self.positionBullish is not None:
                     self.log(
-                        f'{bars.getDateTime()} - Supertrend trend <{supertrendValue.value}> is DOWN and RSI <{rsiValue}> is between <{self.rsiOversoldLevel}> & <{self.rsiSellExitLevel}>. Exiting last position')
+                        f'{bars.getDateTime()} - Supertrend trend <{supertrendValue.value}> is DOWN and '
+                        f'RSI <{rsiValue}> is between <{self.rsiOversoldLevel}> & '
+                        f'<{self.rsiSellExitLevel}>. Exiting last position')
                     self.positionBullish.exitMarket()
                     self.positionBullish = None
                 if self.positionBearish is None:
@@ -162,7 +176,9 @@ class SuperTrendRSIV1(BaseOptionsGreeksStrategy):
                     symbol = self.getOptionSymbol(
                         self.underlying, currentExpiry, atmStrike, 'p')
                     self.log(
-                        f'{bars.getDateTime()} - Supertrend trend <{supertrendValue.value}> is DOWN and RSI <{rsiValue}> is between <{self.rsiOversoldLevel}> & <{self.rsiSellExitLevel}>. Entering {symbol} Long')
+                        f'{bars.getDateTime()} - Supertrend trend <{supertrendValue.value}> is DOWN and RSI '
+                        f'<{rsiValue}> is between <{self.rsiOversoldLevel}> & <{self.rsiSellExitLevel}>. '
+                        f'Entering {symbol} Long')
                     self.state = State.PLACING_ORDERS
                     self.positionBearish = self.enterLong(
                         symbol, self.quantity)
@@ -171,15 +187,19 @@ class SuperTrendRSIV1(BaseOptionsGreeksStrategy):
             rsiValue = self.indicators['rsi'][self.underlying][-1]
             lastClose = self.resampledDict[self.underlying]['Close'][-1]
 
-            if (self.positionBullish is not None) and ((supertrendValue.trend == Trend.DOWN) or (rsiValue < self.rsiBuyExitLevel)):
+            if (self.positionBullish is not None) and ((supertrendValue.trend == Trend.DOWN)
+                                                       or (rsiValue < self.rsiBuyExitLevel)):
                 self.log(
-                    f'{bars.getDateTime()} - Supertrend trend <{supertrendValue.value}> is {supertrendValue.trend} or RSI <{rsiValue}> < {self.rsiBuyExitLevel}. Exiting bullish position!')
+                    f'{bars.getDateTime()} - Supertrend trend <{supertrendValue.value}> is '
+                    f'{supertrendValue.trend} or RSI <{rsiValue}> < {self.rsiBuyExitLevel}. Exiting bullish position!')
                 self.state = State.PLACING_ORDERS
                 self.positionBullish.exitMarket()
                 self.positionBullish = None
-            elif (self.positionBearish is not None) and ((supertrendValue.trend == Trend.UP) or (rsiValue > self.rsiSellExitLevel)):
+            elif (self.positionBearish is not None) and ((supertrendValue.trend == Trend.UP)
+                                                         or (rsiValue > self.rsiSellExitLevel)):
                 self.log(
-                    f'{bars.getDateTime()} - Supertrend trend <{supertrendValue.value}> is {supertrendValue.trend} or RSI <{rsiValue}> > {self.rsiSellExitLevel}. Exiting bearish position!')
+                    f'{bars.getDateTime()} - Supertrend trend <{supertrendValue.value}> is '
+                    f'{supertrendValue.trend} or RSI <{rsiValue}> > {self.rsiSellExitLevel}. Exiting bearish position!')
                 self.state = State.PLACING_ORDERS
                 self.positionBearish.exitMarket()
                 self.positionBearish = None
@@ -194,27 +214,30 @@ class SuperTrendRSIV1(BaseOptionsGreeksStrategy):
                 position.exitMarket()
         self.positionBearish = self.positionBullish = None
 
-    def onBars(self, bars):
-        self.log(f"Bar date times - {bars.getDateTime()}", logging.DEBUG)
+    def onBars(self, bars: pyalgotrade.bar.Bars):
+        self.log(f"Bar date times - {bars.getDateTime()}", logging.INFO)
 
         self.overallPnL = self.getOverallPnL()
 
         if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+            # TODO: This is not exiting even at market close time
+            if (len(self.getActivePositions()) + len(self.getClosedPositions())) > 0:
                 self.log(
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
                 self.__reset__()
         # Exit all positions if exit time is met or portfolio SL is hit
-        elif (bars.getDateTime().time() >= self.exitTime):
-            if (self.state != State.EXITED) and (len(self.openPositions) > 0):
+        elif bars.getDateTime().time() >= self.exitTime:
+            if (self.state != State.EXITED) and (len(self.getActivePositions()) > 0):
                 self.log(
-                    f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}. Closing all positions!')
+                    f'Current time <{bars.getDateTime().time()}> has crossed exit '
+                    f'time <{self.exitTime}. Closing all positions!')
                 self.closeAllPositions()
-        elif (self.overallPnL <= -self.portfolioSL):
+        elif self.overallPnL <= -self.portfolioSL:
             if self.state != State.EXITED:
                 self.log(
-                    f'Current PnL <{self.overallPnL}> has crossed potfolio SL <{self.portfolioSL}>. Closing all positions!')
+                    f'Current PnL <{self.overallPnL}> has crossed portfolio SL '
+                    f'<{self.portfolioSL}>. Closing all positions!')
                 self.closeAllPositions()
         elif self.state == State.PLACING_ORDERS:
             if len(list(self.getActivePositions())) == 0:

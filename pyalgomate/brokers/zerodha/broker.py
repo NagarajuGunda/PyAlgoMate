@@ -1,8 +1,6 @@
 """
 .. moduleauthor:: Nagaraju Gunda
 """
-
-
 import threading
 import time
 import logging
@@ -49,11 +47,14 @@ underlyingMapping = {
     }
 }
 
+
 def getUnderlyingMappings():
     return underlyingMapping
 
+
 def getUnderlyingDetails(underlying):
     return underlyingMapping[underlying]
+
 
 def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
     monthly = utils.getNearestMonthlyExpiryDate(expiry) == expiry
@@ -79,16 +80,17 @@ def getOptionSymbols(underlyingInstrument, expiry, ltp, count, strikeDifference=
     ltp = int(float(ltp) / strikeDifference) * strikeDifference
     logger.info(f"Nearest strike price of {underlyingInstrument} is <{ltp}>")
     optionSymbols = []
-    for n in range(-count, count+1):
-       optionSymbols.append(getOptionSymbol(
-           underlyingInstrument, expiry, ltp + (n * strikeDifference), 'C'))
+    for n in range(-count, count + 1):
+        optionSymbols.append(getOptionSymbol(
+            underlyingInstrument, expiry, ltp + (n * strikeDifference), 'C'))
 
-    for n in range(-count, count+1):
-       optionSymbols.append(getOptionSymbol(
-           underlyingInstrument, expiry, ltp - (n * strikeDifference), 'P'))
+    for n in range(-count, count + 1):
+        optionSymbols.append(getOptionSymbol(
+            underlyingInstrument, expiry, ltp - (n * strikeDifference), 'P'))
 
     logger.info("Options symbols are " + ",".join(optionSymbols))
     return optionSymbols
+
 
 def getZerodhaTokensList(api: KiteExt, instruments):
     tokenMappings = {}
@@ -129,14 +131,16 @@ def getHistoricalData(api, exchangeSymbol: str, startTime: datetime.datetime, in
     else:
         return pd.DataFrame(columns=['Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest'])
 
+
 class ZerodhaPaperTradingBroker(BacktestingBroker):
     """A Zerodha paper trading broker.
     """
+
     def __init__(self, cash, barFeed, fee=0.0025):
         super().__init__(cash, barFeed, fee)
 
         self.__api = barFeed.getApi()
-    
+
     def getType(self):
         return "Paper"
 
@@ -153,7 +157,9 @@ class ZerodhaPaperTradingBroker(BacktestingBroker):
         return getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut)
 
     def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
-        return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
+        return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument,
+                                                                                                  expiry, peStrikePrice,
+                                                                                                  'P')
 
     def getOptionContract(self, symbol):
         m = re.match(r"([A-Z\:]+)(\d{2})([A-Z]{3})(\d+)([CP])E", symbol)
@@ -166,7 +172,8 @@ class ZerodhaPaperTradingBroker(BacktestingBroker):
             optionPrefix = m.group(1)
             for underlying, underlyingDetails in underlyingMapping.items():
                 if underlyingDetails['optionPrefix'] == optionPrefix:
-                    return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", underlying)
+                    return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p",
+                                          underlying)
 
         m = re.match(r"([A-Z\:]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
 
@@ -212,7 +219,8 @@ class TradeEvent(object):
         return float(self.__eventDict.get('filled_quantity', 0.0))
 
     def getDateTime(self):
-        return self.__eventDict['order_timestamp'] if self.__eventDict.get('order_timestamp', None) is not None else None
+        return self.__eventDict['order_timestamp'] if self.__eventDict.get('order_timestamp',
+                                                                           None) is not None else None
 
 
 class TradeMonitor(threading.Thread):
@@ -239,7 +247,7 @@ class TradeMonitor(threading.Thread):
         try:
             orderBook = self.__api.orders()
         except Exception as e:
-            logger.error('Failed to fetch order book',)
+            logger.error('Failed to fetch order book', )
             return ret
 
         for orderId in activeOrderIds:
@@ -293,7 +301,7 @@ class TradeMonitor(threading.Thread):
 
 class ZerodhaLiveBroker(broker.Broker):
     """A Zerodha live broker.
-    
+
     :param api: Logged in api object.
     :type api: ShoonyaApi.
 
@@ -313,7 +321,7 @@ class ZerodhaLiveBroker(broker.Broker):
     """
 
     QUEUE_TIMEOUT = 0.01
-    
+
     def getType(self):
         return "Live"
 
@@ -327,7 +335,9 @@ class ZerodhaLiveBroker(broker.Broker):
         return getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut)
 
     def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
-        return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
+        return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument,
+                                                                                                  expiry, peStrikePrice,
+                                                                                                  'P')
 
     def getOptionContract(self, symbol):
         m = re.match(r"([A-Z\:]+)(\d{2})([A-Z]{3})(\d+)([CP])E", symbol)
@@ -340,7 +350,8 @@ class ZerodhaLiveBroker(broker.Broker):
             optionPrefix = m.group(1)
             for underlying, underlyingDetails in underlyingMapping.items():
                 if underlyingDetails['optionPrefix'] == optionPrefix:
-                    return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", underlying)
+                    return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p",
+                                          underlying)
 
         m = re.match(r"([A-Z\:]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
 
@@ -568,9 +579,9 @@ class ZerodhaLiveBroker(broker.Broker):
     def _createOrder(self, orderType, action, instrument, quantity, price, stopPrice):
         action = {
             broker.Order.Action.BUY_TO_COVER: broker.Order.Action.BUY,
-            broker.Order.Action.BUY:          broker.Order.Action.BUY,
-            broker.Order.Action.SELL_SHORT:   broker.Order.Action.SELL,
-            broker.Order.Action.SELL:         broker.Order.Action.SELL
+            broker.Order.Action.BUY: broker.Order.Action.BUY,
+            broker.Order.Action.SELL_SHORT: broker.Order.Action.SELL,
+            broker.Order.Action.SELL: broker.Order.Action.SELL
         }.get(action, None)
 
         if action is None:
@@ -583,7 +594,8 @@ class ZerodhaLiveBroker(broker.Broker):
         elif orderType == broker.StopOrder:
             return broker.StopOrder(action, instrument, stopPrice, quantity, self.getInstrumentTraits(instrument))
         elif orderType == broker.StopLimitOrder:
-            return broker.StopLimitOrder(action, instrument, stopPrice, price, quantity, self.getInstrumentTraits(instrument))
+            return broker.StopLimitOrder(action, instrument, stopPrice, price, quantity,
+                                         self.getInstrumentTraits(instrument))
 
     def createMarketOrder(self, action, instrument, quantity, onClose=False):
         return self._createOrder(broker.MarketOrder, action, instrument, quantity, None, None)
