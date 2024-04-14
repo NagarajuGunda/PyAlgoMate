@@ -11,24 +11,9 @@ from logging.handlers import SysLogHandler
 from pyalgomate.telegram import TelegramBot
 from pyalgomate.core import State
 from pyalgomate.brokers import getFeed, getBroker
+import log_setup  # noqa
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-
-fileHandler = logging.FileHandler('PyAlgoMate.log')
-fileHandler.setLevel(logging.INFO)
-fileHandler.setFormatter(formatter)
-
-consoleHandler = logging.StreamHandler()
-consoleHandler.setLevel(logging.INFO)
-consoleHandler.setFormatter(formatter)
-
-logger.addHandler(fileHandler)
-logger.addHandler(consoleHandler)
-
-logging.getLogger("requests").setLevel(logging.WARNING)
+logger = logging.getLogger(__file__)
 
 
 def runStrategy(strategy):
@@ -91,16 +76,17 @@ def main():
         syslog = SysLogHandler(
             address=(papertrailCreds[0], int(papertrailCreds[1])))
         syslog.addFilter(ContextFilter())
-        format = '%(asctime)s [%(hostname)s] [%(processName)s:%(process)d] [%(threadName)s:%(thread)d] [%(name)s] [%(levelname)s] - %(message)s'
-        formatter = logging.Formatter(format, datefmt='%b %d %H:%M:%S')
-        syslog.setFormatter(formatter)
+        _format = ('%(asctime)s [%(hostname)s] [%(processName)s:%(process)d] [%(threadName)s:%(thread)d] [%(name)s] [%('
+                   'levelname)s] - %(message)s')
+        _formatter = logging.Formatter(_format, datefmt='%b %d %H:%M:%S')
+        syslog.setFormatter(_formatter)
         logger.addHandler(syslog)
         logger.setLevel(logging.INFO)
 
     feed, api = getFeed(
         creds, broker=config['Broker'], underlyings=config['Underlyings'])
 
-    logger.info('Starting Feed')
+    logger.info(f"Starting {config['Broker']} data feed....")
     feed.start()
 
     for strategyName, details in config['Strategies'].items():
@@ -151,14 +137,14 @@ def main():
             logger.info("Ctrl+C received. Stopping the bot...")
 
             # Stop the strategies
-            for strategyObject in strategies:
-                strategyObject.stop()
+            for _strategyObject in strategies:
+                _strategyObject.stop()
 
             telegramBot.stop()
 
             # Stop the threads
-            for thread in threads:
-                thread.join()
+            for _thread in threads:
+                _thread.join()
 
             telegramBot.waitUntilFinished()
             telegramBot.delete()
