@@ -3,7 +3,6 @@ wheel
 yfinance
 pyalgotrade @ git+https://git@github.com/NagarajuGunda/pyalgotrade@master
 pyyaml
-https://raw.githubusercontent.com/Shoonya-Dev/ShoonyaApi-py/master/dist/NorenRestApiPy-0.0.22-py2.py3-none-any.whl
 pyotp
 six
 fastparquet
@@ -27,3 +26,8 @@ selenium
 webdriver_manager
 flet
 flet_core
+pandas~=2.2.1
+numpy~=1.26.4
+python-dotenv~=1.0.1
+pytz~=2024.1
+requests~=2.31.0
