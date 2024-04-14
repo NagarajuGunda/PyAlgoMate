@@ -136,3 +136,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+.idea/
+api-scrip-master.csv
+.DS_Store
