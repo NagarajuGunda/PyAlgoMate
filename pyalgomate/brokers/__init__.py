@@ -269,3 +269,16 @@ def getBroker(feed, api, broker, mode, capital=200000):
             brokerInstance = LiveBroker(api)
 
     return brokerInstance
+
+def getDefaultUnderlyings() -> List[str]:
+    return  ['NSE:NIFTY BANK']
+
+def getExpiryDates(index: UnderlyingIndex ):
+    currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
+            datetime.datetime.now().date(), index)
+    nextWeekExpiry = utils.getNextWeeklyExpiryDate(
+        datetime.datetime.now().date(), index)
+    monthlyExpiry = utils.getNearestMonthlyExpiryDate(
+        datetime.datetime.now().date(), index)
+    
+    return currentWeeklyExpiry, nextWeekExpiry, monthlyExpiry
