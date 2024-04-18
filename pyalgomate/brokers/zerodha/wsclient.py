@@ -35,6 +35,7 @@ class WebSocketClient:
         self.__connected = False
         self.__initialized = threading.Event()
         self.__lastReceivedDateTime = None
+        self.__lastQuoteDateTime = None
 
     def getLastQuoteDateTime(self):
         return self.__lastQuoteDateTime

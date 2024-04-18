@@ -264,14 +264,13 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
     def getPnLImage(self):
         pnl = self.getOverallPnL()
         pnlDf = self.getPnLs()
-        minMTM = pnlDf.min()
-        maxMTM = pnlDf.max()
-        rodc = -1
         values = pd.to_numeric(pnlDf['PnL'])
         color = np.where(values < 0, 'loss', 'profit')
+        minMTM = values.min()
+        maxMTM = values.max()
 
-        fig = px.area(pnlDf, x="Date/Time", y=values, title=f"{self.strategyName} MTM | Current PnL:  ₹{round(pnl, 2)}\
-                      Min MTM: {minMTM}   Max MTM: {maxMTM}  RODC: {rodc}",
+        fig = px.area(pnlDf, x="Date/Time", y=values, title=f"{self.strategyName} MTM | Current PnL:  ₹{round(pnl, 2)} \
+            <br><sup> MinMTM: {round(minMTM, 2)} | MaxMTM: {round(maxMTM, 2)} | ROI: {None} | ROD: {None}</sup>",
                       color=color, color_discrete_map={'loss': 'orangered', 'profit': 'lightgreen'})
         fig.update_layout(
             title_x=0.5, title_xanchor='center', yaxis_title='PnL')
