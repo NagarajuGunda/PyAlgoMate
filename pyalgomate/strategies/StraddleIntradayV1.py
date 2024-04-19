@@ -1,6 +1,5 @@
 import logging
 import datetime
-import pandas as pd
 
 import pyalgomate.utils as utils
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
@@ -66,21 +65,23 @@ class StraddleIntradayV1(BaseOptionsGreeksStrategy):
         self.overallPnL = self.getOverallPnL()
 
         if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+            if (len(self.getActivePositions()) + len(self.getClosedPositions())) > 0:
                 self.log(
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
                 self.__reset__()
         # Exit all positions if exit time is met or portfolio SL is hit
-        elif (bars.getDateTime().time() >= self.exitTime):
+        elif bars.getDateTime().time() >= self.exitTime:
             if self.state != State.EXITED:
                 self.log(
-                    f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}. Closing all positions!')
+                    f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}. Closing all '
+                    f'positions!')
                 self.closeAllPositions()
-        elif (self.overallPnL <= -self.portfolioSL):
+        elif self.overallPnL <= -self.portfolioSL:
             if self.state != State.EXITED:
                 self.log(
-                    f'Current PnL <{self.overallPnL}> has crossed potfolio SL <{self.portfolioSL}>. Closing all positions!')
+                    f'Current PnL <{self.overallPnL}> has crossed potfolio SL <{self.portfolioSL}>. Closing all '
+                    f'positions!')
                 self.closeAllPositions()
         elif (self.state == State.LIVE) and (self.entryTime <= bars.getDateTime().time() < self.exitTime):
             selectedCallOption = self.getNearestDeltaOption(
@@ -126,7 +127,9 @@ class StraddleIntradayV1(BaseOptionsGreeksStrategy):
                     if abs(
                             callOptionGreeks.delta) > abs(putOptionGreeks.delta):
                         self.log(
-                            f'Call delta <{callOptionGreeks.delta}> plus put delta <{putOptionGreeks.delta}> is higher threshold <{self.deltaThreshold}>. Current PNL is <{self.overallPnL}>. Closing call option and moving SL to cost for put option')
+                            f'Call delta <{callOptionGreeks.delta}> plus put delta <{putOptionGreeks.delta}> is '
+                            f'higher threshold <{self.deltaThreshold}>. Current PNL is <{self.overallPnL}>. Closing '
+                            f'call option and moving SL to cost for put option')
                         self.state = State.PLACING_ORDERS
                         self.positionCall.exitMarket()
                         self.positionCall = None
@@ -138,7 +141,9 @@ class StraddleIntradayV1(BaseOptionsGreeksStrategy):
                             buySymbol, self.quantity)
                     else:
                         self.log(
-                            f'Call delta <{callOptionGreeks.delta}> plus put delta <{putOptionGreeks.delta}> is higher threshold <{self.deltaThreshold}>. Current PNL is <{self.overallPnL}>. Closing put option and moving SL to cost for call option')
+                            f'Call delta <{callOptionGreeks.delta}> plus put delta <{putOptionGreeks.delta}> is '
+                            f'higher threshold <{self.deltaThreshold}>. Current PNL is <{self.overallPnL}>. Closing '
+                            f'put option and moving SL to cost for call option')
                         self.state = State.PLACING_ORDERS
                         self.positionPut.exitMarket()
                         self.positionPut = None
