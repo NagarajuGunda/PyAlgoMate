@@ -5,6 +5,7 @@
 import datetime
 import logging
 import traceback
+import multiprocessing
 
 from pyalgotrade import bar
 from pyalgomate.barfeed import BaseBarFeed
@@ -127,10 +128,11 @@ class LiveTradeFeed(BaseBarFeed):
         for key, value in self.__instrumentToTokenIdMapping.items():
             self.registerDataSeries(key)
 
-        self.__wsClient: WebSocketClient = None
+        self.__wsClient: WebSocketClient = WebSocketClient(self.__api, self.__channels)
         self.__stopped = False
         self.__nextBarsTime = None
         self.__lastUpdateTime = None
+        self.__started = multiprocessing.Manager().Value('b', False)
 
     def getApi(self):
         return self.__api
@@ -140,7 +142,6 @@ class LiveTradeFeed(BaseBarFeed):
 
     def __initializeClient(self):
         logger.info("Initializing websocket client")
-        self.__wsClient = WebSocketClient(self.__api, self.__channels)
         self.__wsClient.startClient()
         logger.info("Waiting for websocket initialization to complete")
         initialized = self.__wsClient.waitInitialized(self.__timeout)
@@ -167,12 +168,13 @@ class LiveTradeFeed(BaseBarFeed):
 
         bars = None
         lastQuoteDateTime = self.__wsClient.getLastQuoteDateTime()
-        if self.__lastUpdateTime != lastQuoteDateTime:
+        quotes = self.__wsClient.getQuotes()
+        if self.__lastUpdateTime != lastQuoteDateTime and len(quotes):
             self.__nextBarsTime = datetime.datetime.now()
             self.__lastUpdateTime = lastQuoteDateTime
             bars = bar.Bars({
                 instrument: bar
-                for lastBar in self.__wsClient.getQuotes().values()
+                for lastBar in quotes.values()
                 for instrument, bar in [getBar(lastBar, self.__nextBarsTime.replace(microsecond=0))]
             })
         return bars
@@ -183,10 +185,11 @@ class LiveTradeFeed(BaseBarFeed):
 
     # This may raise.
     def start(self):
-        if self.__wsClient is not None:
+        if self.__started.value is True:
             logger.info("Already initialized!")
             return
 
+        self.__started.value = True
         super(LiveTradeFeed, self).start()
         if not self.__initializeClient():
             self.__stopped = True

@@ -2,6 +2,7 @@
 .. moduleauthor:: Nagaraju Gunda
 """
 
+import multiprocessing
 import time
 import threading
 import logging
@@ -14,9 +15,9 @@ logger = logging.getLogger(__name__)
 class WebSocketClient:
     def __init__(self, api, tokenMappings):
         assert len(tokenMappings), "Missing subscriptions"
-        self.__quotes = dict()
-        self.__lastQuoteDateTime = None
-        self.__lastReceivedDateTime = None
+        self.__quotes = multiprocessing.Manager().dict()
+        self.__lastQuoteDateTime = multiprocessing.Manager().Value('d', None)
+        self.__lastReceivedDateTime = multiprocessing.Manager().Value('d', None)
         self.__api: NorenApi = api
         self.__tokenMappings = tokenMappings
         self.__pending_subscriptions = list()
@@ -27,10 +28,10 @@ class WebSocketClient:
         return self.__quotes
 
     def getLastQuoteDateTime(self):
-        return self.__lastQuoteDateTime
+        return self.__lastQuoteDateTime.value
     
     def getLastReceivedDateTime(self):
-        return self.__lastReceivedDateTime
+        return self.__lastReceivedDateTime.value
 
     def startClient(self):
         self.__api.start_websocket(order_update_callback=self.onOrderBookUpdate,
@@ -90,10 +91,10 @@ class WebSocketClient:
 
     def onQuoteUpdate(self, message):
         key = message['e'] + '|' + message['tk']
-        self.__lastReceivedDateTime = datetime.datetime.now()
-        message['ct'] = self.__lastReceivedDateTime
-        self.__lastQuoteDateTime = datetime.datetime.fromtimestamp(int(message['ft'])) if 'ft' in message else self.__lastReceivedDateTime.replace(microsecond=0)
-        message['ft'] = self.__lastQuoteDateTime
+        self.__lastReceivedDateTime.value = datetime.datetime.now()
+        message['ct'] = self.__lastReceivedDateTime.value
+        self.__lastQuoteDateTime.value = datetime.datetime.fromtimestamp(int(message['ft'])) if 'ft' in message else self.__lastReceivedDateTime.value.replace(microsecond=0)
+        message['ft'] = self.__lastQuoteDateTime.value
 
         if key in self.__quotes:
             symbolInfo =  self.__quotes[key]

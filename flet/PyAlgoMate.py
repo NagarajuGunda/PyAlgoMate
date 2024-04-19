@@ -2,6 +2,7 @@ import os
 import yaml
 import logging
 import threading
+from multiprocessing import Process
 import traceback
 import socket
 import time
@@ -53,7 +54,8 @@ def GetFeedNStrategies(creds):
     feed, api = getFeed(
         creds, broker=config['Broker'], underlyings=config['Underlyings'])
 
-    feed.start()
+    feedProcess = Process(target=feed.start)
+    feedProcess.start()
 
     for strategyName, details in config['Strategies'].items():
         try:
