@@ -119,7 +119,7 @@ class StraddleIntradayV2(BaseOptionsGreeksStrategy):
         self.overallPnL = self.getOverallPnL()
 
         if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+            if (len(self.getActivePositions()) + len(self.getClosedPositions())) > 0:
                 self.log(
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
