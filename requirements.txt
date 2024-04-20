@@ -1,4 +1,4 @@
-websocket_client==1.5.3
+websocket_client
 wheel
 yfinance
 pyalgotrade @ git+https://git@github.com/NagarajuGunda/pyalgotrade@master
@@ -27,8 +27,8 @@ selenium
 webdriver_manager
 flet
 flet_core
-pandas~=2.2.1
-numpy~=1.26.4
+pandas
+numpy
 python-dotenv~=1.0.1
 pytz~=2024.1
-requests~=2.31.0
+requests
