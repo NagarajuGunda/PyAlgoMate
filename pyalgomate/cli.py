@@ -108,7 +108,7 @@ def backtest(strategyClass, completeDf, df, underlyings, send_to_ui, telegramBot
     try:
         strategy.run()
     except Exception as e:
-        click.echo(f'Exception occured while running {strategy.name}. Error <{e}>')
+        click.echo(f'Exception occurred while running {strategy.strategyName}. Error <{e}>')
 
     return strategy.getTrades()
 
