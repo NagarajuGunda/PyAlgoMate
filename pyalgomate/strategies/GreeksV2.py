@@ -8,7 +8,7 @@ import sys
 
 
 class GreeksV2(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, underlying, strategyName=None, registeredOptionsCount=0, 
+    def __init__(self, feed, broker, underlying, strategyName=None, registeredOptionsCount=0,
                  callback=None, lotSize=None, collectData=None, telegramBot=None):
         super(GreeksV2, self).__init__(feed, broker,
                                        strategyName=strategyName if strategyName else __class__.__name__,
@@ -43,9 +43,10 @@ class GreeksV2(BaseOptionsGreeksStrategy):
     def on1MinBars(self, bars):
         if bars.getDateTime().time() == self.marketMidTime:
             self.openingGreeks = {}
-            if (self.state != State.EXITED) and (len(self.openPositions) > 0):
+            if (self.state != State.EXITED) and (len(self.getActivePositions()) > 0):
                 self.log(
-                    f'Current time <{bars.getDateTime().time()}> is equal to mid time <{self.marketMidTime}. Closing all positions!')
+                    f'Current time <{bars.getDateTime().time()}> is equal to mid time '
+                    f'<{self.marketMidTime}. Closing all positions!')
                 for position in list(self.getActivePositions()):
                     if not position.exitActive():
                         position.exitMarket()
@@ -84,9 +85,11 @@ class GreeksV2(BaseOptionsGreeksStrategy):
             return super().on1MinBars(bars)
 
         callSumOfChangeInGreeks = sum(
-            [(greek.vega - self.openingGreeks[greek.optionContract.symbol].vega if greek.optionContract.symbol in self.openingGreeks else greek.vega) for greek in callOTMStrikesGreeks])
+            [(greek.vega - self.openingGreeks[greek.optionContract.symbol].vega
+              if greek.optionContract.symbol in self.openingGreeks else greek.vega) for greek in callOTMStrikesGreeks])
         putSumOfChangeInGreeks = sum(
-            [(greek.vega - self.openingGreeks[greek.optionContract.symbol].vega if greek.optionContract.symbol in self.openingGreeks else greek.vega) for greek in putOTMStrikesGreeks])
+            [(greek.vega - self.openingGreeks[greek.optionContract.symbol].vega
+              if greek.optionContract.symbol in self.openingGreeks else greek.vega) for greek in putOTMStrikesGreeks])
 
         callSumOfVega = sum(
             [greek.vega for greek in callOTMStrikesGreeks])
@@ -94,7 +97,8 @@ class GreeksV2(BaseOptionsGreeksStrategy):
             [greek.vega for greek in putOTMStrikesGreeks])
 
         self.log(
-            f'Bar Date/Time <{bars.getDateTime()}> LTP <{underlyingLTP}> Sum (CE <{callSumOfVega}>, PE <{putSumOfVega}>) Change (Ce <{callSumOfChangeInGreeks}>, PE<{putSumOfChangeInGreeks}>)', logging.INFO)
+            f'Bar Date/Time <{bars.getDateTime()}> LTP <{underlyingLTP}> Sum (CE <{callSumOfVega}>, '
+            f'PE <{putSumOfVega}>) Change (Ce <{callSumOfChangeInGreeks}>, PE<{putSumOfChangeInGreeks}>)', logging.INFO)
 
         if callSumOfChangeInGreeks > self.maxCeVega:
             self.maxCeVega = callSumOfChangeInGreeks
@@ -116,8 +120,9 @@ class GreeksV2(BaseOptionsGreeksStrategy):
 
         if (self.state == State.LIVE) and (self.entryTime <= bars.getDateTime().time() < self.exitTime):
             if self.tradesTaken == 0:
-                # if sum of change in vega is positive, that means, vega has increased in options which implies buying is happening
-                # if sum of change in vega is negative, that means, vega has decayed in options which implies selling is happening
+                # if sum of change in vega is positive, that means, vega has increased in options which implies
+                # buying is happening if sum of change in vega is negative, that means, vega has decayed in options
+                # which implies selling is happening
                 if callSumOfChangeInGreeks < -10 and putSumOfChangeInGreeks < -10:
                     self.state = State.PLACING_ORDERS
                     if (callSumOfChangeInGreeks / putSumOfChangeInGreeks) > 2:
@@ -173,15 +178,16 @@ class GreeksV2(BaseOptionsGreeksStrategy):
         self.overallPnL = self.getOverallPnL()
 
         if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+            if (len(self.getActivePositions()) + len(self.getClosedPositions())) > 0:
                 self.log(
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
                 self.__reset__()
-        elif (bars.getDateTime().time() >= self.exitTime):
-            if (self.state != State.EXITED) and (len(self.openPositions) > 0):
+        elif bars.getDateTime().time() >= self.exitTime:
+            if (self.state != State.EXITED) and (len(self.getActivePositions()) > 0):
                 self.log(
-                    f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}. Closing all positions!')
+                    f'Current time <{bars.getDateTime().time()}> has crossed exit time '
+                    f'<{self.exitTime}. Closing all positions!')
                 for position in list(self.getActivePositions()):
                     if not position.exitActive():
                         position.exitMarket()

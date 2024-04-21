@@ -1,9 +1,9 @@
 from pyalgotrade.stratanalyzer import returns
-#from pyalgotrade.strategy.position import Position
-from pyalgotrade.strategy.position import WaitingEntryState, OpenState, ClosedState
+from pyalgotrade.strategy.position import WaitingEntryState
 from pyalgotrade import warninghelpers
 from pyalgotrade import broker
 import datetime
+
 
 class OpenPosition(object):
     def __init__(self, strategy, entryOrder, goodTillCanceled, allOrNone):
@@ -23,7 +23,7 @@ class OpenPosition(object):
         self.getStrategy().registerPositionOrder(self, entryOrder)
 
     def __submitAndRegisterOrder(self, order):
-        assert(order.isInitial())
+        assert (order.isInitial())
 
         # Check if an order can be submitted in the current state.
         self.__state.canSubmitOrder(self, order)
@@ -84,7 +84,8 @@ class OpenPosition(object):
         return self.__entryOrder
 
     def getExitOrder(self):
-        """Returns the :class:`pyalgotrade.broker.Order` used to exit the position. If this position hasn't been closed yet, None is returned."""
+        """Returns the :class:`pyalgotrade.broker.Order` used to exit the position. If this position hasn't been
+        closed yet, None is returned."""
         return self.__exitOrder
 
     def getInstrument(self):
@@ -99,7 +100,8 @@ class OpenPosition(object):
 
         # Deprecated in v0.18.
         if includeCommissions is False:
-            warninghelpers.deprecation_warning("includeCommissions will be deprecated in the next version.", stacklevel=2)
+            warninghelpers.deprecation_warning("includeCommissions will be deprecated in the next version.",
+                                               stacklevel=2)
 
         ret = 0
         price = self.getLastPrice()
@@ -115,7 +117,8 @@ class OpenPosition(object):
 
         # Deprecated in v0.18.
         if includeCommissions is False:
-            warninghelpers.deprecation_warning("includeCommissions will be deprecated in the next version.", stacklevel=2)
+            warninghelpers.deprecation_warning("includeCommissions will be deprecated in the next version.",
+                                               stacklevel=2)
 
         ret = 0
         price = self.getLastPrice()
@@ -136,12 +139,14 @@ class OpenPosition(object):
     def exitMarket(self, goodTillCanceled=None):
         """Submits a market order to close this position.
 
-        :param goodTillCanceled: True if the exit order is good till canceled. If False then the order gets automatically canceled when the session closes. If None, then it will match the entry order.
+        :param goodTillCanceled: True if the exit order is good till canceled. If False then the order gets
+        automatically canceled when the session closes. If None, then it will match the entry order.
         :type goodTillCanceled: boolean.
 
         .. note::
             * If the position is closed (entry canceled or exit filled) this won't have any effect.
-            * If the exit order for this position is pending, an exception will be raised. The exit order should be canceled first.
+            * If the exit order for this position is pending, an exception will be raised. The exit order should be
+            canceled first.
             * If the entry order is active, cancellation will be requested.
         """
 
@@ -152,12 +157,14 @@ class OpenPosition(object):
 
         :param limitPrice: The limit price.
         :type limitPrice: float.
-        :param goodTillCanceled: True if the exit order is good till canceled. If False then the order gets automatically canceled when the session closes. If None, then it will match the entry order.
+        :param goodTillCanceled: True if the exit order is good till canceled. If False then the order gets
+        automatically canceled when the session closes. If None, then it will match the entry order.
         :type goodTillCanceled: boolean.
 
         .. note::
             * If the position is closed (entry canceled or exit filled) this won't have any effect.
-            * If the exit order for this position is pending, an exception will be raised. The exit order should be canceled first.
+            * If the exit order for this position is pending, an exception will be raised. The exit order should be
+            canceled first.
             * If the entry order is active, cancellation will be requested.
         """
 
@@ -168,12 +175,14 @@ class OpenPosition(object):
 
         :param stopPrice: The stop price.
         :type stopPrice: float.
-        :param goodTillCanceled: True if the exit order is good till canceled. If False then the order gets automatically canceled when the session closes. If None, then it will match the entry order.
+        :param goodTillCanceled: True if the exit order is good till canceled. If False then the order gets
+        automatically canceled when the session closes. If None, then it will match the entry order.
         :type goodTillCanceled: boolean.
 
         .. note::
             * If the position is closed (entry canceled or exit filled) this won't have any effect.
-            * If the exit order for this position is pending, an exception will be raised. The exit order should be canceled first.
+            * If the exit order for this position is pending, an exception will be raised. The exit order should be
+            canceled first.
             * If the entry order is active, cancellation will be requested.
         """
 
@@ -186,19 +195,21 @@ class OpenPosition(object):
         :type stopPrice: float.
         :param limitPrice: The limit price.
         :type limitPrice: float.
-        :param goodTillCanceled: True if the exit order is good till canceled. If False then the order gets automatically canceled when the session closes. If None, then it will match the entry order.
+        :param goodTillCanceled: True if the exit order is good till canceled. If False then the order gets
+        automatically canceled when the session closes. If None, then it will match the entry order.
         :type goodTillCanceled: boolean.
 
         .. note::
             * If the position is closed (entry canceled or exit filled) this won't have any effect.
-            * If the exit order for this position is pending, an exception will be raised. The exit order should be canceled first.
+            * If the exit order for this position is pending, an exception will be raised. The exit order should be
+            canceled first.
             * If the entry order is active, cancellation will be requested.
         """
 
         self.__state.exit(self, stopPrice, limitPrice, goodTillCanceled)
 
     def _submitExitOrder(self, stopPrice, limitPrice, goodTillCanceled):
-        assert(not self.exitActive())
+        assert (not self.exitActive())
 
         exitOrder = self.buildExitOrder(stopPrice, limitPrice)
 
@@ -222,7 +233,8 @@ class OpenPosition(object):
         # Update the number of shares.
         if orderEvent.getEventType() in (broker.OrderEvent.Type.PARTIALLY_FILLED, broker.OrderEvent.Type.FILLED):
             execInfo = orderEvent.getEventInfo()
-            # roundQuantity is used to prevent bugs like the one triggered in testcases.bitstamp_test:TestCase.testRoundingBug
+            # roundQuantity is used to prevent bugs like the one triggered in
+            # testcases.bitstamp_test:TestCase.testRoundingBug
             if order.isBuy():
                 self.__shares = order.getInstrumentTraits().roundQuantity(self.__shares + execInfo.getQuantity())
             else:
@@ -252,8 +264,10 @@ class OpenPosition(object):
         :rtype: datetime.timedelta.
 
         .. note::
-            * If the position is open, then the difference between the entry datetime and the datetime of the last bar is returned.
-            * If the position is closed, then the difference between the entry datetime and the exit datetime is returned.
+        * If the position is open, then the difference between the entry datetime and the datetime of the
+        last bar is returned.
+        * If the position is closed, then the difference between the entry datetime and the
+        exit datetime is returned.
         """
         ret = datetime.timedelta()
         if self.__entryDateTime is not None:
@@ -264,44 +278,54 @@ class OpenPosition(object):
             ret = last - self.__entryDateTime
         return ret
 
+
 class LongOpenPosition(OpenPosition):
     def __init__(self, strategy, entryOrder, goodTillCanceled=False, allOrNone=False):
         super(LongOpenPosition, self).__init__(strategy, entryOrder, goodTillCanceled, allOrNone)
 
     def buildExitOrder(self, stopPrice, limitPrice):
         quantity = self.getShares()
-        assert(quantity > 0)
+        assert (quantity > 0)
         if limitPrice is None and stopPrice is None:
-            ret = self.getStrategy().getBroker().createMarketOrder(broker.Order.Action.SELL, self.getInstrument(), quantity, False)
+            ret = self.getStrategy().getBroker().createMarketOrder(broker.Order.Action.SELL, self.getInstrument(),
+                                                                   quantity, False)
         elif limitPrice is not None and stopPrice is None:
-            ret = self.getStrategy().getBroker().createLimitOrder(broker.Order.Action.SELL, self.getInstrument(), limitPrice, quantity)
+            ret = self.getStrategy().getBroker().createLimitOrder(broker.Order.Action.SELL, self.getInstrument(),
+                                                                  limitPrice, quantity)
         elif limitPrice is None and stopPrice is not None:
-            ret = self.getStrategy().getBroker().createStopOrder(broker.Order.Action.SELL, self.getInstrument(), stopPrice, quantity)
+            ret = self.getStrategy().getBroker().createStopOrder(broker.Order.Action.SELL, self.getInstrument(),
+                                                                 stopPrice, quantity)
         elif limitPrice is not None and stopPrice is not None:
-            ret = self.getStrategy().getBroker().createStopLimitOrder(broker.Order.Action.SELL, self.getInstrument(), stopPrice, limitPrice, quantity)
+            ret = self.getStrategy().getBroker().createStopLimitOrder(broker.Order.Action.SELL, self.getInstrument(),
+                                                                      stopPrice, limitPrice, quantity)
         else:
-            assert(False)
+            assert (False)
 
         return ret
 
 
-# This class is reponsible for order management in short positions.
+# This class is responsible for order management in short positions.
 class ShortOpenPosition(OpenPosition):
     def __init__(self, strategy, entryOrder, goodTillCanceled=False, allOrNone=False):
         super(ShortOpenPosition, self).__init__(strategy, entryOrder, goodTillCanceled, allOrNone)
 
     def buildExitOrder(self, stopPrice, limitPrice):
         quantity = self.getShares() * -1
-        assert(quantity > 0)
+        assert (quantity > 0)
         if limitPrice is None and stopPrice is None:
-            ret = self.getStrategy().getBroker().createMarketOrder(broker.Order.Action.BUY_TO_COVER, self.getInstrument(), quantity, False)
+            ret = self.getStrategy().getBroker().createMarketOrder(broker.Order.Action.BUY_TO_COVER,
+                                                                   self.getInstrument(), quantity, False)
         elif limitPrice is not None and stopPrice is None:
-            ret = self.getStrategy().getBroker().createLimitOrder(broker.Order.Action.BUY_TO_COVER, self.getInstrument(), limitPrice, quantity)
+            ret = self.getStrategy().getBroker().createLimitOrder(broker.Order.Action.BUY_TO_COVER,
+                                                                  self.getInstrument(), limitPrice, quantity)
         elif limitPrice is None and stopPrice is not None:
-            ret = self.getStrategy().getBroker().createStopOrder(broker.Order.Action.BUY_TO_COVER, self.getInstrument(), stopPrice, quantity)
+            ret = self.getStrategy().getBroker().createStopOrder(broker.Order.Action.BUY_TO_COVER, self.getInstrument(),
+                                                                 stopPrice, quantity)
         elif limitPrice is not None and stopPrice is not None:
-            ret = self.getStrategy().getBroker().createStopLimitOrder(broker.Order.Action.BUY_TO_COVER, self.getInstrument(), stopPrice, limitPrice, quantity)
+            ret = self.getStrategy().getBroker().createStopLimitOrder(broker.Order.Action.BUY_TO_COVER,
+                                                                      self.getInstrument(), stopPrice, limitPrice,
+                                                                      quantity)
         else:
-            assert(False)
+            assert (False)
 
         return ret

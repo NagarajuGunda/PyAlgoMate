@@ -17,6 +17,13 @@ Telegram:
   allow:
     - 1234
     - 5678
- 
+
 PaperTrail:
   address: logExample.papertrailapp.com:12345
+
+SENTRY:
+  SENTRY_DNS: ""
+
+ENV:
+  LOCAL: 'True'
+  PROD_PROVIDER: PyAlgoMate

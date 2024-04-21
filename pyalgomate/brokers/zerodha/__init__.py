@@ -10,8 +10,8 @@ from pyalgomate.brokers import getDefaultUnderlyings, getExpiryDates
 
 logger = logging.getLogger()
 
+
 def getFeed(cred, registerOptions, underlyings):
-    
     api = KiteExt()
     twoFA = pyotp.TOTP(cred['factor2']).now()
     api.login_with_credentials(
@@ -28,12 +28,12 @@ def getFeed(cred, registerOptions, underlyings):
     for underlying in underlyings:
         ltp = api.quote(underlying)[
             underlying]["last_price"]
-        
+
         underlyingDetails = getUnderlyingDetails(underlying)
         index = underlyingDetails['index']
         strikeDifference = underlyingDetails['strikeDifference']
-        (currentWeeklyExpiry,nextWeekExpiry,monthlyExpiry) = getExpiryDates(index)
-        
+        (currentWeeklyExpiry, nextWeekExpiry, monthlyExpiry) = getExpiryDates(index)
+
         if "Weekly" in registerOptions:
             optionSymbols += getOptionSymbols(
                 underlying, currentWeeklyExpiry, ltp, 10, strikeDifference)
@@ -47,5 +47,5 @@ def getFeed(cred, registerOptions, underlyings):
     optionSymbols = list(dict.fromkeys(optionSymbols))
 
     tokenMappings = getZerodhaTokensList(api, underlyings + optionSymbols)
-    
+
     return ZerodhaLiveFeed(api, tokenMappings), api

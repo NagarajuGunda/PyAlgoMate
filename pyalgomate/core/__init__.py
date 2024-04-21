@@ -33,6 +33,7 @@ class UnderlyingIndex(IntEnum):
     MIDCPNIFTY = 4
     SENSEX = 5
     BANKEX = 6
+    NOT_INDEX = 7
 
     def __str__(self):
         return self.name

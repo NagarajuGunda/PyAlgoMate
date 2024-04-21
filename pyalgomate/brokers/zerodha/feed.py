@@ -76,8 +76,8 @@ class TradeBar(bar.Bar):
     def isSell(self):
         return not self.__trade.isBuy()
 
-class ZerodhaLiveFeed(BaseBarFeed):
 
+class ZerodhaLiveFeed(BaseBarFeed):
     """A real-time BarFeed that builds bars from live trades.
 
     :param instruments: A list of currency pairs.
@@ -202,7 +202,7 @@ class ZerodhaLiveFeed(BaseBarFeed):
         if self.__thread is not None:
             logger.info("Already running!")
             return
-        
+
         super(ZerodhaLiveFeed, self).start()
         if not self.__initializeClient():
             self.__stopped = True
@@ -256,7 +256,7 @@ class ZerodhaLiveFeed(BaseBarFeed):
         return self.__lastDataTime
 
     def isDataFeedAlive(self, heartBeatInterval=5):
-        
+
         if self.__lastUpdateTime is None:
             return False
 

@@ -136,7 +136,7 @@ class CPRV2(BaseOptionsGreeksStrategy):
             bar.getLow() < self.dayLow)) else self.dayLow
 
         if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+            if (len(self.getActivePositions()) + len(self.getClosedPositions())) > 0:
                 self.log(
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
 

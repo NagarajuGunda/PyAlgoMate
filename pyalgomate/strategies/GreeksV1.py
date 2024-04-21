@@ -5,9 +5,10 @@ from pyalgomate.core import State
 from pyalgomate.cli import CliMain
 import logging
 
+
 class GreeksV1(BaseOptionsGreeksStrategy):
     def __init__(self, feed, broker, underlying, strategyName=None, registeredOptionsCount=0,
-                 callback=None, resampleFrequency=None, lotSize=None, collectData=None, telegramBot=None):
+                 callback=None, lotSize=None, collectData=None, telegramBot=None):
         super(GreeksV1, self).__init__(feed, broker,
                                        strategyName=strategyName if strategyName else __class__.__name__,
                                        logger=logging.getLogger(
@@ -53,9 +54,13 @@ class GreeksV1(BaseOptionsGreeksStrategy):
             return super().on1MinBars(bars)
 
         callSumOfChangeInGreeks = sum(
-            [(greek.vega - self.openingGreeks[greek.optionContract.symbol].vega if greek.optionContract.symbol in self.openingGreeks else greek.vega) for greek in callOTMStrikesGreeks])
+            [(greek.vega - self.openingGreeks[
+                greek.optionContract.symbol].vega if greek.optionContract.symbol in self.openingGreeks else greek.vega)
+             for greek in callOTMStrikesGreeks])
         putSumOfChangeInGreeks = sum(
-            [(greek.vega - self.openingGreeks[greek.optionContract.symbol].vega if greek.optionContract.symbol in self.openingGreeks else greek.vega) for greek in putOTMStrikesGreeks])
+            [(greek.vega - self.openingGreeks[
+                greek.optionContract.symbol].vega if greek.optionContract.symbol in self.openingGreeks else greek.vega)
+             for greek in putOTMStrikesGreeks])
 
         self.log(
             f'Sum of change in vega - Calls <{callSumOfChangeInGreeks}>, Puts <{putSumOfChangeInGreeks}>', logging.INFO)
@@ -72,15 +77,16 @@ class GreeksV1(BaseOptionsGreeksStrategy):
             self.callback(self.strategyName, jsonData)
 
         if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+            if (len(self.getActivePositions()) + len(self.getClosedPositions())) > 0:
                 self.log(
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
                 self.__reset__()
         elif (bars.getDateTime().time() >= self.exitTime):
-            if (self.state != State.EXITED) and (len(self.openPositions) > 0):
+            if (self.state != State.EXITED) and (len(self.getActivePositions()) > 0):
                 self.log(
-                    f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}. Closing all positions!')
+                    f'Current time <{bars.getDateTime().time()}> has crossed exit time '
+                    f'<{self.exitTime}. Closing all positions!')
                 for position in list(self.getActivePositions()):
                     if not position.exitActive():
                         position.exitMarket()
@@ -88,8 +94,9 @@ class GreeksV1(BaseOptionsGreeksStrategy):
                 self.state = State.EXITED
         if (self.state == State.LIVE) and (self.entryTime <= bars.getDateTime().time() < self.exitTime):
             if self.positionCall is None and self.positionPut is None:
-                # if sum of change in vega is positive, that means, vega has increased in options which implies buying is happening
-                # if sum of change in vega is negative, that means, vega has decayed in options which implies selling is happening
+                # if sum of change in vega is positive, that means, vega has increased in options which implies
+                # buying is happening if sum of change in vega is negative, that means, vega has decayed in options
+                # which implies selling is happening
                 if callSumOfChangeInGreeks < -10 and putSumOfChangeInGreeks > 0:
                     self.state = State.PLACING_ORDERS
                     self.positionPut = self.enterLong(self.getOptionSymbol(
@@ -103,7 +110,7 @@ class GreeksV1(BaseOptionsGreeksStrategy):
                     if (callSumOfChangeInGreeks / putSumOfChangeInGreeks) > 2:
                         self.positionPut = self.enterLong(self.getOptionSymbol(
                             self.underlying, currentExpiry, atmStrike, 'p'), self.quantity)
-                    elif (putSumOfChangeInGreeks/callSumOfChangeInGreeks) > 2:
+                    elif (putSumOfChangeInGreeks / callSumOfChangeInGreeks) > 2:
                         self.positionCall = self.enterLong(self.getOptionSymbol(
                             self.underlying, currentExpiry, atmStrike, 'c'), self.quantity)
                 elif callSumOfChangeInGreeks > 10 and putSumOfChangeInGreeks > 10:
@@ -111,7 +118,7 @@ class GreeksV1(BaseOptionsGreeksStrategy):
                     if (callSumOfChangeInGreeks / putSumOfChangeInGreeks) > 2:
                         self.positionCall = self.enterLong(self.getOptionSymbol(
                             self.underlying, currentExpiry, atmStrike, 'c'), self.quantity)
-                    elif (putSumOfChangeInGreeks/callSumOfChangeInGreeks) > 2:
+                    elif (putSumOfChangeInGreeks / callSumOfChangeInGreeks) > 2:
                         self.positionPut = self.enterLong(self.getOptionSymbol(
                             self.underlying, currentExpiry, atmStrike, 'p'), self.quantity)
         elif self.state == State.PLACING_ORDERS:
@@ -136,6 +143,7 @@ class GreeksV1(BaseOptionsGreeksStrategy):
                 self.openingGreeks[instrument] = value
 
         self.overallPnL = self.getOverallPnL()
+
 
 if __name__ == "__main__":
     CliMain(GreeksV1)

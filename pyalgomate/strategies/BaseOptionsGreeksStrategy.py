@@ -13,18 +13,19 @@ from pyalgotrade import broker
 from pyalgomate.brokers import QuantityTraits
 import pyalgomate.utils as utils
 from pyalgomate.strategies import OptionGreeks
-from pyalgomate.strategy.position import LongOpenPosition, ShortOpenPosition
 from py_vollib_vectorized import vectorized_implied_volatility, get_all_greeks
 from pyalgomate.telegram import TelegramBot
 from pyalgomate.core import State
+from pyalgomate.core.position import LongOpenPosition, ShortOpenPosition
 from pyalgomate.core.strategy import BaseStrategy
+
 
 class BaseOptionsGreeksStrategy(BaseStrategy):
 
-    def __init__(self, feed, broker, strategyName, logger: logging.Logger, 
-                 callback=None, 
+    def __init__(self, feed, broker, strategyName, logger: logging.Logger,
+                 callback=None,
                  collectData=None,
-                 telegramBot:TelegramBot=None,
+                 telegramBot: TelegramBot = None,
                  telegramChannelId=None,
                  telegramMessageThreadId=None):
         super(BaseOptionsGreeksStrategy, self).__init__(feed, broker)
@@ -51,7 +52,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
         if callback:
             self._observers.append(callback)
-            
+
         self.resampleBarFeed(pyalgotrade.bar.Frequency.MINUTE, self.on1MinBars)
 
         if not os.path.exists("results"):
@@ -62,14 +63,15 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         if self.collectTrades and os.path.isfile(self.tradesCSV):
             self.tradesDf = pd.read_csv(self.tradesCSV, index_col=False)
         else:
-            self.tradesDf = pd.DataFrame(columns=['Entry Date/Time', 'Entry Order Id', 'Exit Date/Time', 'Exit Order Id',
-                                                  'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL', 'Date', 'MAE', 'MFE', 'DTE'])
-
+            self.tradesDf = pd.DataFrame(
+                columns=['Entry Date/Time', 'Entry Order Id', 'Exit Date/Time', 'Exit Order Id',
+                         'Instrument', 'Buy/Sell', 'Quantity', 'Entry Price', 'Exit Price', 'PnL', 'Date', 'MAE', 'MFE',
+                         'DTE'])
 
         self.pnlDf = pd.DataFrame(columns=['Date/Time', 'PnL'])
 
         self.dataColumns = ["Ticker", "Date/Time", "Open", "High",
-                                "Low", "Close", "Volume", "Open Interest"]
+                            "Low", "Close", "Volume", "Open Interest"]
         if self.collectData is not None:
             self.dataFileName = "data.csv"
 
@@ -82,16 +84,17 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             today = datetime.date.today()
 
             mask = (self.tradesDf['Exit Order Id'].isnull()) & \
-                (pd.to_datetime(
-                    self.tradesDf['Entry Date/Time'], format='%Y-%m-%d %H:%M:%S').dt.date == today)
+                   (pd.to_datetime(
+                       self.tradesDf['Entry Date/Time'], format='%Y-%m-%d %H:%M:%S').dt.date == today)
             openPositions = self.tradesDf.loc[mask]
 
             for index, openPosition in openPositions.iterrows():
-                order = broker.MarketOrder(broker.Order.Action.BUY if openPosition['Buy/Sell'] == 'BUY' else broker.Order.Action.SELL,
-                                           openPosition['Instrument'],
-                                           float(openPosition['Quantity']),
-                                           False,
-                                           QuantityTraits())
+                order = broker.MarketOrder(
+                    broker.Order.Action.BUY if openPosition['Buy/Sell'] == 'BUY' else broker.Order.Action.SELL,
+                    openPosition['Instrument'],
+                    float(openPosition['Quantity']),
+                    False,
+                    QuantityTraits())
 
                 entryDateTime = datetime.datetime.strptime(
                     openPosition['Entry Date/Time'], '%Y-%m-%d %H:%M:%S')
@@ -201,7 +204,8 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             for openPosition in self.getActivePositions():
                 instrument = openPosition.getInstrument()
                 ltp = self.getLTP(instrument)
-                jsonData["metrics"][f"{instrument} PnL"] = jsonData["charts"][f"{instrument} PnL"] = openPosition.getPnL()
+                jsonData["metrics"][f"{instrument} PnL"] = jsonData["charts"][
+                    f"{instrument} PnL"] = openPosition.getPnL()
                 jsonData["metrics"][f"{instrument} LTP"] = jsonData["charts"][f"{instrument} LTP"] = ltp
                 combinedPremium += ltp
 
@@ -227,6 +231,9 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
     def log(self, message, level=logging.INFO, sendToTelegram=True):
         if level == logging.DEBUG:
             self.logger.debug(
+                f"{self.strategyName} {self.getCurrentDateTime()} {message}")
+        elif level == logging.ERROR:
+            self.logger.error(
                 f"{self.strategyName} {self.getCurrentDateTime()} {message}")
         else:
             self.logger.log(
@@ -296,7 +303,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         # Check if there is an order id already present in trade df for the same instrument
         if self.tradesDf[(self.tradesDf['Entry Order Id'] == position.getEntryOrder().getId())
                          & (self.tradesDf['Instrument'] == instrument)
-                         ].shape[0] == 0:
+        ].shape[0] == 0:
             dte = None
             optionContract = self.__optionContracts[instrument]
             if optionContract is not None:
@@ -356,18 +363,20 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         pnl = position.getPnL()
 
         filteredDf = self.tradesDf[(self.tradesDf['Instrument'] == position.getInstrument()) & (
-            self.tradesDf['Entry Order Id'] == entryOrderId)]
+                self.tradesDf['Entry Order Id'] == entryOrderId)]
 
         if not filteredDf.empty:
             idx = filteredDf.index[-1]
             self.tradesDf.loc[idx, ['Exit Date/Time', 'Exit Order Id', 'Exit Price', 'PnL', 'Date', 'MAE', 'MFE']] = [
-                execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'), exitOrderId, exitPrice, pnl, execInfo.getDateTime().strftime('%Y-%m-%d'), mae, mfe]
+                execInfo.getDateTime().strftime('%Y-%m-%d %H:%M:%S'), exitOrderId, exitPrice, pnl,
+                execInfo.getDateTime().strftime('%Y-%m-%d'), mae, mfe]
 
             if self.collectTrades:
                 self.tradesDf.to_csv(self.tradesCSV, index=False)
 
             self.log(
-                f"Option greeks for {position.getInstrument()}\n{self.__optionData.get(position.getInstrument(), None) if self.__optionData is not None else None}", logging.DEBUG, sendToTelegram=False)
+                f"Option greeks for {position.getInstrument()}\n{self.__optionData.get(position.getInstrument(), None) if self.__optionData is not None else None}",
+                logging.DEBUG, sendToTelegram=False)
         else:
             self.log(
                 f'Could not get a row with Instrument <{position.getInstrument()}> Entry Order Id <{entryOrderId}>')
@@ -375,10 +384,12 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         self.displaySlippage(position.getExitOrder())
 
     def onEnterCanceled(self, position: position):
-        self.log(f"===== Entry order cancelled: {position.getEntryOrder().getInstrument()} =====", logging.DEBUG, sendToTelegram=False)
+        self.log(f"===== Entry order cancelled: {position.getEntryOrder().getInstrument()} =====", logging.DEBUG,
+                 sendToTelegram=False)
 
     def onExitCanceled(self, position: position):
-        self.log(f"===== Exit order cancelled: {position.getExitOrder().getInstrument()} =====", logging.DEBUG, sendToTelegram=False)
+        self.log(f"===== Exit order cancelled: {position.getExitOrder().getInstrument()} =====", logging.DEBUG,
+                 sendToTelegram=False)
 
     def haveLTP(self, instrument):
         return self.getFeed().getLastBar(instrument) is not None
@@ -405,20 +416,22 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         options.sort(key=lambda x: abs(x.price - premium))
         return options[0] if len(options) > 0 else None
 
-    def getOTMStrikeGreeks(self, strike: int, optionType: str, expiry: datetime.date, numberOfOptions: int = -1) -> list:
+    def getOTMStrikeGreeks(self, strike: int, optionType: str, expiry: datetime.date,
+                           numberOfOptions: int = -1) -> list:
         options = [opt for opt in self.__optionData.values(
-        ) if (opt.optionContract.type == optionType) and (opt.optionContract.expiry == expiry) and (opt.optionContract.strike > strike if optionType == 'c' else opt.optionContract.strike < strike)]
+        ) if (opt.optionContract.type == optionType) and (opt.optionContract.expiry == expiry) and (
+                       opt.optionContract.strike > strike if optionType == 'c' else opt.optionContract.strike < strike)]
         options.sort(key=lambda x: x.optionContract.strike,
                      reverse=True if optionType == 'p' else False)
         return options[:numberOfOptions]
 
     def getITMStrikeGreeks(self, strike: int, optionType: str, expiry: datetime.date) -> list:
         options = [opt for opt in self.__optionData.values(
-        ) if (opt.optionContract.type == optionType) and (opt.optionContract.expiry == expiry) and (opt.optionContract.strike < strike if optionType == 'c' else opt.optionContract.strike > strike)]
+        ) if (opt.optionContract.type == optionType) and (opt.optionContract.expiry == expiry) and (
+                       opt.optionContract.strike < strike if optionType == 'c' else opt.optionContract.strike > strike)]
         options.sort(key=lambda x: x.optionContract.strike,
                      reverse=True if optionType == 'c' else False)
         return options
-
 
     def getOverallDelta(self):
         delta = 0
@@ -443,7 +456,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             if optionContract is not None:
                 underlyingPrice = self.getLastPrice(optionContract.underlying)
                 if underlyingPrice is None:
-                        return
+                    return
                 underlyingPrices.append(underlyingPrice)
                 optionContracts.append(optionContract)
                 strikes.append(optionContract.strike)
@@ -466,7 +479,8 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         try:
             # Calculate implied volatilities
             iv = vectorized_implied_volatility(prices, underlyingPrices, strikes, expiries, 0.0,
-                                               types, q=0, model='black_scholes_merton', return_as='numpy', on_error='ignore')
+                                               types, q=0, model='black_scholes_merton', return_as='numpy',
+                                               on_error='ignore')
 
             # Calculate greeks
             greeks = get_all_greeks(types, underlyingPrices, strikes, expiries,
@@ -513,7 +527,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         options = [opt for opt in self.__optionContracts.values(
         ) if opt.type == type and opt.expiry == expiry and opt.underlying == underlying and opt.strike == strike]
         return options[0].symbol if len(options) > 0 else None
-    
+
     def getOptionContracts(self):
         return self.__optionContracts
 
