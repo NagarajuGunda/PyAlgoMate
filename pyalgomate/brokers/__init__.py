@@ -270,7 +270,6 @@ def getBroker(feed, api, broker, mode, capital=200000):
 
     return brokerInstance
 
-
 def getDefaultUnderlyings() -> List[str]:
     return ['NSE:NIFTY BANK']
 

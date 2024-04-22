@@ -350,9 +350,6 @@ class StrategiesView(ft.View):
         color = np.where(values < 0, 'loss', 'profit')
         fig = px.area(cummPnlDf, x="Date/Time", y=values, title=f"Total MTM | Current PnL:  ₹{round(pnl, 2)}",
                         color=color, color_discrete_map={'loss': 'orangered', 'profit': 'lightgreen'})
-        fig.update_layout(
-            title_x=0.5, title_xanchor='center', yaxis_title='PnL')
-
         fig.add_traces(
             [
                 go.Scatter(x=pnlDf.query(f'strategy=="{strategy}"')["Date/Time"], y=pnlDf.query(f'strategy=="{strategy}"')['PnL'],
@@ -360,6 +357,9 @@ class StrategiesView(ft.View):
                                 name=f'{strategy}') for strategy in pnlDf.strategy.unique()
             ]
         )
+
+        fig.update_layout(
+            title_x=0.5, title_xanchor='center', yaxis_title='PnL')
         base64Img = base64.b64encode(
              fig.to_image(format='png')).decode('utf-8')
         dlg = ft.AlertDialog(

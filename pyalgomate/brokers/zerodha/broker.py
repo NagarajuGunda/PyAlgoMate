@@ -44,6 +44,18 @@ underlyingMapping = {
         'index': UnderlyingIndex.FINNIFTY,
         'lotSize': 40,
         'strikeDifference': 50
+    },
+    'BSE:SENSEX': {
+        'optionPrefix': 'BFO:SENSEX',
+        'index': UnderlyingIndex.SENSEX,
+        'lotSize': 10,
+        'strikeDifference': 100
+    },
+    'BSE:BANKEX': {
+        'optionPrefix': 'BFO:BANKEX',
+        'index': UnderlyingIndex.BANKEX,
+        'lotSize': 15,
+        'strikeDifference': 100
     }
 }
 
@@ -96,8 +108,11 @@ def getZerodhaTokensList(api: KiteExt, instruments):
     tokenMappings = {}
     response = api.ltp(instruments)
     for instrument in instruments:
-        token = response[instrument]['instrument_token']
-        tokenMappings[token] = instrument
+        try:
+            token = response[instrument]['instrument_token']
+            tokenMappings[token] = instrument
+        except:
+            logger.warn(f"Token mapping faile for {instrument}")
     return tokenMappings
 
 

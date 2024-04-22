@@ -93,6 +93,18 @@ Please note that the README will be updated as the project progresses, including
 
 For further assistance or any questions, please reach out. Happy exploring and trading with PyAlgoMate!
 
+## Issues
+### On Windows
+If you are having trouble with MTM graph generation on Windows 11 try to downgrade `kaleido` library from latest to 0.1.0
+```bash
+pip install --upgrade "kaleido==0.1.*"
+```
+
+## Analysing back test results
+All backtest results are stored in csv file with file name as a strategy name. You can analyise the results with backtest analalyzer using below command
+```python
+streamlit run backtestanalyzer.py
+```
 ## Contributing
 
 If you find any issues or have suggestions for improvements, contributions to PyAlgoMate are welcome. Please open a GitHub issue or submit a pull request with your proposed changes.

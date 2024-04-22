@@ -12,8 +12,9 @@ class State(object):
     EXITED = 4
 
 class OptionsTimeBasedStrategy(BaseStrategy):
-    def __init__(self, feed, broker, strategyFile, callback=None, resampleFrequency=None):
+    def __init__(self, feed, broker, strategyFile, callback=None, resampleFrequency=None, telegramBot=None, strategyName=None):
         super(OptionsTimeBasedStrategy, self).__init__(feed, broker)
+        self.strategyName = strategyName
 
         self.strategy = OptionStrategy.from_yaml_file(strategyFile)
         logger.info(f"Loaded the strategy\n\n{self.strategy}\n\n")
@@ -95,7 +96,7 @@ class OptionsTimeBasedStrategy(BaseStrategy):
         else:
             return (entryPrice - exitPrice) * order.getQuantity()
 
-    def getOverallPnL(self, bars):
+    def getOverallPnL(self):
         pnl = 0
         openPositions = self.openPositions
         for instrument, openPosition in openPositions.items():
@@ -119,7 +120,7 @@ class OptionsTimeBasedStrategy(BaseStrategy):
                     (exitPrice * exitOrder.getQuantity())
 
         return pnl
-
+    
     def onEnterOk(self, position):
         execInfo = position.getEntryOrder().getExecutionInfo()
         logger.info(f"{execInfo.getDateTime()} ===== Position opened: {position.getEntryOrder().getInstrument()} at {execInfo.getPrice()} {execInfo.getQuantity()} =====")
@@ -208,7 +209,7 @@ class OptionsTimeBasedStrategy(BaseStrategy):
             if self.__shouldClosePosition(openPosition, bars):
                 self.__closePosition(openPosition)
 
-        self.overallPnL = self.getOverallPnL(bars)
+        self.overallPnL = self.getOverallPnL()
 
     def __updateTrailingStopLoss(self, openPositions, bars):
         for instrument, openPosition in openPositions.items():
@@ -335,9 +336,12 @@ class OptionsTimeBasedStrategy(BaseStrategy):
         instrument = openPosition["placedOrder"].getInstrument()
         self.openPositions.pop(instrument)
         self.closedPositions[instrument] = openPosition
+        
+    def getClosedPositions(self):
+        return self.closedPositions
 
     def __shouldCloseAllPositions(self, bars):
-        totalPnL = self.getOverallPnL(bars)
+        totalPnL = self.getOverallPnL()
 
         overallStopLoss = self.overallStopLoss
         overallTargetProfit = self.overallTarget
