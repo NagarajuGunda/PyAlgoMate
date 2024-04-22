@@ -52,7 +52,8 @@ class CPRV1(BaseOptionsGreeksStrategy):
         currentExpiry = utils.getNearestWeeklyExpiryDate(
             bars.getDateTime().date())
 
-        if (self.state == State.LIVE) and (self.entryTime <= bars.getDateTime().time() < self.exitTime) and (self.centralPivot is not None):
+        if ((self.state == State.LIVE) and (self.entryTime <= bars.getDateTime().time() < self.exitTime)
+                and (self.centralPivot is not None)):
             if bars.getDateTime().time() == self.entryTime:
                 underlyingLTP = self.getLTP(self.underlying)
                 atmStrike = self.getATMStrike(
@@ -96,7 +97,7 @@ class CPRV1(BaseOptionsGreeksStrategy):
             bar.getLow() < self.dayLow)) else self.dayLow
 
         if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+            if (len(self.getActivePositions()) + len(self.getClosedPositions())) > 0:
                 self.log(
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
 
@@ -120,11 +121,13 @@ class CPRV1(BaseOptionsGreeksStrategy):
             self.bottomPivot = bottomPivot
 
             self.log(
-                f'Pivots for the next day are - Central Pivot <{self.centralPivot}> Top Pivot <{self.topPivot}> Bottom Pivot <{self.bottomPivot}>')
-        elif (bars.getDateTime().time() >= self.exitTime):
-            if (self.state != State.EXITED) and (len(self.openPositions) > 0):
+                f'Pivots for the next day are - Central Pivot <{self.centralPivot}> Top Pivot '
+                f'<{self.topPivot}> Bottom Pivot <{self.bottomPivot}>')
+        elif bars.getDateTime().time() >= self.exitTime:
+            if (self.state != State.EXITED) and (len(self.getActivePositions()) > 0):
                 self.log(
-                    f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}. Closing all positions!')
+                    f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}.'
+                    f' Closing all positions!')
                 for position in list(self.getActivePositions()):
                     if not position.exitActive():
                         position.exitMarket()

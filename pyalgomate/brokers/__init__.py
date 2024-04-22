@@ -140,17 +140,17 @@ class BacktestingBroker(backtesting.Broker):
     def _remapAction(self, action):
         action = {
             broker.Order.Action.BUY_TO_COVER: broker.Order.Action.BUY,
-            broker.Order.Action.BUY:          broker.Order.Action.BUY,
-            broker.Order.Action.SELL_SHORT:   broker.Order.Action.SELL,
-            broker.Order.Action.SELL:         broker.Order.Action.SELL
+            broker.Order.Action.BUY: broker.Order.Action.BUY,
+            broker.Order.Action.SELL_SHORT: broker.Order.Action.SELL,
+            broker.Order.Action.SELL: broker.Order.Action.SELL
         }.get(action, None)
         if action is None:
             raise Exception("Only BUY/SELL orders are supported")
         return action
 
     def createMarketOrder(self, action, instrument, quantity, onClose=False):
-       action = self._remapAction(action)
-       return super(BacktestingBroker, self).createMarketOrder(action, instrument, quantity, onClose)
+        action = self._remapAction(action)
+        return super(BacktestingBroker, self).createMarketOrder(action, instrument, quantity, onClose)
 
     def createLimitOrder(self, action, instrument, limitPrice, quantity):
         action = self._remapAction(action)
@@ -171,7 +171,7 @@ class BacktestingBroker(backtesting.Broker):
         return super(BacktestingBroker, self).createLimitOrder(action, instrument, limitPrice, quantity)
 
 
-def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY BANK']):
+def getFeed(creds, broker, registerOptions: list =['Weekly'], underlyings: list = ['NSE|NIFTY BANK']):
     if broker == 'Backtest':
         data = pd.read_parquet('strategies/data/2023/banknifty/08.parquet')
         filteredData = data.query("'2023-08-22' <= `Date/Time` <= '2023-08-25'")
@@ -205,7 +205,7 @@ def getFeed(creds, broker, registerOptions=['Weekly'], underlyings=['NSE|NIFTY B
         for underlying in underlyings:
             optionSymbols = []
             ret = api.search_scrip('NSE' if underlying !=
-                                   'SENSEX' else 'BSE', underlying)
+                                            'SENSEX' else 'BSE', underlying)
             script = [
                 script for script in ret if script['pSymbolName'] == underlying][0]
             tokId = script['pSymbol']
@@ -271,14 +271,15 @@ def getBroker(feed, api, broker, mode, capital=200000):
     return brokerInstance
 
 def getDefaultUnderlyings() -> List[str]:
-    return  ['NSE:NIFTY BANK']
+    return ['NSE:NIFTY BANK']
 
-def getExpiryDates(index: UnderlyingIndex ):
+
+def getExpiryDates(index: UnderlyingIndex):
     currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-            datetime.datetime.now().date(), index)
+        datetime.datetime.now().date(), index)
     nextWeekExpiry = utils.getNextWeeklyExpiryDate(
         datetime.datetime.now().date(), index)
     monthlyExpiry = utils.getNearestMonthlyExpiryDate(
         datetime.datetime.now().date(), index)
-    
+
     return currentWeeklyExpiry, nextWeekExpiry, monthlyExpiry

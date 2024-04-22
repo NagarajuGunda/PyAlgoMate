@@ -1,6 +1,7 @@
 import flet as ft
 from typing import List, Tuple
 
+
 class PaginatedDataTable(ft.UserControl):
     # a default number of rows per page to be used in the data table
     DEFAULT_ROW_PER_PAGE = 10
@@ -179,7 +180,7 @@ class PaginatedDataTable(ft.UserControl):
                     ft.Container(
                         self.pdt,
                         alignment=ft.alignment.center
-                    ),            
+                    ),
                     ft.Row(
                         [
                             ft.Row(

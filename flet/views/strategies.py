@@ -258,7 +258,7 @@ class StrategiesView(ft.View):
 
         self.totalMtm = ft.Text(
             '₹ 0', size=25)
-        
+
         totalMtmRow = ft.Container(
             ft.Column([
                 ft.Container(ft.Text('Total MTM', size=15, weight=ft.FontWeight.BOLD,
@@ -278,7 +278,7 @@ class StrategiesView(ft.View):
                                       icon_size=40,
                                       icon_color='white',
                                       on_click=self.onTotalMTMChartButtonClicked,tooltip="MTM of all Strategies running")
-                        ])   
+                        ])
                     ]),
                     padding=ft.padding.only(
                         top=35, right=10, bottom=10)
@@ -341,7 +341,7 @@ class StrategiesView(ft.View):
             tempPnlDf = strategy.getPnLs()
             tempPnlDf['strategy'] = strategyCard.strategy.strategyName
             pnlDf = pd.concat([pnlDf, tempPnlDf], ignore_index=True)
-            
+
         pnlDf.index =pnlDf['Date/Time']
         cummPnlDf = pnlDf['PnL'].resample('1T').agg({'PnL':'sum'})
         cummPnlDf.reset_index(inplace=True)
@@ -350,7 +350,6 @@ class StrategiesView(ft.View):
         color = np.where(values < 0, 'loss', 'profit')
         fig = px.area(cummPnlDf, x="Date/Time", y=values, title=f"Total MTM | Current PnL:  ₹{round(pnl, 2)}",
                         color=color, color_discrete_map={'loss': 'orangered', 'profit': 'lightgreen'})
-        
         fig.add_traces(
             [
                 go.Scatter(x=pnlDf.query(f'strategy=="{strategy}"')["Date/Time"], y=pnlDf.query(f'strategy=="{strategy}"')['PnL'],
@@ -371,7 +370,7 @@ class StrategiesView(ft.View):
         self.page.dialog = dlg
         dlg.open = True
         self.page.update()
-        
+
     def update(self):
         for strategyCard in self.strategyCards:
             strategyCard.updateStrategy()
@@ -381,5 +380,7 @@ class StrategiesView(ft.View):
         self.totalMtm.value = f'₹ {totalMtm:.2f}'
         self.totalMtm.color = "green" if totalMtm >= 0 else "red"
         self.feedIcon.color = "green" if self.feed.isDataFeedAlive() else "red"
-        self.feedText.value = f'Quote       : {self.feed.getLastUpdatedDateTime()}\nReceived  : {self.feed.getLastReceivedDateTime()}\nBars        : {self.feed.getNextBarsDateTime()}'
+        self.feedText.value = (f'Quote       : {self.feed.getLastUpdatedDateTime()}\nReceived  : '
+                               f'{self.feed.getLastReceivedDateTime()}\nBars        '
+                               f': {self.feed.getNextBarsDateTime()}')
         super().update()

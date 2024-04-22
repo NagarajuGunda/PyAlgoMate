@@ -11,13 +11,13 @@ logger = logging.getLogger(__file__)
 
 
 class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, strategyName=None, registeredOptionsCount=None, callback=None, resampleFrequency=None, lotSize=None, collectData=None, telegramBot=None):
+    def __init__(self, feed, broker, strategyName=None, registeredOptionsCount=None, callback=None,
+                 lotSize=None, collectData=None, telegramBot=None):
         super(DeltaNeutralIntraday, self).__init__(feed, broker,
                                                    strategyName=strategyName if strategyName else __class__.__name__,
                                                    logger=logging.getLogger(
                                                        __file__),
                                                    callback=callback,
-                                                   resampleFrequency=resampleFrequency,
                                                    collectData=collectData,
                                                    telegramBot=telegramBot)
 
@@ -98,17 +98,19 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
 
         optionData = self.getOptionData(bars)
 
-        if (len(optionData) < self.registeredOptionsCount):
+        if len(optionData) < self.registeredOptionsCount:
             return
 
         self.overallPnL = self.getOverallPnL()
 
         self.log(f"Current PnL is {self.overallPnL}. Overall delta is {overallDelta}. Datetime {bars.getDateTime()}. State is {self.state}.\n" +
-                 "\tRegistered option count is {self.registeredOptionsCount}. Number of options present {len(optionData)}.\n" +
-                 "\tNumber of open positions are {len(self.openPositions)}. Number of closed positions are {len(self.closedPositions)}.", logging.DEBUG)
+                 "\tRegistered option count is {self.registeredOptionsCount}. Number of options present {len("
+                 "optionData)}.\n" +
+                 "\tNumber of open positions are {len(self.openPositions)}. Number of closed positions are {len("
+                 "self.closedPositions)}.", logging.DEBUG)
 
         if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+            if (len(self.getActivePositions()) + len(self.getClosedPositions())) > 0:
                 self.log(
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
@@ -153,11 +155,11 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                     f"Portfolio SL({self.portfolioSL} is hit. Current PnL is {self.overallPnL}. Exiting all positions!)")
                 self.closeAllPositions()
                 return
-            elif self.positionVega is not None and self.positionVega.getInstrument() in self.openPositions:
+            elif self.positionVega is not None and self.positionVega.getInstrument() in self.getActivePositions():
                 # Check if SL is hit for the buy position
-                entryOrder = self.openPositions[self.positionVega.getEntryOrder(
+                entryOrder = self.getActivePositions()[self.positionVega.getEntryOrder(
                 ).getInstrument()]
-                pnl = self.getPnL(entryOrder)
+                pnl = self.getPnLs(entryOrder)
                 entryPrice = entryOrder.getAvgFillPrice()
 
                 pnLPercentage = (
@@ -211,10 +213,12 @@ class DeltaNeutralIntraday(BaseOptionsGreeksStrategy):
                 if selectedOption.optionContract.symbol in [self.positionCall.getInstrument(),
                                                             self.positionPut.getInstrument()]:
                     self.log(
-                        f"We just have entered short positon of <{selectedOption.optionContract.symbol}> in current adjustment. Skipping buying same position.")
+                        f"We just have entered short positon of <{selectedOption.optionContract.symbol}> "
+                        f"in current adjustment. Skipping buying same position.")
                 else:
                     self.log(
-                        f"Number of adjustments has reached {self.numberOfAdjustments}. Managing vega by buying an option. Current PnL is {self.overallPnL}).")
+                        f"Number of adjustments has reached {self.numberOfAdjustments}."
+                        f"Managing vega by buying an option. Current PnL is {self.overallPnL}).")
                     self.state = State.PLACING_ORDERS
                     self.positionVega = self.enterLong(
                         selectedOption.optionContract.symbol, self.quantity)

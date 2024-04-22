@@ -7,6 +7,7 @@ from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStr
 from pyalgomate.core import State, Expiry
 from pyalgomate.cli import CliMain
 
+
 class RollingStraddleIntraday(BaseOptionsGreeksStrategy):
     def __init__(self, feed, broker, underlying, strategyName=None, telegramBot=None):
         super(RollingStraddleIntraday, self).__init__(feed, broker,
@@ -56,7 +57,6 @@ class RollingStraddleIntraday(BaseOptionsGreeksStrategy):
             return inputPrice - remainder
         else:
             return inputPrice + (self.strikeDifference - remainder)
-        
 
     def takePositions(self, currentExpiry):
         atmStrike = self.getATMStrike()
@@ -108,9 +108,10 @@ class RollingStraddleIntraday(BaseOptionsGreeksStrategy):
         if self.lastAtmStrike is None:
             return False
 
-        underlyingPrice = self.getUnderlyingPrice(self.underlying)
+        underlyingPrice = self.getLastPrice(self.underlying)
 
-        if not ((self.lastAtmStrike - self.strikeThreshold) < underlyingPrice < (self.lastAtmStrike + self.strikeThreshold)):
+        if not ((self.lastAtmStrike - self.strikeThreshold) < underlyingPrice < (
+                self.lastAtmStrike + self.strikeThreshold)):
             atmStrike = self.getATMStrike()
             self.log(
                 f"Underlying price {underlyingPrice} has exceeded strike threshold {self.strikeThreshold}. Current positions are at strike {atmStrike}")
@@ -145,7 +146,8 @@ class RollingStraddleIntraday(BaseOptionsGreeksStrategy):
         self.log(f"Bar date times - {bars.getDateTime()}", logging.DEBUG)
 
         currentExpiry = utils.getNearestWeeklyExpiryDate(bars.getDateTime().date(
-        ), self.underlyingIndex) if self.expiry == Expiry.WEEKLY else utils.getNearestMonthlyExpiryDate(bars.getDateTime().date(), self.underlyingIndex)
+        ), self.underlyingIndex) if self.expiry == Expiry.WEEKLY else utils.getNearestMonthlyExpiryDate(
+            bars.getDateTime().date(), self.underlyingIndex)
 
         if self.state == State.LIVE:
             if bars.getDateTime().time() >= self.entryTime and bars.getDateTime().time() < self.exitTime:

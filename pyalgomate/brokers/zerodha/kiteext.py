@@ -4,7 +4,6 @@ import kiteconnect.exceptions as ex
 import logging
 from six.moves.urllib.parse import urljoin
 import requests
-from os import path
 
 from kiteconnect import KiteConnect, KiteTicker
 
@@ -16,7 +15,8 @@ class KiteExt(KiteConnect):
     def login_with_credentials(self, userid, password, twofa):
         self.headers = {
             'x-kite-version': '3',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.128 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                          'Chrome/89.0.4389.128 Safari/537.36'
         }
         self.user_id = userid
         self.password = password

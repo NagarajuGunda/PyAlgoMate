@@ -5,6 +5,7 @@ from .paginated_dt import PaginatedDataTable
 from pyalgotrade.strategy.position import Position
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 
+
 class TradesView(ft.View):
     def __init__(self, page: ft.Page, strategy: BaseOptionsGreeksStrategy):
         super().__init__(route="/trades")
@@ -13,9 +14,9 @@ class TradesView(ft.View):
         self.strategy = strategy
 
         self.appbar = ft.AppBar(
-                title=ft.Text("Trades"),
-                bgcolor=ft.colors.SURFACE_VARIANT
-            )
+            title=ft.Text("Trades"),
+            bgcolor=ft.colors.SURFACE_VARIANT
+        )
 
         self.collectedPremiumText = ft.Text("₹ 0", color=ft.colors.GREEN, size=25)
         self.currentPremiumText = ft.Text("₹ 0", color=ft.colors.GREEN, size=25)
@@ -27,12 +28,12 @@ class TradesView(ft.View):
                     [
                         ft.Column(
                             [
-                                    ft.Container(
-                                        content=ft.Text("Collected Premium", color=ft.colors.BLACK38, size=15)
-                                    ),
-                                    ft.Container(
-                                        content=self.collectedPremiumText
-                                    ),
+                                ft.Container(
+                                    content=ft.Text("Collected Premium", color=ft.colors.BLACK38, size=15)
+                                ),
+                                ft.Container(
+                                    content=self.collectedPremiumText
+                                ),
                             ],
                             alignment=ft.MainAxisAlignment.CENTER,
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -41,12 +42,12 @@ class TradesView(ft.View):
                         ft.VerticalDivider(color=ft.colors.BLACK38, thickness=2, opacity=0.5),
                         ft.Column(
                             [
-                                    ft.Container(
-                                        content=ft.Text("Current Premium", color=ft.colors.BLACK38, size=15)
-                                    ),
-                                    ft.Container(
-                                        content=self.currentPremiumText
-                                    ),
+                                ft.Container(
+                                    content=ft.Text("Current Premium", color=ft.colors.BLACK38, size=15)
+                                ),
+                                ft.Container(
+                                    content=self.currentPremiumText
+                                ),
                             ],
                             alignment=ft.MainAxisAlignment.CENTER,
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -55,12 +56,12 @@ class TradesView(ft.View):
                         ft.VerticalDivider(color=ft.colors.BLACK38, thickness=2, opacity=0.5),
                         ft.Column(
                             [
-                                    ft.Container(
-                                        content=ft.Text("MTM", color=ft.colors.BLACK38, size=15)
-                                    ),
-                                    ft.Container(
-                                        content=self.mtmText
-                                    ),
+                                ft.Container(
+                                    content=ft.Text("MTM", color=ft.colors.BLACK38, size=15)
+                                ),
+                                ft.Container(
+                                    content=self.mtmText
+                                ),
                             ],
                             alignment=ft.MainAxisAlignment.CENTER,
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -69,12 +70,12 @@ class TradesView(ft.View):
                         ft.VerticalDivider(color=ft.colors.BLACK38, thickness=2, opacity=0.5),
                         ft.Column(
                             [
-                                    ft.Container(
-                                        content=ft.Text("Unrealized MTM", color=ft.colors.BLACK38, size=15)
-                                    ),
-                                    ft.Container(
-                                        content=self.unrealizedMtmText
-                                    ),
+                                ft.Container(
+                                    content=ft.Text("Unrealized MTM", color=ft.colors.BLACK38, size=15)
+                                ),
+                                ft.Container(
+                                    content=self.unrealizedMtmText
+                                ),
                             ],
                             alignment=ft.MainAxisAlignment.CENTER,
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -91,7 +92,7 @@ class TradesView(ft.View):
             height=120
         )
 
-        columns=[
+        columns = [
             ft.DataColumn(ft.Text("Instrument")),
             ft.DataColumn(ft.Text("B/S")),
             ft.DataColumn(ft.Text("Entry Time"), on_sort=lambda e: print(f"{e.column_index}, {e.ascending}")),
@@ -124,12 +125,13 @@ class TradesView(ft.View):
         positions: List[Position] = [
             position for position in sorted(
                 self.strategy.getActivePositions().copy().union(self.strategy.getClosedPositions().copy()),
-                key=lambda position: position.getEntryOrder().getSubmitDateTime() if position.entryFilled() else pd.Timestamp.min
+                key=lambda
+                    position: position.getEntryOrder().getSubmitDateTime() if position.entryFilled() else pd.Timestamp.min
             )
         ]
         rows = []
         for position in positions:
-            icon = ft.icons.ARROW_CIRCLE_UP_SHARP if position.getEntryOrder().isBuy() else  ft.icons.ARROW_CIRCLE_DOWN_SHARP
+            icon = ft.icons.ARROW_CIRCLE_UP_SHARP if position.getEntryOrder().isBuy() else ft.icons.ARROW_CIRCLE_DOWN_SHARP
             entryPrice = round(position.getEntryOrder().getAvgFillPrice(), 2) if position.entryFilled() else None
             entryQuantity = position.getEntryOrder().getQuantity() if position.entryFilled() else None
             exitPrice = round(position.getExitOrder().getAvgFillPrice(), 2) if position.exitFilled() else None
@@ -141,15 +143,18 @@ class TradesView(ft.View):
                     [
                         ft.DataCell(ft.Text(position.getInstrument())),
                         ft.DataCell(ft.Icon(name=icon, color='green' if position.getEntryOrder().isBuy() else 'red')),
-                        ft.DataCell(ft.Text(position.getEntryOrder().getExecutionInfo().getDateTime() if position.entryFilled() else '')),
+                        ft.DataCell(ft.Text(
+                            position.getEntryOrder().getExecutionInfo().getDateTime() if position.entryFilled() else '')),
                         ft.DataCell(ft.Text(entryPrice)),
                         ft.DataCell(ft.Text(entryQuantity)),
                         ft.DataCell(ft.Text(position.getLastPrice())),
-                        ft.DataCell(ft.Text(position.getExitOrder().getExecutionInfo().getDateTime() if position.exitFilled() else '')),
+                        ft.DataCell(ft.Text(
+                            position.getExitOrder().getExecutionInfo().getDateTime() if position.exitFilled() else '')),
                         ft.DataCell(ft.Text(exitPrice)),
                         ft.DataCell(ft.Text(exitQuantity)),
                         ft.DataCell(pnlText),
-                        ft.DataCell(ft.Icon(name=ft.icons.CLOSE_SHARP, color="red400") if not position.exitFilled() else ft.Text('')),
+                        ft.DataCell(ft.Icon(name=ft.icons.CLOSE_SHARP,
+                                            color="red400") if not position.exitFilled() else ft.Text('')),
                     ]
                 )
             )
@@ -160,12 +165,12 @@ class TradesView(ft.View):
         closedPositions = self.strategy.getClosedPositions().copy()
 
         collectedPremium = sum(
-                [
-                    position.getEntryOrder().getAvgFillPrice() * position.getEntryOrder().getQuantity()
-                    for position in openPositions
-                    if position.entryFilled() and position.getEntryOrder().isSell()
-                ]
-            )
+            [
+                position.getEntryOrder().getAvgFillPrice() * position.getEntryOrder().getQuantity()
+                for position in openPositions
+                if position.entryFilled() and position.getEntryOrder().isSell()
+            ]
+        )
         self.collectedPremiumText.value = f'₹ {collectedPremium:.2f}'
         self.collectedPremiumText.color = "green" if collectedPremium >= 0 else "red"
         self.collectedPremiumText.update()

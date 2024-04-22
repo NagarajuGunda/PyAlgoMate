@@ -12,7 +12,8 @@ After 2 PM, go in the direction of break of day high or low with stop of breakou
 
 
 class BreakoutV1(BaseOptionsGreeksStrategy):
-    def __init__(self, feed, broker, underlying, registeredOptionsCount=0, strategyName=None, callback=None, resampleFrequency=None, lotSize=None, collectData=None, telegramBot=None):
+    def __init__(self, feed, broker, underlying, registeredOptionsCount=0, strategyName=None, callback=None,
+                 resampleFrequency=None, lotSize=None, collectData=None, telegramBot=None):
         super(BreakoutV1, self).__init__(feed, broker,
                                          strategyName=strategyName if strategyName else __class__.__name__,
                                          logger=logging.getLogger(
@@ -105,13 +106,13 @@ class BreakoutV1(BaseOptionsGreeksStrategy):
                 bar.getLow() < self.dayLow)) else self.dayLow
 
         if bars.getDateTime().time() >= self.marketEndTime:
-            if (len(self.openPositions) + len(self.closedPositions)) > 0:
+            if (len(self.getActivePositions()) + len(self.getClosedPositions())) > 0:
                 self.log(
                     f"Overall PnL for {bars.getDateTime().date()} is {self.overallPnL}")
             if self.state != State.LIVE:
                 self.__reset__()
-        elif (bars.getDateTime().time() >= self.exitTime):
-            if (self.state != State.EXITED) and (len(self.openPositions) > 0):
+        elif bars.getDateTime().time() >= self.exitTime:
+            if (self.state != State.EXITED) and (len(self.getActivePositions()) > 0):
                 self.log(
                     f'Current time <{bars.getDateTime().time()}> has crossed exit time <{self.exitTime}. Closing all positions!')
                 for position in list(self.getActivePositions()):
