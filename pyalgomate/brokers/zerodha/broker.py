@@ -36,7 +36,7 @@ underlyingMapping = {
     'NSE:NIFTY 50': {
         'optionPrefix': 'NFO:NIFTY',
         'index': UnderlyingIndex.NIFTY,
-        'lotSize': 50,
+        'lotSize': 25,
         'strikeDifference': 50
     },
     'NSE:NIFTY FIN SERVICE': {

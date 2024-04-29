@@ -40,7 +40,7 @@ underlyingMapping = {
     'NSE|NIFTY INDEX': {
         'optionPrefix': 'NFO|NIFTY',
         'index': UnderlyingIndex.NIFTY,
-        'lotSize': 50,
+        'lotSize': 25,
         'strikeDifference': 50
     },
     'NSE|FINNIFTY': {
@@ -400,9 +400,6 @@ class TradeMonitor(threading.Thread):
                 #     self.__retryData[order]['lastRetryTime'] = time.time()
                 pass
             elif orderEvent.getStatus() == 'OPEN':
-                if order.getType() != broker.Order.Type.LIMIT:
-                    continue
-
                 retryCount = self.__retryData[order]['retryCount']
                 lastRetryTime = self.__retryData[order]['lastRetryTime']
 
