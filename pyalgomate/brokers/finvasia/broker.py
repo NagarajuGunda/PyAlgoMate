@@ -22,7 +22,7 @@ from pyalgomate.utils import UnderlyingIndex
 import pyalgomate.utils as utils
 import pyalgomate.brokers.finvasia as finvasia
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 underlyingMapping = {
     'NSE|MIDCPNIFTY': {
@@ -389,15 +389,6 @@ class TradeMonitor(threading.Thread):
                 logger.error(f'Fetching order history for {orderEvent.getId()} failed with reason {orderEvent.getErrorMessage()}')
                 continue
             elif orderEvent.getStatus() in ['PENDING', 'TRIGGER_PENDING']:
-                # retryCount = self.__retryData[order]['retryCount']
-                # lastRetryTime = self.__retryData[order]['lastRetryTime']
-
-                # if time.time() > (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
-                #     logger.warning(f'Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL} '
-                #                    f'and still in {orderEvent.getStatus()} state. Canceling the order')
-                #     self.__broker.cancelOrder(order)
-                #     self.__retryData[order]['retryCount'] += 1
-                #     self.__retryData[order]['lastRetryTime'] = time.time()
                 pass
             elif orderEvent.getStatus() == 'OPEN':
                 retryCount = self.__retryData[order]['retryCount']
@@ -419,13 +410,22 @@ class TradeMonitor(threading.Thread):
 
                 self.__retryData[order]['retryCount'] += 1
                 self.__retryData[order]['lastRetryTime'] = time.time()
-            elif orderEvent.getStatus() == 'REJECTED':
+            elif orderEvent.getStatus() in ['CANCELED', 'REJECTED']:
+                if orderEvent.getRejectedReason() is not None:
+                    if orderEvent.getRejectedReason() == 'Order Cancelled':
+                        ret.append(orderEvent)
+                        self.__retryData.pop(order, None)
+                        continue
+                    else:
+                        logger.error(
+                            f'Order {orderEvent.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}')
+
                 retryCount = self.__retryData[order]['retryCount']
                 lastRetryTime = self.__retryData[order]['lastRetryTime']
 
                 if retryCount < TradeMonitor.RETRY_COUNT:
                     if time.time() > (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
-                        logger.warning(f'Order {order.getId()} rejected with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"] + 1}')
+                        logger.warning(f'Order {order.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"] + 1}')
                         self.__broker.placeOrder(order)
                         self.__retryData[order]['retryCount'] += 1
                         self.__retryData[order]['lastRetryTime'] = time.time()
@@ -433,7 +433,7 @@ class TradeMonitor(threading.Thread):
                     logger.warning(f'Exhausted retry attempts for Order {order.getId()}')
                     ret.append(orderEvent)
                     self.__retryData.pop(order, None)
-            elif orderEvent.getStatus() in ['CANCELED', 'COMPLETE']:
+            elif orderEvent.getStatus() in ['COMPLETE']:
                 ret.append(orderEvent)
                 self.__retryData.pop(order, None)
             else:
@@ -669,17 +669,10 @@ class LiveBroker(broker.Broker):
 
     def _onTrade(self, order: Order, trade: OrderEvent):
         if trade.getStatus() == 'REJECTED' or trade.getStatus() == 'CANCELED':
-            if trade.getRejectedReason() is not None:
-                logger.error(
-                    f'Order {trade.getId()} rejected with reason {trade.getRejectedReason()}')
             self._unregisterOrder(order)
             order.switchState(broker.Order.State.CANCELED)
             self.notifyOrderEvent(broker.OrderEvent(
-                order, broker.OrderEvent.Type.CANCELED, None))     
-        # elif trade.getStatus() == 'OPEN':
-        #     order.switchState(broker.Order.State.ACCEPTED)
-        #     self.notifyOrderEvent(broker.OrderEvent(
-        #         order, broker.OrderEvent.Type.ACCEPTED, None))
+                order, broker.OrderEvent.Type.CANCELED, None))
         elif trade.getStatus() == 'COMPLETE':
             fee = 0
             orderExecutionInfo = broker.OrderExecutionInfo(
