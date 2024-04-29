@@ -229,15 +229,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             callback(self.strategyName, jsonData)
 
     def log(self, message, level=logging.INFO, sendToTelegram=True):
-        if level == logging.DEBUG:
-            self.logger.debug(
-                f"{self.strategyName} {self.getCurrentDateTime()} {message}")
-        elif level == logging.ERROR:
-            self.logger.error(
-                f"{self.strategyName} {self.getCurrentDateTime()} {message}")
-        else:
-            self.logger.log(
-                level=level, msg=f"\n📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n\n{message}\n\n")
+        self.logger.log(level=level, msg=message)
 
         if sendToTelegram and self.telegramBot:
             message = f"📢 {self.strategyName} - {self.getCurrentDateTime()} 📢\n\n{message}"
@@ -299,7 +291,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
     def onEnterOk(self, position: position.Position):
         execInfo = position.getEntryOrder().getExecutionInfo()
         action = "Buy" if position.getEntryOrder().isBuy() else "Sell"
-        message = f'{"🔴" if action == "Sell" else "🟢"} position opened\n\n🔑 Order ID: {position.getEntryOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getEntryOrder().getInstrument()}\n💰 Entry Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}\n✅ Position successfully initiated!'
+        message = f'\n{"🔴" if action == "Sell" else "🟢"} position opened\n\n🔑 Order ID: {position.getEntryOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getEntryOrder().getInstrument()}\n💰 Entry Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}\n✅ Position successfully initiated!'
         self.log(f"{message}")
 
         instrument = position.getInstrument()
@@ -311,7 +303,8 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             optionContract = self.__optionContracts[instrument]
             if optionContract is not None:
                 expiry = optionContract.expiry
-                dte = (expiry - execInfo.getDateTime().date()).days
+                if expiry:
+                    dte = (expiry - execInfo.getDateTime().date()).days
 
             # Append a new row to the tradesDf DataFrame with the trade information
             newRow = {
@@ -353,7 +346,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
     def onExitOk(self, position: position.Position):
         execInfo = position.getExitOrder().getExecutionInfo()
-        message = f'🔔 Position Exit\n\n🔑 Order ID: {position.getExitOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getInstrument()}\n💰 Exit Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}'
+        message = f'\n🔔 Position Exit\n\n🔑 Order ID: {position.getExitOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getInstrument()}\n💰 Exit Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}'
         self.log(f"{message}")
 
         entryOrderId = position.getEntryOrder().getId()
