@@ -172,7 +172,7 @@ class TelegramBot:
                 retry_after_seconds = e.retry_after
                 self.current_sleep_interval = max(
                     retry_after_seconds, self.current_sleep_interval)
-                logger.exception(
+                logger.warning(
                     f"Rate limit exceeded. Sleeping for {retry_after_seconds}. Error: {e}")
                 await asyncio.sleep(retry_after_seconds)
                 await failed_messages.put(message)
