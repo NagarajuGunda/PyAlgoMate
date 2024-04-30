@@ -9,6 +9,7 @@ import logging
 from io import BytesIO, StringIO
 from zipfile import ZipFile
 import pandas as pd
+from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
 import pyotp
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
@@ -38,6 +39,7 @@ def downloadAndExtract(url):
             df = pd.read_csv(StringIO(content), delimiter=",")
     return df
 
+@lru_cache(maxsize=None)
 def getScriptMaster(scripMasterFile='finvasia_symbols.csv') -> pd.DataFrame:
     if os.path.exists(scripMasterFile) and \
         (datetime.datetime.fromtimestamp(os.path.getmtime(scripMasterFile)).date() == datetime.datetime.today().date()):

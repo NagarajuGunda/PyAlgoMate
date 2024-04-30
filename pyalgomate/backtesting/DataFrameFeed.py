@@ -139,4 +139,4 @@ class DataFrameFeed(BaseBarFeed):
         )
 
         return self.__completeDf[mask].resample(f'{interval}min', on="Date/Time").agg(
-            {"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}).reset_index().dropna()
+            {"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum", "Open Interest": "sum"}).reset_index().dropna()
