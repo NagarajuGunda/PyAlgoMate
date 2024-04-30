@@ -411,14 +411,13 @@ class TradeMonitor(threading.Thread):
                 self.__retryData[order]['retryCount'] += 1
                 self.__retryData[order]['lastRetryTime'] = time.time()
             elif orderEvent.getStatus() in ['CANCELED', 'REJECTED']:
-                if orderEvent.getRejectedReason() is not None:
-                    if orderEvent.getRejectedReason() == 'Order Cancelled':
-                        ret.append(orderEvent)
-                        self.__retryData.pop(order, None)
-                        continue
-                    else:
-                        logger.error(
-                            f'Order {orderEvent.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}')
+                if orderEvent.getRejectedReason() is None or orderEvent.getRejectedReason() == 'Order Cancelled':
+                    ret.append(orderEvent)
+                    self.__retryData.pop(order, None)
+                    continue
+                else:
+                    logger.error(
+                        f'Order {orderEvent.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}')
 
                 retryCount = self.__retryData[order]['retryCount']
                 lastRetryTime = self.__retryData[order]['lastRetryTime']
