@@ -721,16 +721,15 @@ class LiveBroker(broker.Broker):
         return self.__stop
 
     def dispatch(self):
-        # Switch orders from SUBMITTED to ACCEPTED.
-        ordersToProcess = list(self.__activeOrders.values())
-        for order in ordersToProcess:
-            if order.isSubmitted():
-                order.switchState(broker.Order.State.ACCEPTED)
-                self.notifyOrderEvent(broker.OrderEvent(
-                    order, broker.OrderEvent.Type.ACCEPTED, None))
-
-        # Dispatch events from the trade monitor.
         try:
+            # Switch orders from SUBMITTED to ACCEPTED.
+            ordersToProcess = list(self.__activeOrders.values())
+            for order in ordersToProcess:
+                if order.isSubmitted():
+                    order.switchState(broker.Order.State.ACCEPTED)
+                    self.notifyOrderEvent(broker.OrderEvent(
+                        order, broker.OrderEvent.Type.ACCEPTED, None))
+
             eventType, eventData = self.__tradeMonitor.getQueue().get(
                 True, LiveBroker.QUEUE_TIMEOUT)
 
@@ -741,6 +740,8 @@ class LiveBroker(broker.Broker):
                     "Invalid event received to dispatch: %s - %s" % (eventType, eventData))
         except six.moves.queue.Empty:
             pass
+        except Exception as e:
+            logger.exception(e)
 
     def peekDateTime(self):
         # Return None since this is a realtime subject.
