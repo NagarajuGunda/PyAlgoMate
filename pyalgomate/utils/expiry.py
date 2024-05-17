@@ -42,6 +42,7 @@ listOfNseHolidays = set([
     pendulum.Date(2024, 4, 11),  # Eid-Ul-Fitr (Ramzan Eid)
     pendulum.Date(2024, 4, 17),  # Ram Navami
     pendulum.Date(2024, 5, 1),  # Maharashtra Day
+    pendulum.Date(2024, 5, 20),  # Election day
     pendulum.Date(2024, 6, 17),  # Bakri Eid
     pendulum.Date(2024, 7, 17),  # Moharram
     pendulum.Date(2024, 8, 15),  # Independence Day
