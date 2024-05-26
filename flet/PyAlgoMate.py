@@ -163,24 +163,30 @@ def main(page: ft.Page):
     page.vertical_alignment = "center"
     page.padding = ft.padding.only(left=50, right=50)
     page.scroll = ft.ScrollMode.HIDDEN
+    lock = threading.Lock()
 
     strategiesView = StrategiesView(page, _feed, strategies)
 
     def route_change(route):
-        route = urlparse(route.route)
-        params = parse_qs(route.query)
-        page.views.clear()
+        with lock:
+            route = urlparse(route.route)
+            params = parse_qs(route.query)
+            page.views.clear()
 
-        page.views.append(
-            strategiesView
-        )
-        if route.path == "/trades":
-            strategyName = params['strategyName'][0]
-            strategy = [strategy for strategy in strategies if strategy.strategyName == strategyName][0]
             page.views.append(
-                TradesView(page, strategy)
+                strategiesView
             )
-        page.update()
+            if route.path == "/trades":
+                strategyName = params['strategyName'][0]
+                strategy = [strategy for strategy in strategies if strategy.strategyName == strategyName][0]
+                page.views.append(
+                    TradesView(page, strategy)
+                )
+            elif route.path == '/strategy':
+                strategyName = params['strategyName'][0]
+                strategy = [strategy for strategy in strategies if strategy.strategyName == strategyName][0]
+                page.views.append(strategy.getView(page))
+            page.update()
 
     def view_pop(view: ft.View):
         page.views.pop()
@@ -192,7 +198,11 @@ def main(page: ft.Page):
     page.go(page.route)
 
     while True:
-        page.views[-1].update()
+        with lock:
+            if len(page.views):
+                topView = page.views[-1]
+                if topView in page.views:
+                    topView.update()
         time.sleep(0.5)
 
 

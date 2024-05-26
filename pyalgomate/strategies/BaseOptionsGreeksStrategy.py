@@ -437,7 +437,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
         return delta
 
-    def __calculateGreeks(self, bars):
+    def getGreeks(self, instruments):
         # Collect all the necessary data into NumPy arrays
         optionContracts = []
         underlyingPrices = []
@@ -446,7 +446,8 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         expiries = []
         types = []
         ois = []
-        for instrument, bar in bars.items():
+        greeksData = {}
+        for instrument in instruments:
             optionContract = self.getBroker().getOptionContract(instrument)
 
             if optionContract is not None:
@@ -456,6 +457,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
                 underlyingPrices.append(underlyingPrice)
                 optionContracts.append(optionContract)
                 strikes.append(optionContract.strike)
+                bar = self.getFeed().getLastBar(instrument)
                 prices.append(bar.getClose())
                 ois.append(bar.getExtraColumns().get("oi", 0))
                 if optionContract.expiry is None:
@@ -498,8 +500,14 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
                 if symbol in self.__optionData:
                     ois[i] = self.__optionData[symbol].oi
 
-            self.__optionData[symbol] = OptionGreeks(
+            greeksData[symbol] = OptionGreeks(
                 optionContract, prices[i], deltaVal, gammaVal, thetaVal, vegaVal, ivVal, ois[i])
+
+        return greeksData
+
+    def __calculateGreeks(self, bars):
+        for symbol, greeks in self.getGreeks(bars.getKeys()):
+            self.__optionData[symbol] = greeks
 
     def getOptionData(self, bars) -> dict:
         self.__calculateGreeks(bars)
@@ -535,6 +543,9 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
     def closeAllPositions(self):
         pass
+
+    def getView(self, page):
+        return None
 
     def getHistoricalData(self, instrument: str, timeDelta: datetime.timedelta, interval: str):
         if self.isBacktest():
