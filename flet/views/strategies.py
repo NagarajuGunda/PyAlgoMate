@@ -168,7 +168,7 @@ class StrategyCard(ft.Card):
         self.openPositions.value = f'Open Pos (B|S): {len(self.strategy.getActivePositions())} ({activeBuyPositions}|{activeSellPositions})'
         self.closedPositions.value = f'Closed Pos: {len(self.strategy.getClosedPositions())}'
         self.balanceAvailable.value = f'Balance Available: ₹ {self.strategy.getBroker().getCash()}'
-        self.update()
+        self.page.update()
 
     def onChartButtonClicked(self, e):
         base64Img = base64.b64encode(
@@ -249,7 +249,8 @@ class StrategyCard(ft.Card):
 
 class StrategiesView(ft.View):
     def __init__(self, page: ft.Page, feed: BaseBarFeed, strategies: List[BaseOptionsGreeksStrategy]):
-        super().__init__(route="/")
+        super().__init__()
+        self.route = "/"
         self.padding = ft.padding.all(10)
         self.scroll = ft.ScrollMode.HIDDEN
         self.page = page
@@ -332,6 +333,8 @@ class StrategiesView(ft.View):
                 scroll=ft.ScrollMode.HIDDEN
             )
         ]
+        self.page.update()
+
     def onTotalMTMChartButtonClicked(self, e):
         pnlDf = pd.DataFrame()
         pnl = int(0)
@@ -383,4 +386,4 @@ class StrategiesView(ft.View):
         self.feedText.value = (f'Quote       : {self.feed.getLastUpdatedDateTime()}\nReceived  : '
                                f'{self.feed.getLastReceivedDateTime()}\nBars        '
                                f': {self.feed.getNextBarsDateTime()}')
-        super().update()
+        self.page.update()

@@ -291,7 +291,6 @@ class TradesView(ft.View):
         )
         self.collectedPremiumText.value = f'₹ {collectedPremium:.2f}'
         self.collectedPremiumText.color = "green" if collectedPremium >= 0 else "red"
-        self.collectedPremiumText.update()
 
         currentPremium = sum(
             [
@@ -302,7 +301,6 @@ class TradesView(ft.View):
         )
         self.currentPremiumText.value = f'₹ {currentPremium:.2f}'
         self.currentPremiumText.color = "green" if currentPremium >= 0 else "red"
-        self.currentPremiumText.update()
 
         mtm = sum(
             [
@@ -311,7 +309,6 @@ class TradesView(ft.View):
         )
         self.mtmText.value = f'₹ {mtm:.2f}'
         self.mtmText.color = "green" if mtm >= 0 else "red"
-        self.mtmText.update()
 
         unrealizedMtm = sum(
             [
@@ -320,7 +317,6 @@ class TradesView(ft.View):
         )
         self.unrealizedMtmText.value = f'₹ {unrealizedMtm:.2f}'
         self.unrealizedMtmText.color = "green" if unrealizedMtm >= 0 else "red"
-        self.unrealizedMtmText.update()
 
         self.datatable.rows = self.getRows()
         self.paginatedDataTable.refresh_data()
@@ -352,8 +348,4 @@ class TradesView(ft.View):
         self.totalVegaText.value = f'V {totalVega:.2f}'
         self.totalIVText.value = f'IV {totalIV:.2f}'
 
-        self.totalDeltaText.update()
-        self.totalGammaText.update()
-        self.totalThetaText.update()
-        self.totalVegaText.update()
-        self.totalIVText.update()
+        self.page.update()
