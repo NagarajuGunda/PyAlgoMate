@@ -125,6 +125,9 @@ class CustomCSVBarFeed(BarFeed):
     def setBarClass(self, barClass):
         self.__barClass = barClass
 
+    def getCurrentDateTime(self):
+        return super().getCurrentDateTime() if super().getCurrentDateTime() is not None else self.peekDateTime()
+    
     def addBarsFromDataframe(self, dataframe, ticker=None, timezone=None):
         """Loads bars for a given instrument from a parquet file.
         The instrument gets registered in the bar feed.

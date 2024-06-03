@@ -506,7 +506,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         return greeksData
 
     def __calculateGreeks(self, bars):
-        for symbol, greeks in self.getGreeks(bars.getKeys()):
+        for symbol, greeks in self.getGreeks(bars.getInstruments()):
             self.__optionData[symbol] = greeks
 
     def getOptionData(self, bars) -> dict:
