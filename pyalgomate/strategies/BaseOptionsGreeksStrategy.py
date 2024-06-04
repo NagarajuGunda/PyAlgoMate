@@ -42,6 +42,8 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         self.__optionContracts = dict()
         self.mae = dict()
         self.mfe = dict()
+        self.__pendingPositionsToCancel = set()
+        self.__pendingPositionsToExit = set()
         self.reset()
 
         if self.telegramBot:
@@ -342,9 +344,13 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             elif position.exitActive() and position.getExitOrder().getType() != Order.Type.STOP_LIMIT:
                 return False
 
+        if len(self.__pendingPositionsToCancel) or len(self.__pendingPositionsToExit):
+            return False
+
         return True
 
     def onExitOk(self, position: position.Position):
+        self.__pendingPositionsToExit.discard(position)
         execInfo = position.getExitOrder().getExecutionInfo()
         message = f'\n🔔 Position Exit\n\n🔑 Order ID: {position.getExitOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getInstrument()}\n💰 Exit Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}'
         self.log(f"{message}")
@@ -386,6 +392,9 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
     def onExitCanceled(self, position: position):
         self.log(f"===== Exit order cancelled: {position.getExitOrder().getInstrument()} =====", logging.DEBUG,
                  sendToTelegram=False)
+        self.__pendingPositionsToCancel.discard(position)
+        if position in self.__pendingPositionsToExit:
+            self._exitWithMarketProtection(position)
 
     def haveLTP(self, instrument):
         return self.getFeed().getLastBar(instrument) is not None
@@ -552,3 +561,28 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             return self.getFeed().getHistoricalData(instrument, timeDelta, interval)
         else:
             return self.getBroker().getHistoricalData(instrument, datetime.datetime.now() - timeDelta, interval)
+
+    def _exitWithMarketProtection(self, position: position.Position, marketProtectionPercentage=15, tickSize=0.05):
+        lastPrice = self.getLastPrice(position.getInstrument())
+        if lastPrice is None:
+            self.log(
+                f'LTP of <{position.getInstrument()}> is None while exiting with market protection.')
+            return
+
+        if position.getEntryOrder().isBuy():
+            limitPrice = lastPrice * (1 - (marketProtectionPercentage / 100.0))
+        else:
+            limitPrice = lastPrice * (1 + (marketProtectionPercentage / 100.0))
+
+        limitPrice = limitPrice - (limitPrice % tickSize)
+
+        position.exitLimit(limitPrice)
+
+    def exitPosition(self, position: position.Position, marketProtectionPercentage, tickSize):
+        if position.exitActive():
+            self.__pendingPositionsToCancel.add(position)
+            position.cancelExit()
+        else:
+            self.__pendingPositionsToExit.add(position)
+            self._exitWithMarketProtection(
+                position, marketProtectionPercentage, tickSize)

@@ -4,6 +4,7 @@ import flet as ft
 from .paginated_dt import PaginatedDataTable
 from pyalgotrade.strategy.position import Position
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
+from pyalgomate.core import State
 
 
 class TradesView(ft.View):
@@ -263,12 +264,19 @@ class TradesView(ft.View):
                         ft.DataCell(ft.Text(exitPrice)),
                         ft.DataCell(ft.Text(exitQuantity)),
                         ft.DataCell(pnlText),
-                        ft.DataCell(ft.Icon(name=ft.icons.CLOSE_SHARP,
-                                            color="red400") if not position.exitFilled() else ft.Text('')),
+                        ft.DataCell(ft.IconButton(icon=ft.icons.CLOSE_SHARP,
+                                                  icon_color="red400",
+                                                  on_click=lambda e, pos=position: self.exitWithMarketProtection(
+                                                      pos)
+                                                  ) if not position.exitFilled() else ft.Text('')),
                     ]
                 )
             )
         return rows
+
+    def exitWithMarketProtection(self, position):
+        self.strategy.state = State.PLACING_ORDERS
+        self.strategy.exitPosition(position, 15, 0.05)
 
     def update(self):
         openPositions = self.strategy.getActivePositions().copy()
