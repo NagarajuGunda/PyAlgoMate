@@ -29,6 +29,7 @@ urls = [
     "https://api.shoonya.com/BFO_symbols.txt.zip",
 ]
 
+
 def downloadAndExtract(url):
     logger.info(f'Downloading and extracting {url}')
     response = requests.get(url)
@@ -39,16 +40,20 @@ def downloadAndExtract(url):
             df = pd.read_csv(StringIO(content), delimiter=",")
     return df
 
+
 @lru_cache(maxsize=None)
 def getScriptMaster(scripMasterFile='finvasia_symbols.csv') -> pd.DataFrame:
     if os.path.exists(scripMasterFile) and \
-        (datetime.datetime.fromtimestamp(os.path.getmtime(scripMasterFile)).date() == datetime.datetime.today().date()):
-        logger.info(f'Scrip master that has been created today already exists. Using the same!')
+            (datetime.datetime.fromtimestamp(os.path.getmtime(scripMasterFile)).date() == datetime.datetime.today().date()):
+        logger.info(
+            f'Scrip master that has been created today already exists. Using the same!')
         return pd.read_csv(scripMasterFile)
     else:
-        logger.info(f'Scrip master either doesn\'st exit of is not of today. Downloading!')
+        logger.info(
+            f'Scrip master either doesn\'st exit of is not of today. Downloading!')
         with ThreadPoolExecutor() as executor:
-            futures = [executor.submit(downloadAndExtract, url) for url in urls]
+            futures = [executor.submit(downloadAndExtract, url)
+                       for url in urls]
 
             dfs = []
             for future in futures:
@@ -59,20 +64,24 @@ def getScriptMaster(scripMasterFile='finvasia_symbols.csv') -> pd.DataFrame:
             scripMasterDf.to_csv(scripMasterFile, index=False)
             return scripMasterDf
 
+
 def getToken(instrument) -> str:
     tokenMappings = getTokenMappings()
     return tokenMappings[instrument]
 
+
 def getTokenMappings() -> dict:
     scripMasterDf: pd.DataFrame = getScriptMaster()
-    tokenMappings = dict(zip(scripMasterDf['Exchange'] + '|' + scripMasterDf['TradingSymbol'], scripMasterDf['Exchange'] + '|' + scripMasterDf['Token'].astype(str)))
+    tokenMappings = dict(zip(scripMasterDf['Exchange'] + '|' + scripMasterDf['TradingSymbol'],
+                         scripMasterDf['Exchange'] + '|' + scripMasterDf['Token'].astype(str)))
     tokenMappings['BSE|SENSEX'] = 'BSE|1'
     tokenMappings['BSE|BANKEX'] = 'BSE|12'
     return tokenMappings
 
-def getFeed(cred, registerOptions, underlyings):
+
+def getApiAndTokenMappings(cred, registerOptions, underlyings):
     api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
-                        websocket='wss://api.shoonya.com/NorenWSTP/')
+                     websocket='wss://api.shoonya.com/NorenWSTP/')
     userToken = None
     tokenFile = 'shoonyakey.txt'
     if os.path.exists(tokenFile) and (datetime.datetime.fromtimestamp(os.path.getmtime(tokenFile)).date() == datetime.datetime.today().date()):
@@ -99,7 +108,8 @@ def getFeed(cred, registerOptions, underlyings):
 
     if loginStatus != None:
         if len(underlyings) == 0:
-            underlyings = [underlying.replace(":","|") for underlying in getDefaultUnderlyings()]
+            underlyings = [underlying.replace(
+                ":", "|") for underlying in getDefaultUnderlyings()]
 
         optionSymbols = []
         tokenMappings = getTokenMappings()
@@ -121,7 +131,8 @@ def getFeed(cred, registerOptions, underlyings):
                 index = underlyingDetails['index']
                 strikeDifference = underlyingDetails['strikeDifference']
 
-                (currentWeeklyExpiry,nextWeekExpiry,monthlyExpiry) = getExpiryDates(index)
+                (currentWeeklyExpiry, nextWeekExpiry,
+                 monthlyExpiry) = getExpiryDates(index)
 
                 if "Weekly" in registerOptions:
                     optionSymbols += getOptionSymbols(
@@ -137,10 +148,22 @@ def getFeed(cred, registerOptions, underlyings):
 
         optionSymbols = list(dict.fromkeys(optionSymbols))
 
-        logger.info('Creating feed object')
-        return LiveTradeFeed(api, tokenMappings, underlyings + optionSymbols), api
+        instruments = underlyings + optionSymbols
+
+        filteredTokenMappings = {
+            tokenMappings[instrument]: instrument for instrument in instruments if instrument in tokenMappings}
+
+        return api, filteredTokenMappings
     else:
         exit(1)
+
+
+def getFeed(cred, registerOptions, underlyings):
+    logger.info('Creating feed object')
+    api, tokenMappings = getApiAndTokenMappings(
+        cred, registerOptions, underlyings)
+    return LiveTradeFeed(api, getTokenMappings(), tokenMappings.values()), api
+
 
 if __name__ == '__main__':
     print(getScriptMaster())

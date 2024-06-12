@@ -5,11 +5,15 @@
 import datetime
 import logging
 import traceback
+import threading
+import zmq
+import zmq.asyncio
+import asyncio
+from queue import Queue, Empty
 
 from pyalgotrade import bar
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.barfeed.BasicBarEx import BasicBarEx
-from pyalgomate.brokers.finvasia.wsclient import WebSocketClient
 from NorenRestApiPy.NorenApi import NorenApi
 
 logger = logging.getLogger(__name__)
@@ -61,7 +65,6 @@ class QuoteMessage(object):
     @property
     def dateTime(self):
         return self.__eventDict["ft"]
-        #return self.__eventDict["ct"]
 
     @property
     def price(self): return float(self.__eventDict.get('lp', 0))
@@ -76,61 +79,66 @@ class QuoteMessage(object):
     def seq(self): return int(self.dateTime)
 
     @property
-    def instrument(self): return f"{self.exchange}|{self.__tokenMappings[f'{self.exchange}|{self.scriptToken}'].split('|')[1]}"
+    def instrument(
+        self): return f"{self.exchange}|{self.__tokenMappings[f'{self.exchange}|{self.scriptToken}'].split('|')[1]}"
 
     def getBar(self, dateTime=None) -> BasicBarEx:
         open = high = low = close = self.price
 
-        return BasicBarEx(self.dateTime if dateTime is None else dateTime,                
-                    open,
-                    high,
-                    low,
-                    close,
-                    self.volume,
-                    None,
-                    bar.Frequency.TRADE,
-                    {
-                        "Instrument": self.instrument,
-                        "Open Interest": self.openInterest,
-                        "Message": self.__eventDict
-                    }
-                )
+        return BasicBarEx(self.dateTime if dateTime is None else dateTime,
+                          open,
+                          high,
+                          low,
+                          close,
+                          self.volume,
+                          None,
+                          bar.Frequency.TRADE,
+                          {
+                              "Instrument": self.instrument,
+                              "Open Interest": self.openInterest,
+                              "Message": self.__eventDict
+                          }
+                          )
+
 
 class LiveTradeFeed(BaseBarFeed):
-
-    """A real-time BarFeed that builds bars from live trades.
-
-    :param instruments: A list of currency pairs.
-    :type instruments: list of :class:`pyalgotrade.instrument.Instrument` or a string formatted like
-        QUOTE_SYMBOL/PRICE_CURRENCY..
-    :param maxLen: The maximum number of values that the :class:`pyalgotrade.dataseries.bards.BarDataSeries` will hold.
-        Once a bounded length is full, when new items are added, a corresponding number of items are discarded
-        from the opposite end. If None then dataseries.DEFAULT_MAX_LEN is used.
-    :type maxLen: int.
-
-    .. note::
-        Note that a Bar will be created for every trade, so open, high, low and close values will all be the same.
-    """
-
-    def __init__(self, api: NorenApi, tokenMappings: dict, instruments: list, timeout=10, maxLen=None):
+    def __init__(self, api: NorenApi, tokenMappings: dict, instruments: list, zmq_port="5555", timeout=10, maxLen=None):
         super(LiveTradeFeed, self).__init__(bar.Frequency.TRADE, maxLen)
         self.__instruments = instruments
-        self.__instrumentToTokenIdMapping = {instrument: tokenMappings[instrument] for instrument in self.__instruments if instrument in tokenMappings}
+        self.__instrumentToTokenIdMapping = {
+            instrument: tokenMappings[instrument] for instrument in self.__instruments if instrument in tokenMappings}
+        self.__tokenIdToInstrumentMappings = {
+            value: key for key, value in tokenMappings.items()}
 
         if len(self.__instruments) != len(self.__instrumentToTokenIdMapping):
-            raise Exception(f'Could not get tokens for the instruments {[instrument for instrument in self.__instruments if instrument not in tokenMappings]}')
+            raise Exception(
+                f'Could not get tokens for the instruments {[instrument for instrument in self.__instruments if instrument not in tokenMappings]}')
 
-        self.__channels = {value: key for key, value in self.__instrumentToTokenIdMapping.items()}
         self.__api = api
-        self.__timeout = timeout
 
         for key, value in self.__instrumentToTokenIdMapping.items():
             self.registerDataSeries(key)
 
-        self.__wsClient: WebSocketClient = None
         self.__stopped = False
-        self.__nextBarsTime = None
+        self.__lastQuoteDateTime = None
+        self.__lastReceivedDateTime = None
         self.__lastUpdateTime = None
+        self.__nextBarsTime = None
+
+        # ZeroMQ setup
+        self.__context = zmq.asyncio.Context()
+        self.__socket = self.__context.socket(zmq.SUB)
+        self.__socket.connect(f"tcp://localhost:{zmq_port}")
+        self.__socket.setsockopt_string(zmq.SUBSCRIBE, '')
+
+        # Queue to communicate between threads
+        self.__queue = Queue()
+
+        self.__latestQuotes = {}
+
+        # Thread to run the asyncio event loop
+        self.__loopThread = threading.Thread(target=self.__run_event_loop)
+        self.__loopThread.start()
 
     def getApi(self):
         return self.__api
@@ -138,78 +146,73 @@ class LiveTradeFeed(BaseBarFeed):
     def getCurrentDateTime(self):
         return datetime.datetime.now()
 
-    def __initializeClient(self):
-        logger.info("Initializing websocket client")
-        self.__wsClient = WebSocketClient(self.__api, self.__channels)
-        self.__wsClient.startClient()
-        logger.info("Waiting for websocket initialization to complete")
-        initialized = self.__wsClient.waitInitialized(self.__timeout)
-
-        if initialized:
-            logger.info("Initialization completed")
-        else:
-            logger.error("Initialization failed")
-        return initialized
-
     def barsHaveAdjClose(self):
         return False
 
-    def getLastBar(self, instrument) -> bar.Bar:
-        lastBarQuote = self.__wsClient.getQuotes().get(self.__instrumentToTokenIdMapping[instrument], None)
+    def getLastBar(self, instrument):
+        lastBarQuote = self.__latestQuotes.get(
+            self.__instrumentToTokenIdMapping[instrument], None)
         if lastBarQuote is not None:
-            return QuoteMessage(lastBarQuote, self.__channels).getBar()
+            return QuoteMessage(lastBarQuote, self.__tokenIdToInstrumentMappings).getBar()
         return None
 
-    def getNextBars(self):
-        def getBar(lastBar, lastQuoteDateTime):
-            bar = QuoteMessage(lastBar, self.__channels).getBar(lastQuoteDateTime)
-            return bar.getInstrument(), bar
+    def __run_event_loop(self):
+        asyncio.run(self.__async_main())
 
+    async def __async_main(self):
+        while not self.__stopped:
+            try:
+                message = await self.__socket.recv_pyobj()
+                key = message['e'] + '|' + message['tk']
+                if float(message.get('lp', 0)) <= 0:
+                    continue
+                self.__latestQuotes[key] = message
+                self.__queue.put_nowait(message)
+                self.__lastQuoteDateTime = message['ft']
+                self.__lastReceivedDateTime = datetime.datetime.now()
+            except zmq.Again:
+                pass
+
+    def getNextBars(self):
+        def getBar(message, lastQuoteDateTime):
+            bar = QuoteMessage(message, self.__tokenIdToInstrumentMappings).getBar(
+                lastQuoteDateTime)
+            return bar.getInstrument(), bar
         bars = None
-        lastQuoteDateTime = self.__wsClient.getLastQuoteDateTime()
+        lastQuoteDateTime = self.__lastQuoteDateTime
         if self.__lastUpdateTime != lastQuoteDateTime:
             self.__nextBarsTime = datetime.datetime.now()
             self.__lastUpdateTime = lastQuoteDateTime
             bars = bar.Bars({
                 instrument: bar
-                for lastBar in self.__wsClient.getQuotes().values()
-                for instrument, bar in [getBar(lastBar, self.__nextBarsTime.replace(microsecond=0))]
+                for quoteMessage in self.__latestQuotes.values()
+                for instrument, bar in [getBar(quoteMessage, self.__nextBarsTime.replace(microsecond=0))]
             })
         return bars
 
     def peekDateTime(self):
-        # Return None since this is a realtime subject.
         return None
 
-    # This may raise.
     def start(self):
-        if self.__wsClient is not None:
-            logger.info("Already initialized!")
-            return
-
         super(LiveTradeFeed, self).start()
-        if not self.__initializeClient():
-            self.__stopped = True
-            raise Exception("Initialization failed")
+        logger.info("LiveTradeFeed started")
 
     def dispatch(self):
         try:
-            # Note that we may return True even if we didn't dispatch any Bar
-            # event.
             ret = False
             if super(LiveTradeFeed, self).dispatch():
                 ret = True
             return ret
         except Exception as e:
-            logger.error(
-                f'Exception: {e}')
+            logger.error(f'Exception: {e}')
             logger.exception(traceback.format_exc())
 
-    # This should not raise.
     def stop(self):
-        self.__wsClient.stopClient()
+        self.__stopped = True
+        self.__socket.close()
+        self.__context.term()
+        self.__loopThread.join()
 
-    # This should not raise.
     def join(self):
         pass
 
@@ -217,29 +220,21 @@ class LiveTradeFeed(BaseBarFeed):
         return self.__stopped
 
     def getOrderBookUpdateEvent(self):
-        """
-        Returns the event that will be emitted when the orderbook gets updated.
-
-        Eventh handlers should receive one parameter:
-         1. A :class:`pyalgotrade.bitstamp.wsclient.OrderBookUpdate` instance.
-
-        :rtype: :class:`pyalgotrade.observer.Event`.
-        """
         return None
 
     def getLastUpdatedDateTime(self):
-        return self.__wsClient.getLastQuoteDateTime()
+        return self.__lastQuoteDateTime
 
     def getLastReceivedDateTime(self):
-        return self.__wsClient.getLastReceivedDateTime()
-    
+        return self.__lastReceivedDateTime
+
     def getNextBarsDateTime(self):
         return self.__nextBarsTime
-    
+
     def isDataFeedAlive(self, heartBeatInterval=5):
-        if self.__lastUpdateTime is None:
+        if self.__lastQuoteDateTime is None:
             return False
 
         currentDateTime = datetime.datetime.now()
-        timeSinceLastDateTime = currentDateTime - self.__lastUpdateTime
+        timeSinceLastDateTime = currentDateTime - self.__lastQuoteDateTime
         return timeSinceLastDateTime.total_seconds() <= heartBeatInterval
