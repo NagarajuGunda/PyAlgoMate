@@ -57,6 +57,9 @@ def GetFeedNStrategies(creds):
 
     _feed.start()
 
+    if 'Strategies' not in config or config['Strategies'] is None:
+        return _feed, strategies
+
     for strategyName, details in config['Strategies'].items():
         try:
             strategyClassName = details['Class']
@@ -189,9 +192,10 @@ def main(page: ft.Page):
             page.update()
 
     def view_pop(view: ft.View):
-        page.views.pop()
-        top_view = page.views[-1]
-        page.go(top_view.route)
+        with lock:
+            page.views.pop()
+            top_view = page.views[-1]
+            page.go(top_view.route)
 
     page.on_route_change = route_change
     page.on_view_pop = view_pop

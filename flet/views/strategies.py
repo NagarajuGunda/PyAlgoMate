@@ -159,6 +159,11 @@ class StrategyCard(ft.Card):
         )
 
     def updateStrategy(self):
+        if self.page is None:
+            # Log an error message
+            print("Error: `page` is None in `updateStrategy`")
+            return
+        
         self.stateText.value = str(self.strategy.state)
         pnl = self.strategy.getOverallPnL()
         self.pnlText.value = f'₹ {pnl:.2f}'
@@ -333,7 +338,6 @@ class StrategiesView(ft.View):
                 scroll=ft.ScrollMode.HIDDEN
             )
         ]
-        self.page.update()
 
     def onTotalMTMChartButtonClicked(self, e):
         pnlDf = pd.DataFrame()
@@ -386,4 +390,10 @@ class StrategiesView(ft.View):
         self.feedText.value = (f'Quote       : {self.feed.getLastUpdatedDateTime()}\nReceived  : '
                                f'{self.feed.getLastReceivedDateTime()}\nBars        '
                                f': {self.feed.getNextBarsDateTime()}')
+
+        if self.page is None:
+            # Log an error message
+            print("Error: `page` is None in `updateStrategy`")
+            return
+
         self.page.update()
