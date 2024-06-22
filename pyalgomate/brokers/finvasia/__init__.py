@@ -79,7 +79,7 @@ def getTokenMappings() -> dict:
     return tokenMappings
 
 
-def getApiAndTokenMappings(cred, registerOptions, underlyings):
+def getApi(cred):
     api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
                      websocket='wss://api.shoonya.com/NorenWSTP/')
     userToken = None
@@ -107,6 +107,13 @@ def getApiAndTokenMappings(cred, registerOptions, underlyings):
             logger.info(f'Login failed!')
 
     if loginStatus != None:
+        return api
+    else:
+        return None
+
+def getApiAndTokenMappings(cred, registerOptions, underlyings):
+    api = getApi(cred)
+    if api != None:
         if len(underlyings) == 0:
             underlyings = [underlying.replace(
                 ":", "|") for underlying in getDefaultUnderlyings()]
