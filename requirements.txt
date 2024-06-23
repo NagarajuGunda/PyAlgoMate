@@ -33,3 +33,4 @@ webdriver-manager==4.0.1
 websocket-client==1.7.0
 wheel==0.43.0
 yfinance==0.2.38
+sentry_sdk==1.45.0
