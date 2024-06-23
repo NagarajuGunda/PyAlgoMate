@@ -108,5 +108,7 @@ if __name__ == "__main__":
                     data = pd.concat([data, historicalData])
                 else:
                     data = historicalData
+            data = data.sort_values(['Ticker', 'Date/Time']).drop_duplicates(
+                subset=['Ticker', 'Date/Time'], keep='first')
             sendToTelegram(botToken, chatId, topicId, data,
                            f"{str(underlyingMapping[index]['index'])}-{today.strftime('%Y-%m-%d')}.parquet")
