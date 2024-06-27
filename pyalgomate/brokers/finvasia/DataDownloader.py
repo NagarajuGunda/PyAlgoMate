@@ -15,18 +15,21 @@ sys.path.append(os.path.join(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))), os.pardir))
 
 
-def sendToTelegram(botToken, chatId, topicId, data: pd.DataFrame, fileName):
+def sendToTelegram(botToken, chatId, topicId, data: pd.DataFrame, fileName, toParquet=True):
     if data is None or data.empty:
         return
 
     url = f'https://api.telegram.org/bot{botToken}/sendDocument'
 
-    parquetBuffer = io.BytesIO()
-    data.to_parquet(parquetBuffer)
-    parquetBuffer.seek(0)
+    buffer = io.BytesIO()
+    if toParquet:
+        data.to_parquet(buffer)
+    else:
+        data.to_csv(buffer, index=False)
+    buffer.seek(0)
 
     response = requests.post(url, data={'chat_id': chatId, 'message_thread_id': topicId}, files={
-        'document': (fileName, parquetBuffer, 'application/octet-stream')}, verify=False)
+        'document': (fileName, buffer, 'application/octet-stream')}, verify=False)
     if response.status_code == 200:
         logger.info(f'{fileName} sent successfully!')
     else:
@@ -80,7 +83,8 @@ if __name__ == "__main__":
             data = historicalData
 
     if 'Telegram' not in creds:
-        exit(0)
+        logger.fatal('Telegram creds not present!')
+        exit(1)
 
     botToken = creds['Telegram']['token']
     chatId = '@pyalgomate'
@@ -92,6 +96,9 @@ if __name__ == "__main__":
     scripMasterDf: pd.DataFrame = finvasia.getScriptMaster()
     scripMasterDf['Expiry'] = pd.to_datetime(
         scripMasterDf['Expiry'], format='%d-%b-%Y')
+
+    sendToTelegram(botToken, chatId, topicId, scripMasterDf,
+                   f"ScripMaster-{today.strftime('%Y-%m-%d')}.csv", False)
 
     for index in underlyingMapping.keys():
         expiry = utils.expiry.getNearestWeeklyExpiryDate(
