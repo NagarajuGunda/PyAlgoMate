@@ -125,9 +125,10 @@ def backtest(strategyClass, completeDf, df, underlyings, send_to_ui, telegramBot
 @click.option('--parallelize', help='Specify if backtest in parallel', default=None,
               type=click.Choice(['Day', 'Month']))
 @click.option('--load-all', help='Specify if all the data needs to be loaded', default=False, type=click.BOOL)
+@click.option('--results-file-path', default=None, type=click.STRING, help='Specify the path to save the results')
 @click.pass_obj
 def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_telegram, from_date, to_date, parallelize,
-                load_all):
+                load_all, results_file_path):
     import yaml
     from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
     import multiprocessing
@@ -210,8 +211,10 @@ def runBacktest(strategyClass, underlying, data, port, send_to_ui, send_to_teleg
         f"Time took in running the strategy <{datetime.datetime.now() - start}>")
 
     tradesDf.sort_values(by=['Entry Date/Time'])
-    tradesDf.to_csv(f'results/{strategyClass.__name__}_backtest.csv', mode='a',
-                    header=not os.path.exists(f'results/{strategyClass.__name__}_backtest.csv'), index=False)
+    if not results_file_path:
+        results_file_path = f'results/{strategyClass.__name__}_backtest.csv'
+    tradesDf.to_csv(results_file_path, mode='a',
+                    header=not os.path.exists(results_file_path), index=False)
 
     if telegramBot:
         telegramBot.stop()  # Signal the stop event
