@@ -9,10 +9,12 @@ from urllib.parse import parse_qs, urlparse
 from logging.handlers import SysLogHandler
 from importlib import import_module
 import flet as ft
+from flet_core.page import PageDisconnectedException
 import sys
 import sentry_sdk
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)))
+sys.path.append(os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir)))
 
 from views.strategies import StrategiesView
 from views.trades import TradesView
@@ -53,7 +55,8 @@ def GetFeedNStrategies(creds):
 
     strategies = []
 
-    _feed, api = getFeed(creds, broker=config['Broker'], underlyings=config['Underlyings'])
+    _feed, api = getFeed(
+        creds, broker=config['Broker'], underlyings=config['Underlyings'])
 
     _feed.start()
 
@@ -139,7 +142,6 @@ if sentry_dns and env_local == 'True':
             record.hostname = ContextFilter.hostname
             return True
 
-
     syslog = SysLogHandler(
         address=(papertrailCreds[0], int(papertrailCreds[1])))
     syslog.addFilter(ContextFilter())
@@ -172,42 +174,70 @@ def main(page: ft.Page):
 
     def route_change(route):
         with lock:
-            route = urlparse(route.route)
-            params = parse_qs(route.query)
-            page.views.clear()
+            try:
+                route = urlparse(route.route)
+                params = parse_qs(route.query)
+                page.views.clear()
 
-            page.views.append(
-                strategiesView
-            )
-            if route.path == "/trades":
-                strategyName = params['strategyName'][0]
-                strategy = [strategy for strategy in strategies if strategy.strategyName == strategyName][0]
-                page.views.append(
-                    TradesView(page, strategy)
-                )
-            elif route.path == '/strategy':
-                strategyName = params['strategyName'][0]
-                strategy = [strategy for strategy in strategies if strategy.strategyName == strategyName][0]
-                page.views.append(strategy.getView(page))
-            page.update()
+                page.views.append(strategiesView)
+                if route.path == "/trades":
+                    strategyName = params['strategyName'][0]
+                    strategy = next(
+                        (s for s in strategies if s.strategyName == strategyName), None)
+                    if strategy:
+                        page.views.append(TradesView(page, strategy))
+                elif route.path == '/strategy':
+                    strategyName = params['strategyName'][0]
+                    strategy = next(
+                        (s for s in strategies if s.strategyName == strategyName), None)
+                    if strategy:
+                        page.views.append(strategy.getView(page))
+                page.update()
+            except PageDisconnectedException:
+                logger.warning("Page disconnected during route change.")
+            except Exception as e:
+                logger.error(f"Error in route_change: {str(e)}")
+                logger.exception("Exception details:")
 
     def view_pop(view: ft.View):
         with lock:
-            page.views.pop()
-            top_view = page.views[-1]
-            page.go(top_view.route)
+            try:
+                page.views.pop()
+                top_view = page.views[-1]
+                page.go(top_view.route)
+            except PageDisconnectedException:
+                logger.warning("Page disconnected during view pop.")
+            except Exception as e:
+                logger.error(f"Error in view_pop: {str(e)}")
+                logger.exception("Exception details:")
 
     page.on_route_change = route_change
     page.on_view_pop = view_pop
     page.go(page.route)
 
-    while True:
-        with lock:
-            if len(page.views):
-                topView = page.views[-1]
-                if topView in page.views:
-                    topView.update()
-        time.sleep(0.5)
+    def update_views():
+        while True:
+            with lock:
+                try:
+                    if len(page.views):
+                        topView = page.views[-1]
+                        if topView in page.views:
+                            topView.update()
+                except PageDisconnectedException:
+                    logger.warning(
+                        "Page disconnected during view update. Will retry on next iteration.")
+                except Exception as e:
+                    logger.error(f"Error updating views: {str(e)}")
+                    logger.exception("Exception details:")
+            time.sleep(1)
+
+    update_thread = threading.Thread(target=update_views, daemon=True)
+    update_thread.start()
+
+    def on_disconnect(e):
+        logger.warning(f"Page disconnected. Details {e}")
+
+    page.on_disconnect = on_disconnect
 
 
 if __name__ == "__main__":
