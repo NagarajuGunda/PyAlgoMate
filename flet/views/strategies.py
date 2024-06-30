@@ -18,10 +18,18 @@ class StrategyCard(ft.Card):
         self.strategy = strategy
         self.page = page
         self.expand = True
-        self.stateText = ft.Text(
-            self.strategy.state,
-            size=20
+        self.stateDropdown = ft.Dropdown(
+            options=[ft.dropdown.Option(str(state)) for state in State],
+            value=str(self.strategy.state),
+            on_change=self.changeStrategyState,
         )
+        self.resetButton = ft.IconButton(
+            icon=ft.icons.RESET_TV_ROUNDED,
+            icon_size=40,
+            icon_color='#263F6A',
+            on_click=self.resetStrategy
+        )
+
         self.pnlText = ft.Text(
             "₹ 0",
             size=25
@@ -90,11 +98,11 @@ class StrategyCard(ft.Card):
                 ),
                 ft.Container(
                     ft.Column(
-                        [self.stateText],
+                        [self.stateDropdown],
                         alignment=ft.MainAxisAlignment.CENTER,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER
                     ),
-                    #expand=2
+                    # expand=2
                     col={"sm": 12, "md": 2},
                 ),
                 ft.Container(
@@ -106,11 +114,20 @@ class StrategyCard(ft.Card):
                     col={"sm": 12, "md": 2},
                 ),
                 ft.Container(
+                    ft.Column(
+                        [self.resetButton],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER
+                    ),
+                    col={"sm": 12, "md": 2},
+                ),
+                ft.Container(
                     ft.Column([ft.ElevatedButton(
                         text='Trades',
                         color='white',
                         bgcolor='#263F6A',
-                        on_click=lambda _: self.page.go("/trades", strategyName=self.strategy.strategyName)
+                        on_click=lambda _: self.page.go(
+                            "/trades", strategyName=self.strategy.strategyName)
                     )],
                         alignment=ft.MainAxisAlignment.CENTER,
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -158,18 +175,44 @@ class StrategyCard(ft.Card):
             ]
         )
 
+    def changeStrategyState(self, e):
+        self.strategy.state = State[e.control.value]
+        self.stateDropdown.value = str(self.strategy.state)
+        self.stateDropdown.update()
+
+    def resetStrategy(self, e):
+        if hasattr(self.strategy, 'reset') and callable(self.strategy.reset):
+            self.strategy.reset()
+            self.updateStrategy()
+            self.page.snack_bar = ft.SnackBar(
+                ft.Row([ft.Text(f"Strategy {self.strategy.strategyName} has been reset.", size=20)],
+                       alignment='center'),
+                bgcolor='#263F6A'
+            )
+            self.page.snack_bar.open = True
+        else:
+            self.page.snack_bar = ft.SnackBar(
+                ft.Row([ft.Text(f"Reset method not available for {self.strategy.strategyName}.", size=20)],
+                       alignment='center'),
+                bgcolor='#FF0000'
+            )
+            self.page.snack_bar.open = True
+        self.page.update()
+
     def updateStrategy(self):
         if self.page is None:
             # Log an error message
             print("Error: `page` is None in `updateStrategy`")
             return
-        
-        self.stateText.value = str(self.strategy.state)
+
+        self.stateDropdown.value = str(self.strategy.state)
         pnl = self.strategy.getOverallPnL()
         self.pnlText.value = f'₹ {pnl:.2f}'
         self.pnlText.color = "green" if pnl >= 0 else "red"
-        activeBuyPositions = len([pos for pos in self.strategy.getActivePositions() if pos.getEntryOrder() and pos.getEntryOrder().isBuy()])
-        activeSellPositions = len([pos for pos in self.strategy.getActivePositions() if pos.getEntryOrder() and (not pos.getEntryOrder().isBuy())])
+        activeBuyPositions = len([pos for pos in self.strategy.getActivePositions(
+        ) if pos.getEntryOrder() and pos.getEntryOrder().isBuy()])
+        activeSellPositions = len([pos for pos in self.strategy.getActivePositions(
+        ) if pos.getEntryOrder() and (not pos.getEntryOrder().isBuy())])
         self.openPositions.value = f'Open Pos (B|S): {len(self.strategy.getActivePositions())} ({activeBuyPositions}|{activeSellPositions})'
         self.closedPositions.value = f'Closed Pos: {len(self.strategy.getClosedPositions())}'
         self.balanceAvailable.value = f'Balance Available: ₹ {self.strategy.getBroker().getCash()}'
@@ -271,19 +314,19 @@ class StrategiesView(ft.View):
                              color='white'), padding=ft.padding.only(top=10, left=10)),
                 ft.Container(self.totalMtm, padding=ft.padding.only(left=10)),
                 ft.Column([
-                            ft.Divider(color='white')
+                    ft.Divider(color='white')
                 ]),
                 ft.Container(
                     ft.Row([
                         ft.Column([
                             ft.Text('Total MTM Graph ->', size=15,
-                                weight=ft.FontWeight.W_400, color='white')
+                                    weight=ft.FontWeight.W_400, color='white')
                         ]),
                         ft.Column([
                             ft.IconButton(icon=ft.icons.INSERT_CHART_ROUNDED,
-                                      icon_size=40,
-                                      icon_color='white',
-                                      on_click=self.onTotalMTMChartButtonClicked,tooltip="MTM of all Strategies running")
+                                          icon_size=40,
+                                          icon_color='white',
+                                          on_click=self.onTotalMTMChartButtonClicked, tooltip="MTM of all Strategies running")
                         ])
                     ]),
                     padding=ft.padding.only(
@@ -324,15 +367,16 @@ class StrategiesView(ft.View):
             strategy, page) for strategy in self.strategies]
         rows = [
             ft.ResponsiveRow([
-                    totalMtmRow, feedRow
-                ],
+                totalMtmRow, feedRow
+            ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN
             )
         ]
         rows.append(ft.ListView([ft.Row([strategyCard])
                     for strategyCard in self.strategyCards]))
         self.controls = [
-            ft.AppBar(title=ft.Text("Strategies"), bgcolor=ft.colors.SURFACE_VARIANT),
+            ft.AppBar(title=ft.Text("Strategies"),
+                      bgcolor=ft.colors.SURFACE_VARIANT),
             ft.Column(
                 rows,
                 scroll=ft.ScrollMode.HIDDEN
@@ -349,26 +393,26 @@ class StrategiesView(ft.View):
             tempPnlDf['strategy'] = strategyCard.strategy.strategyName
             pnlDf = pd.concat([pnlDf, tempPnlDf], ignore_index=True)
 
-        pnlDf.index =pnlDf['Date/Time']
-        cummPnlDf = pnlDf['PnL'].resample('1T').agg({'PnL':'sum'})
+        pnlDf.index = pnlDf['Date/Time']
+        cummPnlDf = pnlDf['PnL'].resample('1T').agg({'PnL': 'sum'})
         cummPnlDf.reset_index(inplace=True)
 
         values = pd.to_numeric(cummPnlDf['PnL'])
         color = np.where(values < 0, 'loss', 'profit')
         fig = px.area(cummPnlDf, x="Date/Time", y=values, title=f"Total MTM | Current PnL:  ₹{round(pnl, 2)}",
-                        color=color, color_discrete_map={'loss': 'orangered', 'profit': 'lightgreen'})
+                      color=color, color_discrete_map={'loss': 'orangered', 'profit': 'lightgreen'})
         fig.add_traces(
             [
                 go.Scatter(x=pnlDf.query(f'strategy=="{strategy}"')["Date/Time"], y=pnlDf.query(f'strategy=="{strategy}"')['PnL'],
-                                mode='lines',
-                                name=f'{strategy}') for strategy in pnlDf.strategy.unique()
+                           mode='lines',
+                           name=f'{strategy}') for strategy in pnlDf.strategy.unique()
             ]
         )
 
         fig.update_layout(
             title_x=0.5, title_xanchor='center', yaxis_title='PnL')
         base64Img = base64.b64encode(
-             fig.to_image(format='png')).decode('utf-8')
+            fig.to_image(format='png')).decode('utf-8')
         dlg = ft.AlertDialog(
             content=ft.Container(
                 ft.Image(src_base64=base64Img)

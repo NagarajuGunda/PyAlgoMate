@@ -44,7 +44,10 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         self.mfe = dict()
         self.__pendingPositionsToCancel = set()
         self.__pendingPositionsToExit = set()
-        self.reset()
+
+        self.__optionData = dict()
+        self.overallPnL = 0
+        self.state = State.LIVE
 
         if self.telegramBot:
             self.telegramBot.addStrategy(self)
@@ -127,6 +130,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
     def reset(self):
         super().reset()
+
         self.__optionData = dict()
         self.overallPnL = 0
         self.state = State.LIVE
