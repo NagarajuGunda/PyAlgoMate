@@ -23,12 +23,6 @@ class StrategyCard(ft.Card):
             value=str(self.strategy.state),
             on_change=self.changeStrategyState,
         )
-        self.resetButton = ft.IconButton(
-            icon=ft.icons.RESET_TV_ROUNDED,
-            icon_size=40,
-            icon_color='#263F6A',
-            on_click=self.resetStrategy
-        )
 
         self.pnlText = ft.Text(
             "₹ 0",
@@ -60,119 +54,71 @@ class StrategyCard(ft.Card):
             on_dismiss=lambda e: print("Modal dialog dismissed!"),
         )
 
-        self.content = ft.ResponsiveRow(
-            [
-                ft.Container(
-                    ft.Column(
-                        [
-                            ft.Row(
-                                [
-                                    ft.Text(
-                                        strategy.strategyName,
-                                        size=15,
-                                        weight='w700'
-                                    ),
-                                    ft.Text(
-                                        strategy.getBroker().getType(),
-                                        size=10
-                                    )
-                                ],
-                                spacing=10),
-                            ft.Row(
-                                [
-                                    ft.Column(
-                                        [self.openPositions, self.closedPositions]
-                                    )
-                                ],
-                            ),
-                            ft.Row(
-                                [
-                                    self.balanceAvailable
-                                ]
-                            )
-                        ],
-                        alignment=ft.MainAxisAlignment.CENTER
-                    ),
-                    margin=ft.margin.only(top=20, bottom=20, left=20),
-                    col={"sm": 12, "md": 2},
-                ),
-                ft.Container(
-                    ft.Column(
-                        [self.stateDropdown],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER
-                    ),
-                    # expand=2
-                    col={"sm": 12, "md": 2},
-                ),
-                ft.Container(
-                    ft.Column(
-                        [self.pnlText],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER
-                    ),
-                    col={"sm": 12, "md": 2},
-                ),
-                ft.Container(
-                    ft.Column(
-                        [self.resetButton],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER
-                    ),
-                    col={"sm": 12, "md": 2},
-                ),
-                ft.Container(
-                    ft.Column([ft.ElevatedButton(
+        self.content = ft.Container(
+            ft.ResponsiveRow([
+                ft.Column([
+                    ft.Text(strategy.strategyName, size=15, weight='w700'),
+                    ft.Text(strategy.getBroker().getType(), size=10),
+                    self.openPositions,
+                    self.closedPositions,
+                    self.balanceAvailable
+                ], col={"sm": 12, "md": 3}, alignment=ft.MainAxisAlignment.CENTER),
+                ft.Column([
+                    self.stateDropdown
+                ], col={"sm": 12, "md": 2}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ft.Column([
+                    self.pnlText
+                ], col={"sm": 12, "md": 2}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ft.Column([
+                    ft.IconButton(
+                        icon=ft.icons.REFRESH,
+                        icon_size=40,
+                        icon_color='#263F6A',
+                        on_click=self.resetStrategy
+                    )
+                ], col={"sm": 3, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ft.Column([
+                    ft.ElevatedButton(
                         text='Trades',
-                        color='white',
-                        bgcolor='#263F6A',
+                        style=ft.ButtonStyle(
+                            color='white',
+                            bgcolor={'': '#263F6A'},
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
                         on_click=lambda _: self.page.go(
                             "/trades", strategyName=self.strategy.strategyName)
-                    )],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        expand=1
-                    ),
-                    col={"sm": 12, "md": 2},
-                ),
-                ft.Container(
-                    ft.Column([ft.IconButton(
+                    )
+                ], col={"sm": 3, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ft.Column([
+                    ft.IconButton(
                         icon=ft.icons.INSERT_CHART_ROUNDED,
                         icon_size=40,
                         icon_color='#263F6A',
                         on_click=self.onChartButtonClicked
-                    )],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        expand=1
-                    ),
-                    col={"sm": 12, "md": 1},
-                ),
-                ft.Container(
-                    ft.Column([ft.IconButton(
+                    )
+                ], col={"sm": 2, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ft.Column([
+                    ft.IconButton(
                         icon=ft.icons.INFO_ROUNDED,
                         icon_size=40,
                         icon_color='#263F6A',
                         on_click=self.onInfoButtonClicked
-                    )],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        expand=1
-                    ),
-                    col={"sm": 12, "md": 1},
-                ),
-                ft.Container(
-                    ft.Column([
-                        ft.TextButton("Square Off", icon="close_rounded", icon_color="red400",
-                                      on_click=self.openDialog)
-                    ],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        expand=1
-                    ),
-                    col={"sm": 12, "md": 2},
-                )
-            ]
+                    )
+                ], col={"sm": 2, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ft.Column([
+                    ft.ElevatedButton(
+                        "Exit",
+                        icon=ft.icons.CLOSE_ROUNDED,
+                        style=ft.ButtonStyle(
+                            color={'': 'white'},
+                            bgcolor={'': 'red400'},
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                        on_click=self.openDialog
+                    )
+                ], col={"sm": 2, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            padding=10
         )
 
     def changeStrategyState(self, e):
