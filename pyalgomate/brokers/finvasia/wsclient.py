@@ -2,16 +2,22 @@
 .. moduleauthor:: Nagaraju Gunda
 """
 
-import time
-import threading
-import logging
-import datetime
-import zmq
-import yaml
-from NorenRestApiPy.NorenApi import NorenApi
-from pyalgotrade import bar
-from pyalgomate.barfeed.BasicBarEx import BasicBarEx
 
+import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))), os.pardir))
+
+from pyalgotrade import bar
+from NorenRestApiPy.NorenApi import NorenApi
+import yaml
+import zmq
+import datetime
+import logging
+import threading
+import time
+from pyalgomate.barfeed.BasicBarEx import BasicBarEx
 import pyalgomate.brokers.finvasia as finvasia
 
 logger = logging.getLogger(__name__)
