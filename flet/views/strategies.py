@@ -9,6 +9,7 @@ from typing import List
 from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.core import State
+from views.trades import TradesView
 
 
 class StrategyCard(ft.Card):
@@ -65,10 +66,10 @@ class StrategyCard(ft.Card):
                 ], col={"sm": 12, "md": 3}, alignment=ft.MainAxisAlignment.CENTER),
                 ft.Column([
                     self.stateDropdown
-                ], col={"sm": 12, "md": 2}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ], col={"sm": 12, "md": 1.5}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
                 ft.Column([
                     self.pnlText
-                ], col={"sm": 12, "md": 2}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ], col={"sm": 12, "md": 1.5}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
                 ft.Column([
                     ft.IconButton(
                         icon=ft.icons.REFRESH,
@@ -78,15 +79,21 @@ class StrategyCard(ft.Card):
                     )
                 ], col={"sm": 3, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
                 ft.Column([
-                    ft.ElevatedButton(
-                        text='Trades',
-                        style=ft.ButtonStyle(
-                            color='white',
-                            bgcolor={'': '#263F6A'},
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                        ),
-                        on_click=lambda _: self.page.go(
-                            "/trades", strategyName=self.strategy.strategyName)
+                    ft.IconButton(
+                        icon=ft.icons.SHOW_CHART,
+                        icon_size=40,
+                        icon_color='#263F6A',
+                        tooltip="Trades",
+                        on_click=self.showTradesView
+                    )
+                ], col={"sm": 6, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ft.Column([
+                    ft.IconButton(
+                        icon=ft.icons.DASHBOARD,
+                        icon_size=40,
+                        icon_color='#263F6A',
+                        tooltip="Custom View",
+                        on_click=self.showCustomView
                     )
                 ], col={"sm": 3, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
                 ft.Column([
@@ -96,7 +103,7 @@ class StrategyCard(ft.Card):
                         icon_color='#263F6A',
                         on_click=self.onChartButtonClicked
                     )
-                ], col={"sm": 2, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ], col={"sm": 3, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
                 ft.Column([
                     ft.IconButton(
                         icon=ft.icons.INFO_ROUNDED,
@@ -104,22 +111,29 @@ class StrategyCard(ft.Card):
                         icon_color='#263F6A',
                         on_click=self.onInfoButtonClicked
                     )
-                ], col={"sm": 2, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ], col={"sm": 3, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
                 ft.Column([
-                    ft.ElevatedButton(
-                        "Exit",
-                        icon=ft.icons.CLOSE_ROUNDED,
-                        style=ft.ButtonStyle(
-                            color={'': 'white'},
-                            bgcolor={'': 'red400'},
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                        ),
+                    ft.IconButton(
+                        icon=ft.icons.CLOSE,
+                        icon_size=20,
+                        icon_color='white',
+                        bgcolor='red400',
                         on_click=self.openDialog
                     )
-                ], col={"sm": 2, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
+                ], col={"sm": 3, "md": 1}, horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER),
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             padding=10
         )
+
+    def showTradesView(self, e):
+        self.page.views.append(TradesView(self.page, self.strategy))
+        self.page.update()
+
+    def showCustomView(self, e):
+        view = self.strategy.getView(self.page)
+        if view:
+            self.page.views.append(view)
+            self.page.update()
 
     def changeStrategyState(self, e):
         self.strategy.state = State[e.control.value]

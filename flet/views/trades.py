@@ -26,11 +26,6 @@ class TradesView(ft.View):
         self.mtmText = ft.Text("₹ 0", color=ft.colors.GREEN, size=25)
         self.unrealizedMtmText = ft.Text("₹ 0", color=ft.colors.GREEN, size=25)
 
-        self.strategyViewButton = ft.ElevatedButton(
-            text="Strategy View",
-            on_click=self.switchToStrategyView
-        )
-
         self.totalDeltaText = ft.Text("Δ 0", color=ft.colors.BLACK38, size=15)
         self.totalGammaText = ft.Text("Γ 0", color=ft.colors.BLACK38, size=15)
         self.totalThetaText = ft.Text("Θ 0", color=ft.colors.BLACK38, size=15)
@@ -196,9 +191,6 @@ class TradesView(ft.View):
         )
         self.paginatedDataTable = PaginatedDataTable(self.datatable)
         self.controls = [
-            ft.Container(
-                self.strategyViewButton
-            ),
             self.premiumsCard,
             ft.Container(
                 self.greeksRow,
@@ -210,19 +202,6 @@ class TradesView(ft.View):
                 alignment=ft.alignment.center
             )
         ]
-
-    def switchToStrategyView(self, e):
-        strategyView = self.strategy.getView(self.page)
-        if strategyView:
-            self.page.go(
-                f'/strategy?strategyName={self.strategy.strategyName}')
-        else:
-            self.page.snack_bar = ft.SnackBar(
-                ft.Row([ft.Text(f"Strategy view is not implemented !!!", size=20)],
-                       alignment='center'),
-                bgcolor='#263F6A'
-            )
-            self.page.snack_bar.open = True
 
     def getRows(self):
         positions: List[Position] = [
