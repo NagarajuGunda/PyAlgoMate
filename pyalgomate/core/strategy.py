@@ -101,7 +101,7 @@ class BaseStrategy(object):
 
     def unregisterPosition(self, position):
         assert (not position.isOpen())
-        self.__activePositions.remove(position)
+        self.__activePositions.discard(position)
         self.__closedPositions.add(position)
 
     def __notifyAnalyzers(self, lambdaExpression):
