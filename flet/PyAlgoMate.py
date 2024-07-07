@@ -243,7 +243,7 @@ def main(page: ft.Page):
 if __name__ == "__main__":
     fletPath = os.getenv("FLET_PATH", '')
     fletPort = int(os.getenv("FLET_PORT", '8502'))
-    fletView = os.getenv("FLET_VIEW", ft.FLET_APP)
+    fletView = os.getenv("FLET_VIEW", ft.WEB_BROWSER)
     if fletView != ft.FLET_APP:
         fletView = None
     ft.app(name=fletPath, target=main, view=fletView, port=fletPort)
