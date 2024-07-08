@@ -18,6 +18,7 @@ from pyalgomate.telegram import TelegramBot
 from pyalgomate.core import State
 from pyalgomate.core.position import LongOpenPosition, ShortOpenPosition
 from pyalgomate.core.strategy import BaseStrategy
+from pyalgomate.core.slippage_tracker import SlippageTracker
 
 
 class BaseOptionsGreeksStrategy(BaseStrategy):
@@ -48,6 +49,12 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         self.__optionData = dict()
         self.overallPnL = 0
         self.state = State.LIVE
+
+        self.__slippageTracker = None
+        if not self.isBacktest():
+            self.__slippageTracker = SlippageTracker(
+                f"{self.strategyName}_{self.getBroker().getType()}_slippage_data.csv")
+            broker.getOrderUpdatedEvent().subscribe(self.__onOrderEvent)
 
         if self.telegramBot:
             self.telegramBot.addStrategy(self)
@@ -127,6 +134,15 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             if len(openPositions) > 0:
                 # Sleep so that the order notifications are acknowledged
                 time.sleep(2)
+
+    def __onOrderEvent(self, _broker, orderEvent: broker.OrderEvent):
+        order: broker.Order = orderEvent.getOrder()
+        if orderEvent.getEventType() == broker.OrderEvent.Type.SUBMITTED:
+            self.__slippageTracker.recordOrder(
+                order, self.getLastPrice(order.getInstrument()))
+        elif orderEvent.getEventType() == broker.OrderEvent.Type.FILLED:
+            self.__slippageTracker.recordFill(order=order, fillPrice=order.getAvgFillPrice(
+            ), dateTime=order.getExecutionInfo().getDateTime())
 
     def reset(self):
         super().reset()
