@@ -1,10 +1,15 @@
+import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(
+os.path.dirname(os.path.abspath(__file__)), os.pardir)))
+
 from pyalgomate.core import State
 from pyalgomate.brokers import getFeed, getBroker
 from pyalgomate.telegram import TelegramBot
 from views.trades import TradesView
 from views.strategies import StrategiesView
 import pyalgotrade
-import os
 import yaml
 import logging
 import threading
@@ -18,10 +23,6 @@ import flet as ft
 from flet_core.page import PageDisconnectedException
 import sys
 import sentry_sdk
-
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), os.pardir)))
-
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
