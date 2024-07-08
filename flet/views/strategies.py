@@ -382,7 +382,7 @@ class StrategiesView(ft.View):
         dlg.open = True
         self.page.update()
 
-    def update(self):
+    def updateData(self):
         for strategyCard in self.strategyCards:
             strategyCard.updateStrategy()
 
@@ -395,9 +395,4 @@ class StrategiesView(ft.View):
                                f'{self.feed.getLastReceivedDateTime()}\nBars        '
                                f': {self.feed.getNextBarsDateTime()}')
 
-        if self.page is None:
-            # Log an error message
-            print("Error: `page` is None in `updateStrategy`")
-            return
-
-        self.page.update()
+        self.update()

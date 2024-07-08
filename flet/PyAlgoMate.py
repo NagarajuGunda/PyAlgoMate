@@ -1,3 +1,9 @@
+from pyalgomate.core import State
+from pyalgomate.brokers import getFeed, getBroker
+from pyalgomate.telegram import TelegramBot
+from views.trades import TradesView
+from views.strategies import StrategiesView
+import pyalgotrade
 import os
 import yaml
 import logging
@@ -16,11 +22,6 @@ import sentry_sdk
 sys.path.append(os.path.abspath(os.path.join(
     os.path.dirname(os.path.abspath(__file__)), os.pardir)))
 
-from views.strategies import StrategiesView
-from views.trades import TradesView
-from pyalgomate.telegram import TelegramBot
-from pyalgomate.brokers import getFeed, getBroker
-from pyalgomate.core import State
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -164,6 +165,28 @@ for strategyObject in strategies:
 
 
 def main(page: ft.Page):
+    def handleOrderEvent(strategy, broker, orderEvent):
+        if orderEvent.getEventType() not in (pyalgotrade.broker.OrderEvent.Type.PARTIALLY_FILLED, pyalgotrade.broker.OrderEvent.Type.FILLED):
+            return
+
+        with lock:
+            topView = None
+            try:
+                if len(page.views):
+                    topView = page.views[-1]
+
+                    if hasattr(topView, 'reload'):
+                        topView.reload()
+            except Exception as e:
+                logger.error(f"Error updating views: {str(e)}")
+                logger.exception("Exception details:")
+
+    for strategy in strategies:
+        strategy.getBroker().getOrderUpdatedEvent().subscribe(
+            lambda broker, orderEvent, s=strategy: handleOrderEvent(
+                s, broker, orderEvent)
+        )
+
     page.horizontal_alignment = "center"
     page.vertical_alignment = "center"
     page.padding = ft.padding.only(left=50, right=50)
@@ -203,17 +226,15 @@ def main(page: ft.Page):
         with lock:
             try:
                 page.views.pop()
-                top_view = page.views[-1]
-                page.go(top_view.route)
+                page.update()
             except PageDisconnectedException:
                 logger.warning("Page disconnected during view pop.")
             except Exception as e:
                 logger.error(f"Error in view_pop: {str(e)}")
                 logger.exception("Exception details:")
 
-    page.on_route_change = route_change
     page.on_view_pop = view_pop
-    page.go(page.route)
+    page.views.append(strategiesView)
 
     def update_views():
         while True:
@@ -222,7 +243,10 @@ def main(page: ft.Page):
                     if len(page.views):
                         topView = page.views[-1]
                         if topView in page.views:
-                            topView.update()
+                            if hasattr(topView, 'updateData'):
+                                topView.updateData()
+                            elif hasattr(topView, 'update'):
+                                topView.update()
                 except PageDisconnectedException:
                     logger.warning(
                         "Page disconnected during view update. Will retry on next iteration.")
