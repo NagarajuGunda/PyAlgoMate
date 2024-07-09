@@ -33,7 +33,7 @@ class SlippageTracker:
                 orderType = 'LIMIT'
             elif order.getType() in [Order.Type.STOP, Order.Type.STOP_LIMIT]:
                 triggerPrice = order.getStopPrice()
-                slippage = marketPrice - fillPrice if order.isBuy() else fillPrice - marketPrice
+                slippage = triggerPrice - fillPrice if order.isBuy() else fillPrice - triggerPrice
                 orderType = 'STOP' if order.getType() == Order.Type.STOP else 'STOP-LIMIT'
 
             self._writeToFile({
