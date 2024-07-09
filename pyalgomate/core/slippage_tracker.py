@@ -20,19 +20,26 @@ class SlippageTracker:
             limitPrice = None
             triggerPrice = None
             slippage = None
+            orderType = None
             if order.getType() == Order.Type.MARKET:
-                slippage = self.orders[order] - fillPrice
+                slippage = marketPrice - fillPrice if order.isBuy() else fillPrice - marketPrice
+                orderType = 'MARKET'
             elif order.getType() == Order.Type.LIMIT:
                 limitPrice = order.getLimitPrice()
-                slippage = limitPrice - fillPrice
+                if order.isBuy():
+                    slippage = min(marketPrice, limitPrice) - fillPrice
+                else:
+                    slippage = fillPrice - max(marketPrice, limitPrice)
+                orderType = 'LIMIT'
             elif order.getType() in [Order.Type.STOP, Order.Type.STOP_LIMIT]:
                 triggerPrice = order.getStopPrice()
-                slippage = triggerPrice - fillPrice
+                slippage = marketPrice - fillPrice if order.isBuy() else fillPrice - marketPrice
+                orderType = 'STOP' if order.getType() == Order.Type.STOP else 'STOP-LIMIT'
 
             self._writeToFile({
                 'Order ID': order.getId(),
                 'Instrument': order.getInstrument(),
-                'Order Type': order.getType(),
+                'Order Type': orderType,
                 'Action': "BUY" if order.isBuy() else "SELL",
                 'Quantity': order.getQuantity(),
                 'Market Price': marketPrice,
