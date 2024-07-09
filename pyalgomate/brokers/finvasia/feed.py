@@ -85,7 +85,7 @@ class QuoteMessage(object):
     def getBar(self, dateTime=None) -> BasicBarEx:
         open = high = low = close = self.price
 
-        return BasicBarEx(self.dateTime if dateTime is None else dateTime,
+        return BasicBarEx(dateTime or self.dateTime,
                           open,
                           high,
                           low,
@@ -183,10 +183,11 @@ class LiveTradeFeed(BaseBarFeed):
         if self.__lastUpdateTime != lastQuoteDateTime:
             self.__nextBarsTime = datetime.datetime.now()
             self.__lastUpdateTime = lastQuoteDateTime
+            barDateTime = self.__nextBarsTime.replace(microsecond=0)
             bars = bar.Bars({
                 instrument: bar
-                for quoteMessage in self.__latestQuotes.values()
-                for instrument, bar in [getBar(quoteMessage, self.__nextBarsTime.replace(microsecond=0))]
+                for quoteMessage in list(self.__latestQuotes.values())
+                for instrument, bar in [getBar(quoteMessage, barDateTime)]
             })
         return bars
 
