@@ -383,6 +383,9 @@ class StrategiesView(ft.View):
         self.page.update()
 
     def updateData(self):
+        if not self.page:
+            return
+
         for strategyCard in self.strategyCards:
             strategyCard.updateStrategy()
 
