@@ -106,6 +106,7 @@ if __name__ == "__main__":
         if expiry == today.date():
             data: pd.DataFrame = broker.getHistoricalData(
                 api, index, fromTime - datetime.timedelta(days=40), '1')
+            data['Ticker'] = str(underlyingMapping[index]['index'])
             filteredScripMasterDf = scripMasterDf[(scripMasterDf['Expiry'].dt.date == expiry) &
                                                   (scripMasterDf['Instrument'] == 'OPTIDX')]
             for idx, row in filteredScripMasterDf.iterrows():
