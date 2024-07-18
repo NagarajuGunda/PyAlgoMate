@@ -19,7 +19,8 @@ class DataFrameFeed(BaseBarFeed):
 
         super(DataFrameFeed, self).__init__(frequency, maxLen)
 
-        self.__completeDf: pd.DataFrame = completeDf
+        self.__completeDf: pd.DataFrame = completeDf.sort_values(
+            ['Ticker', 'Date/Time']).drop_duplicates(subset=['Ticker', 'Date/Time'], keep='first')
         self.__df = df
         self.__frequency = frequency
         self.__haveAdjClose = False
@@ -153,12 +154,13 @@ class DataFrameFeed(BaseBarFeed):
             (self.__completeDf['Ticker'].str.contains(expiry.strftime(
                 '%d%b%y').upper() + ('C' if optionType == OptionType.CALL else 'P')))
         )
-        filteredDf = self.__completeDf[mask].copy()
+        filteredDf = self.__completeDf[mask].copy().reset_index()
 
         if filteredDf.empty:
             return None
 
         filteredDf.loc[:, 'PremiumDiff'] = abs(filteredDf['Close'] - premium)
 
-        nearestOption = filteredDf.loc[filteredDf['PremiumDiff'].idxmin()]
-        return nearestOption['Ticker'], nearestOption['Close']
+        minDiffIndex = filteredDf['PremiumDiff'].idxmin()
+        nearestOption = filteredDf.loc[minDiffIndex]
+        return str(nearestOption['Ticker']), float(nearestOption['Close'])
