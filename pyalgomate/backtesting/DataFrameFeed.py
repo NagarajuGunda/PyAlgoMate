@@ -4,14 +4,15 @@
 
 import datetime
 import pandas as pd
-from typing import List
-
+from typing import List, Union, Tuple, Optional
+import time
 from pyalgotrade import bar
 from pyalgomate.barfeed import BaseBarFeed
+from pyalgomate.core import OptionType
 
 
 class DataFrameFeed(BaseBarFeed):
-    def __init__(self, completeDf: pd.DataFrame, df: pd.DataFrame, underlyings: List[str], frequency=bar.Frequency.MINUTE, maxLen=None):
+    def __init__(self, completeDf: pd.DataFrame, df: pd.DataFrame, underlyings: List[str], frequency=bar.Frequency.MINUTE, maxLen=None, feedDelay: Union[float, None] = None):
 
         if frequency not in [bar.Frequency.MINUTE, bar.Frequency.DAY]:
             raise Exception("Invalid frequency")
@@ -24,9 +25,11 @@ class DataFrameFeed(BaseBarFeed):
         self.__haveAdjClose = False
         self.__instruments = self.__df['Ticker'].unique().tolist()
         self.__barsByDateTime = {}
+        self.__feedDelay = feedDelay
 
         self.__currentDateTime = None
-        self.__dateTimes = sorted(self.__df['Date/Time'].unique().tolist())
+        self.__dateTimes = sorted(pd.to_datetime(
+            self.__df['Date/Time'].unique()).tolist())
         self.__nextPos = 0
 
         for instrument in self.__instruments:
@@ -88,6 +91,9 @@ class DataFrameFeed(BaseBarFeed):
                 'Open Interest': openInterest})
 
     def getNextBars(self):
+        if self.__feedDelay:
+            time.sleep(self.__feedDelay)
+
         currentDateTime = self.peekDateTime()
 
         if currentDateTime is None:
@@ -115,10 +121,10 @@ class DataFrameFeed(BaseBarFeed):
 
     def getLastUpdatedDateTime(self):
         return self.__currentDateTime
-    
+
     def getLastReceivedDateTime(self):
         return self.__currentDateTime
-    
+
     def getNextBarsDateTime(self):
         return self.__currentDateTime
 
@@ -140,3 +146,19 @@ class DataFrameFeed(BaseBarFeed):
 
         return self.__completeDf[mask].resample(f'{interval}min', on="Date/Time").agg(
             {"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum", "Open Interest": "sum"}).reset_index().dropna()
+
+    def findNearestPremiumOption(self, expiry: datetime.datetime, optionType: OptionType, premium: float, time: datetime.datetime) -> Optional[Tuple[str, float]]:
+        mask = (
+            (self.__completeDf['Date/Time'] == time) &
+            (self.__completeDf['Ticker'].str.contains(expiry.strftime(
+                '%d%b%y').upper() + ('C' if optionType == OptionType.CALL else 'P')))
+        )
+        filteredDf = self.__completeDf[mask].copy()
+
+        if filteredDf.empty:
+            return None
+
+        filteredDf.loc[:, 'PremiumDiff'] = abs(filteredDf['Close'] - premium)
+
+        nearestOption = filteredDf.loc[filteredDf['PremiumDiff'].idxmin()]
+        return nearestOption['Ticker'], nearestOption['Close']
