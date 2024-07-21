@@ -15,6 +15,9 @@ from pyalgotrade import bar
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.barfeed.BasicBarEx import BasicBarEx
 from NorenRestApiPy.NorenApi import NorenApi
+from pyalgomate.core import OptionType
+from typing import List, Union, Tuple, Optional
+from . import getOptionContract
 
 logger = logging.getLogger(__name__)
 
@@ -239,3 +242,29 @@ class LiveTradeFeed(BaseBarFeed):
         currentDateTime = datetime.datetime.now()
         timeSinceLastDateTime = currentDateTime - self.__lastQuoteDateTime
         return timeSinceLastDateTime.total_seconds() <= heartBeatInterval
+
+    def findNearestPremiumOption(self, expiry: datetime.datetime, optionType: OptionType,
+                                 premium: float, time: datetime.datetime) -> Optional[Tuple[str, float]]:
+        nearestOption = None
+        nearestPremium = None
+        minDifference = float('inf')
+
+        for tokenId, quote in self.__latestQuotes.items():
+            instrument = self.__tokenIdToInstrumentMappings[tokenId]
+            optionContract = getOptionContract(instrument)
+
+            if optionContract is None or optionContract.expiry != expiry or \
+                    optionContract.type != ('c' if optionType == OptionType.CALL else 'p'):
+                continue
+
+            close = QuoteMessage(
+                quote, self.__tokenIdToInstrumentMappings).price
+
+            difference = abs(close - premium)
+
+            if difference < minDifference:
+                minDifference = difference
+                nearestOption = instrument
+                nearestPremium = close
+
+        return nearestOption, nearestPremium

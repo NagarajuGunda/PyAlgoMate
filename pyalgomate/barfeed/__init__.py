@@ -66,6 +66,10 @@ class BaseBarFeed(feed.BaseFeed):
         """
         raise NotImplementedError()
 
+    @abc.abstractmethod
+    def findNearestPremiumOption(self, expiry, optionType, premium: float, time):
+        raise NotImplementedError()
+
     def createDataSeries(self, key, maxLen):
         ret = bards.BarDataSeries(maxLen)
         ret.setUseAdjustedValues(self.__useAdjustedValues)

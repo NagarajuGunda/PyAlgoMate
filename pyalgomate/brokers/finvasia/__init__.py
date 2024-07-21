@@ -6,6 +6,7 @@ import os
 import datetime
 import requests
 import logging
+import re
 from io import BytesIO, StringIO
 from zipfile import ZipFile
 import pandas as pd
@@ -17,6 +18,8 @@ from pyalgomate.brokers import getDefaultUnderlyings, getExpiryDates
 from pyalgomate.brokers.finvasia.broker import getOptionSymbols, getUnderlyingDetails
 from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
 import pyalgomate.utils as utils
+from pyalgomate.strategies import OptionContract
+from pyalgomate.utils import UnderlyingIndex
 
 logger = logging.getLogger()
 
@@ -28,6 +31,45 @@ urls = [
     "https://api.shoonya.com/BSE_symbols.txt.zip",
     "https://api.shoonya.com/BFO_symbols.txt.zip",
 ]
+
+underlyingMapping = {
+    'NSE|MIDCPNIFTY': {
+        'optionPrefix': 'NFO|MIDCPNIFTY',
+        'index': UnderlyingIndex.MIDCPNIFTY,
+        'lotSize': 75,
+        'strikeDifference': 25
+    },
+    'NSE|NIFTY BANK': {
+        'optionPrefix': 'NFO|BANKNIFTY',
+        'index': UnderlyingIndex.BANKNIFTY,
+        'lotSize': 15,
+        'strikeDifference': 100
+    },
+    'NSE|NIFTY INDEX': {
+        'optionPrefix': 'NFO|NIFTY',
+        'index': UnderlyingIndex.NIFTY,
+        'lotSize': 25,
+        'strikeDifference': 50
+    },
+    'NSE|FINNIFTY': {
+        'optionPrefix': 'NFO|FINNIFTY',
+        'index': UnderlyingIndex.FINNIFTY,
+        'lotSize': 40,
+        'strikeDifference': 50
+    },
+    'BSE|SENSEX': {
+        'optionPrefix': 'BFO|SENSEX',
+        'index': UnderlyingIndex.SENSEX,
+        'lotSize': 10,
+        'strikeDifference': 100
+    },
+    'BSE|BANKEX': {
+        'optionPrefix': 'BFO|BANKEX',
+        'index': UnderlyingIndex.BANKEX,
+        'lotSize': 15,
+        'strikeDifference': 100
+    }
+}
 
 
 def downloadAndExtract(url):
@@ -170,6 +212,60 @@ def getFeed(cred, registerOptions, underlyings):
     api, tokenMappings = getApiAndTokenMappings(
         cred, registerOptions, underlyings)
     return LiveTradeFeed(api, getTokenMappings(), tokenMappings.values()), api
+
+
+@lru_cache
+def getOptionContract(self, symbol) -> OptionContract:
+    m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)", symbol)
+
+    if m is None:
+        m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d+)([CP])E", symbol)
+
+        if m is not None:
+            optionPrefix = m.group(1)
+            for underlying, underlyingDetails in underlyingMapping.items():
+                if underlyingDetails['optionPrefix'] == optionPrefix:
+                    index = self.getUnderlyingDetails(underlying)['index']
+                    month = datetime.datetime.strptime(m.group(3), '%b').month
+                    year = int(m.group(2)) + 2000
+                    expiry = utils.getNearestMonthlyExpiryDate(
+                        datetime.date(year, month, 1), index)
+                    return OptionContract(symbol, int(m.group(4)), expiry, "c" if m.group(5) == "C" else "p", underlying)
+
+        m = re.match(r"([A-Z\|]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", symbol)
+
+        if m is None:
+            return None
+
+        day = int(m.group(4))
+        month = m.group(3)
+        if month == 'O':
+            month = 10
+        elif month == 'N':
+            month = 11
+        elif month == 'D':
+            month = 12
+        else:
+            month = int(month)
+
+        year = int(m.group(2)) + 2000
+        expiry = datetime.date(year, month, day)
+        optionPrefix = m.group(1)
+        for underlying, underlyingDetails in underlyingMapping.items():
+            if underlyingDetails['optionPrefix'] == optionPrefix:
+                return OptionContract(symbol, int(m.group(5)), expiry, "c" if m.group(6) == "C" else "p", underlying)
+
+    day = int(m.group(2))
+    month = m.group(3)
+    year = int(m.group(4)) + 2000
+    expiry = datetime.date(
+        year, datetime.datetime.strptime(month, '%b').month, day)
+
+    optionPrefix = m.group(1)
+
+    for underlying, underlyingDetails in underlyingMapping.items():
+        if underlyingDetails['optionPrefix'] == optionPrefix:
+            return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", underlying)
 
 
 if __name__ == '__main__':
