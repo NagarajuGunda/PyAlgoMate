@@ -52,9 +52,12 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
         self.__slippageTracker = None
         if not self.isBacktest():
+            self.log('Initializing slippage tracker', sendToTelegram=False)
             self.__slippageTracker = SlippageTracker(
                 f"{self.strategyName}_{self.getBroker().getType()}_slippage_data.csv")
             broker.getOrderUpdatedEvent().subscribe(self.__onOrderEvent)
+        else:
+            self.log(f'Slippage tracker not initialized as broker type is {self.getBroker().getType()}', sendToTelegram=False)
 
         if self.telegramBot:
             self.telegramBot.addStrategy(self)
@@ -137,12 +140,16 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
 
     def __onOrderEvent(self, _broker, orderEvent: broker.OrderEvent):
         order: broker.Order = orderEvent.getOrder()
-        if orderEvent.getEventType() == broker.OrderEvent.Type.SUBMITTED:
+        if orderEvent.getEventType() in [broker.OrderEvent.Type.SUBMITTED, broker.OrderEvent.Type.ACCEPTED]:
+            self.log('Slippage tracker: Recording order', sendToTelegram=False)
             self.__slippageTracker.recordOrder(
                 order, self.getLastPrice(order.getInstrument()))
         elif orderEvent.getEventType() == broker.OrderEvent.Type.FILLED:
+            self.log('Slippage tracker: order filled', sendToTelegram=False)
             self.__slippageTracker.recordFill(order=order, fillPrice=order.getAvgFillPrice(
             ), dateTime=order.getExecutionInfo().getDateTime())
+        else:
+            self.log(f'Slippage tacker: Event type not handled {orderEvent.getEventType()}', sendToTelegram=False)
 
     def reset(self):
         super().reset()
@@ -301,15 +308,6 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
     def onStart(self):
         super().onStart()
 
-    def displaySlippage(self, order: Order):
-        orderType = order.getType()
-
-        if orderType == Order.Type.STOP_LIMIT:
-            slippage = order.getStopPrice() - order.getAvgFillPrice(
-            ) if order.isBuy() else order.getAvgFillPrice() - order.getStopPrice()
-            self.log(f'Slippage for stop limit order with order id <{order.getId()}> is <{slippage:.2f}>',
-                     level=logging.INFO, sendToTelegram=False)
-
     def onEnterOk(self, position: position.Position):
         execInfo = position.getEntryOrder().getExecutionInfo()
         action = "Buy" if position.getEntryOrder().isBuy() else "Sell"
@@ -354,8 +352,6 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         if self.__optionData.get(instrument, None) is not None:
             self.log(
                 f"Option greeks for {instrument}\n{self.__optionData[instrument]}", logging.DEBUG, sendToTelegram=False)
-
-        self.displaySlippage(position.getEntryOrder())
 
     def isPendingOrdersCompleted(self):
         for position in self.getActivePositions().copy():
@@ -402,8 +398,6 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         else:
             self.log(
                 f'Could not get a row with Instrument <{position.getInstrument()}> Entry Order Id <{entryOrderId}>')
-
-        self.displaySlippage(position.getExitOrder())
 
     def onEnterCanceled(self, position: position):
         self.log(f"===== Entry order cancelled: {position.getEntryOrder().getInstrument()} =====", logging.DEBUG,
