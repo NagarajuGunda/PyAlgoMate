@@ -15,10 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pyotp
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
 from pyalgomate.brokers import getDefaultUnderlyings, getExpiryDates
-from pyalgomate.brokers.finvasia.broker import getOptionSymbols, getUnderlyingDetails
-from pyalgomate.brokers.finvasia.feed import LiveTradeFeed
 import pyalgomate.utils as utils
-from pyalgomate.strategies import OptionContract
 from pyalgomate.utils import UnderlyingIndex
 
 logger = logging.getLogger()
@@ -71,7 +68,6 @@ underlyingMapping = {
     }
 }
 
-
 def downloadAndExtract(url):
     logger.info(f'Downloading and extracting {url}')
     response = requests.get(url)
@@ -82,7 +78,6 @@ def downloadAndExtract(url):
             df = pd.read_csv(StringIO(content), delimiter=",")
     return df
 
-
 @lru_cache(maxsize=None)
 def getScriptMaster(scripMasterFile='finvasia_symbols.csv') -> pd.DataFrame:
     if os.path.exists(scripMasterFile) and \
@@ -92,7 +87,7 @@ def getScriptMaster(scripMasterFile='finvasia_symbols.csv') -> pd.DataFrame:
         return pd.read_csv(scripMasterFile)
     else:
         logger.info(
-            f'Scrip master either doesn\'st exit of is not of today. Downloading!')
+            f'Scrip master either doesn\'t exist or is not of today. Downloading!')
         with ThreadPoolExecutor() as executor:
             futures = [executor.submit(downloadAndExtract, url)
                        for url in urls]
@@ -106,11 +101,9 @@ def getScriptMaster(scripMasterFile='finvasia_symbols.csv') -> pd.DataFrame:
             scripMasterDf.to_csv(scripMasterFile, index=False)
             return scripMasterDf
 
-
 def getToken(instrument) -> str:
     tokenMappings = getTokenMappings()
     return tokenMappings[instrument]
-
 
 def getTokenMappings() -> dict:
     scripMasterDf: pd.DataFrame = getScriptMaster()
@@ -119,7 +112,6 @@ def getTokenMappings() -> dict:
     tokenMappings['BSE|SENSEX'] = 'BSE|1'
     tokenMappings['BSE|BANKEX'] = 'BSE|12'
     return tokenMappings
-
 
 def getApi(cred):
     api = ShoonyaApi(host='https://api.shoonya.com/NorenWClientTP/',
@@ -154,6 +146,8 @@ def getApi(cred):
         return None
 
 def getApiAndTokenMappings(cred, registerOptions, underlyings):
+    from .broker import getOptionSymbols, getUnderlyingDetails  # Lazy import
+    
     api = getApi(cred)
     if api != None:
         if len(underlyings) == 0:
@@ -206,16 +200,18 @@ def getApiAndTokenMappings(cred, registerOptions, underlyings):
     else:
         exit(1)
 
-
 def getFeed(cred, registerOptions, underlyings):
+    from .feed import LiveTradeFeed
+
     logger.info('Creating feed object')
     api, tokenMappings = getApiAndTokenMappings(
         cred, registerOptions, underlyings)
     return LiveTradeFeed(api, getTokenMappings(), tokenMappings.values()), api
 
-
 @lru_cache
-def getOptionContract(self, symbol) -> OptionContract:
+def getOptionContract(symbol):
+    from .broker import OptionContract
+
     m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)", symbol)
 
     if m is None:
@@ -225,7 +221,7 @@ def getOptionContract(self, symbol) -> OptionContract:
             optionPrefix = m.group(1)
             for underlying, underlyingDetails in underlyingMapping.items():
                 if underlyingDetails['optionPrefix'] == optionPrefix:
-                    index = self.getUnderlyingDetails(underlying)['index']
+                    index = underlyingDetails['index']
                     month = datetime.datetime.strptime(m.group(3), '%b').month
                     year = int(m.group(2)) + 2000
                     expiry = utils.getNearestMonthlyExpiryDate(
@@ -266,7 +262,6 @@ def getOptionContract(self, symbol) -> OptionContract:
     for underlying, underlyingDetails in underlyingMapping.items():
         if underlyingDetails['optionPrefix'] == optionPrefix:
             return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", underlying)
-
 
 if __name__ == '__main__':
     print(getScriptMaster())
