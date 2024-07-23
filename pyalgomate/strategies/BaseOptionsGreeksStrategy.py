@@ -320,7 +320,11 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
                          & (self.tradesDf['Instrument'] == instrument)
         ].shape[0] == 0:
             dte = None
-            optionContract = self.__optionContracts[instrument]
+            if instrument not in self.__optionContracts:
+                optionContract = self.getBroker().getOptionContract(instrument)
+                if optionContract:
+                    self.__optionContracts[instrument] = optionContract
+            optionContract = self.__optionContracts.get(instrument, None)
             if optionContract is not None:
                 expiry = optionContract.expiry
                 if expiry:

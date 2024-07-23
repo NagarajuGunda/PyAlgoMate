@@ -57,8 +57,7 @@ def GetFeedNStrategies(creds):
 
     strategies = []
 
-    _feed, api = getFeed(
-        creds, broker=config['Broker'], underlyings=config['Underlyings'])
+    _feed, api = getFeed(creds, config, underlyings=config['Underlyings'])
 
     _feed.start()
 

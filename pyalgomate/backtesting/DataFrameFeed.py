@@ -33,7 +33,7 @@ class DataFrameFeed(BaseBarFeed):
             self.__df['Date/Time'].unique()).tolist())
         self.__nextPos = 0
 
-        for instrument in self.__instruments:
+        for instrument in underlyings:
             self.registerInstrument(instrument)
 
         self.__columnIndexMapping = {columnName: self.__df.columns.get_loc(
@@ -73,6 +73,9 @@ class DataFrameFeed(BaseBarFeed):
         return self.__nextPos >= len(self.__dateTimes)
 
     def addBars(self, instrument) -> dict:
+        if instrument not in self:
+            self.registerInstrument(instrument)
+
         df = self.__df[(self.__df['Ticker'] == instrument)]
 
         for row in df.itertuples():

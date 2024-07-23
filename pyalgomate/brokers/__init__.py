@@ -115,7 +115,10 @@ class BacktestingBroker(backtesting.Broker):
         m = re.match(r"([A-Z]+)(\d+)(CE|PE)", symbol)
 
         if m is None:
-            return None
+            m = re.match(r"([A-Z]+)(\d{2})([A-Z]{3})(\d+)(CE|PE)", symbol)
+            if m is None:
+                return None
+            return OptionContract(symbol, int(m.group(4)), None, "c" if m.group(5) == "CE" else "p", m.group(1))
 
         return OptionContract(symbol, int(m.group(2)), None, "c" if m.group(3) == "CE" else "p", m.group(1))
 
@@ -171,11 +174,15 @@ class BacktestingBroker(backtesting.Broker):
         return super(BacktestingBroker, self).createLimitOrder(action, instrument, limitPrice, quantity)
 
 
-def getFeed(creds, broker, registerOptions: list =['Weekly'], underlyings: list = ['NSE|NIFTY BANK']):
+def getFeed(creds, config, registerOptions: list = ['Weekly'], underlyings: list = ['NSE|NIFTY BANK']):
+    broker = config['Broker']
+    barFeed = None
+    api = None
     if broker == 'Backtest':
-        data = pd.read_parquet('strategies/data/2023/banknifty/08.parquet')
-        filteredData = data.query("'2023-08-22' <= `Date/Time` <= '2023-08-25'")
-        return DataFrameFeed(data, filteredData, underlyings=['BANKNIFTY']), None
+        data = pd.read_parquet(config['Data'])
+        filteredData = data.query(
+            f"'{config['FromDate']}' <= `Date/Time` <= '{config['ToDate']}'")
+        return DataFrameFeed(data, filteredData, underlyings=['BANKNIFTY'], feedDelay=config['FeedDelay'] if 'FeedDelay' in config else None), None
     elif broker == 'Finvasia':
         import pyalgomate.brokers.finvasia as finvasia
         return finvasia.getFeed(creds[broker], registerOptions, underlyings)
