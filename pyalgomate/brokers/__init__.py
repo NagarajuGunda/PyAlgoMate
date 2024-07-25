@@ -28,7 +28,7 @@ underlyingMapping = {
     'MIDCPNIFTY': {
         'optionPrefix': 'MIDCPNIFTY',
         'index': UnderlyingIndex.MIDCPNIFTY,
-        'lotSize': 75,
+        'lotSize': 50,
         'strikeDifference': 25
     },
     'BANKNIFTY': {
@@ -46,7 +46,7 @@ underlyingMapping = {
     'FINNIFTY': {
         'optionPrefix': 'FINNIFTY',
         'index': UnderlyingIndex.FINNIFTY,
-        'lotSize': 40,
+        'lotSize': 25,
         'strikeDifference': 50
     }
 }

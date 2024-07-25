@@ -33,7 +33,7 @@ underlyingMapping = {
     'NSE|MIDCPNIFTY': {
         'optionPrefix': 'NFO|MIDCPNIFTY',
         'index': UnderlyingIndex.MIDCPNIFTY,
-        'lotSize': 75,
+        'lotSize': 50,
         'strikeDifference': 25
     },
     'NSE|NIFTY BANK': {
@@ -51,7 +51,7 @@ underlyingMapping = {
     'NSE|FINNIFTY': {
         'optionPrefix': 'NFO|FINNIFTY',
         'index': UnderlyingIndex.FINNIFTY,
-        'lotSize': 40,
+        'lotSize': 25,
         'strikeDifference': 50
     },
     'BSE|SENSEX': {
