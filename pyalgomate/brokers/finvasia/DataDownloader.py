@@ -7,6 +7,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))), os.pardir))
 
+import re
 import pyalgomate.utils as utils
 from pyalgomate.brokers.finvasia.broker import underlyingMapping
 import pyalgomate.brokers.finvasia.broker as broker
@@ -62,12 +63,41 @@ def process_historical_data(api, index, fromTime, toTelegram=True):
     return historicalData
 
 
+def transform_trading_symbol(expiry, optionPrefix, tradingSymbol):
+    m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d+)([CP])E", tradingSymbol)
+    if m is not None:
+        optionPrefix = m.group(1)
+        year = int(m.group(2)) + 2000
+        return f"{optionPrefix}{expiry.day:02d}{expiry.strftime('%b').upper()}{year % 100:02d}{m.group(5)}{m.group(4)}"
+
+    m = re.match(
+        r"([A-Z\|]+)(\d{2})(\d|[OND])(\d{2})(\d+)([CP])E", tradingSymbol)
+    if m is not None:
+        day = int(m.group(4))
+        month = m.group(3)
+        if month == 'O':
+            month = 10
+        elif month == 'N':
+            month = 11
+        elif month == 'D':
+            month = 12
+        else:
+            month = int(month)
+
+        year = int(m.group(2)) + 2000
+        optionPrefix = m.group(1)
+        return f"{optionPrefix}{day:02d}{datetime.datetime(year, month, day).strftime('%b').upper()}{year % 100:02d}{m.group(6)}{m.group(5)}"
+
+    return tradingSymbol
+
+
 def process_options_data(api, index, fromTime, expiry, filteredScripMasterDf):
     data = process_historical_data(api, index, fromTime, False)
 
     for idx, row in filteredScripMasterDf.iterrows():
         historicalData = broker.getHistoricalData(
             api, row['Exchange'] + '|' + row['TradingSymbol'], fromTime, '1')
+
         historicalData['Ticker'] = row['TradingSymbol']
         data = pd.concat([data, historicalData])
 
@@ -76,6 +106,9 @@ def process_options_data(api, index, fromTime, expiry, filteredScripMasterDf):
 
     data = data.sort_values(['Ticker', 'Date/Time']).drop_duplicates(
         subset=['Ticker', 'Date/Time'], keep='first')
+
+    data['Ticker'] = data['Ticker'].apply(
+        lambda x: transform_trading_symbol(expiry, underlyingMapping[index]['optionPrefix'], x))
 
     sendToTelegram(botToken, chatId, topicId, data,
                    f"{str(underlyingMapping[index]['index'])}-{datetime.datetime.now().strftime('%Y-%m-%d')}.parquet")
