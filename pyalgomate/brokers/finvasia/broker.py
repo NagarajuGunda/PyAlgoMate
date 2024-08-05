@@ -459,7 +459,7 @@ class LiveBroker(broker.Broker):
         self.__tradeMonitor = TradeMonitor(self)
         self.__cash = 0
         self.__shares = {}
-        self.__activeOrders: Dict[str, Order] = dict()
+        self.__activeOrders: Dict[Order, Order] = dict()
 
     def getApi(self):
         return self.__api
@@ -481,14 +481,12 @@ class LiveBroker(broker.Broker):
         return QuantityTraits()
 
     def _registerOrder(self, order: Order):
-        assert (order.getId() not in self.__activeOrders)
-        assert (order.getId() is not None)
-        self.__activeOrders[order.getId()] = order
+        assert (order not in self.__activeOrders)
+        self.__activeOrders[order] = order
 
     def _unregisterOrder(self, order: Order):
-        assert (order.getId() in self.__activeOrders)
-        assert (order.getId() is not None)
-        del self.__activeOrders[order.getId()]
+        assert (order in self.__activeOrders)
+        del self.__activeOrders[order]
 
     def refreshAccountBalance(self):
         try:
@@ -556,12 +554,12 @@ class LiveBroker(broker.Broker):
 
     def _onUserTrades(self, trades):
         for trade in trades:
-            order = self.__activeOrders.get(trade.getId())
+            order = next((o for o in self.__activeOrders if o.getId() == trade.getId()), None)
             if order is not None:
                 self._onTrade(order, trade)
             else:
                 logger.info(
-                    f"Trade {trade.getId()} refered to order that is not active")
+                    f"Trade {trade.getId()} referred to order that is not active")
 
     # BEGIN observer.Subject interface
     def start(self):
@@ -623,9 +621,11 @@ class LiveBroker(broker.Broker):
         return self.__shares
 
     def getActiveOrder(self, orderId):
-        return self.__activeOrders.get(orderId)
+        return next((o for o in self.__activeOrders if o.getId() == orderId), None)
 
     def getActiveOrders(self, instrument=None):
+        if instrument:
+            return [o for o in self.__activeOrders.values() if o.getInstrument() == instrument]
         return list(self.__activeOrders.values())
 
     # Place a Limit order as follows
@@ -798,7 +798,7 @@ class LiveBroker(broker.Broker):
         return self._createOrder(broker.StopLimitOrder, action, instrument, quantity, limitPrice, stopPrice)
 
     def cancelOrder(self, order: Order):
-        activeOrder: Order = self.__activeOrders.get(order.getId())
+        activeOrder: Order = self.__activeOrders.get(order)
         if activeOrder is None:
             raise Exception("The order is not active anymore")
         if activeOrder.isFilled():
