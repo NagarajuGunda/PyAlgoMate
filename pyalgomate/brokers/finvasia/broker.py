@@ -10,7 +10,7 @@ import six
 import calendar
 import re
 import pandas as pd
-from typing import ForwardRef, List, Dict
+from typing import ForwardRef, List, Dict, Set
 
 from pyalgotrade import broker
 from pyalgotrade.broker import Order
@@ -235,8 +235,9 @@ class PaperTradingBroker(BacktestingBroker):
 
 
 class OrderEvent(object):
-    def __init__(self, eventDict):
+    def __init__(self, eventDict, order):
         self.__eventDict = eventDict
+        self.__order = order
 
     def getStat(self):
         return self.__eventDict.get('state', None)
@@ -262,6 +263,9 @@ class OrderEvent(object):
     def getDateTime(self):
         return datetime.datetime.strptime(self.__eventDict['norentm'], '%H:%M:%S %d-%m-%Y') if self.__eventDict.get('norentm', None) is not None else None
 
+    def getOrder(self):
+        return self.__order
+
 LiveBroker = ForwardRef('LiveBroker')
 
 class TradeMonitor(threading.Thread):
@@ -283,7 +287,7 @@ class TradeMonitor(threading.Thread):
 
     def getNewTrades(self):
         ret: List[OrderEvent] = []
-        activeOrders: List[Order] = [order for order in self.__broker.getActiveOrders().copy()]
+        activeOrders: List[Order] = list(self.__broker.getActiveOrders())
         orderBook = self.__api.get_order_book()
         for order in activeOrders:
             filteredOrders = [orderBookOrder for orderBookOrder in orderBook if orderBookOrder.get('norenordno') == order.getId()]
@@ -291,7 +295,7 @@ class TradeMonitor(threading.Thread):
                 logger.warning(f'Order not found in the order book for order id {order.getId()}')
                 continue
 
-            orderEvent = OrderEvent(filteredOrders[0])
+            orderEvent = OrderEvent(filteredOrders[0], order)
 
             if order not in self.__retryData:
                 self.__retryData[order] = {'retryCount': 0, 'lastRetryTime': time.time()}
@@ -459,7 +463,7 @@ class LiveBroker(broker.Broker):
         self.__tradeMonitor = TradeMonitor(self)
         self.__cash = 0
         self.__shares = {}
-        self.__activeOrders: Dict[Order, Order] = dict()
+        self.__activeOrders: Set[Order] = set()
 
     def getApi(self):
         return self.__api
@@ -482,11 +486,11 @@ class LiveBroker(broker.Broker):
 
     def _registerOrder(self, order: Order):
         assert (order not in self.__activeOrders)
-        self.__activeOrders[order] = order
+        self.__activeOrders.add(order)
 
     def _unregisterOrder(self, order: Order):
         assert (order in self.__activeOrders)
-        del self.__activeOrders[order]
+        self.__activeOrders.remove(order)
 
     def refreshAccountBalance(self):
         try:
@@ -554,8 +558,8 @@ class LiveBroker(broker.Broker):
 
     def _onUserTrades(self, trades):
         for trade in trades:
-            order = next((o for o in self.__activeOrders if o.getId() == trade.getId()), None)
-            if order is not None:
+            order = trade.getOrder()
+            if order in self.__activeOrders:
                 self._onTrade(order, trade)
             else:
                 logger.info(
@@ -583,7 +587,7 @@ class LiveBroker(broker.Broker):
     def dispatch(self):
         try:
             # Switch orders from SUBMITTED to ACCEPTED.
-            ordersToProcess = list(self.__activeOrders.values())
+            ordersToProcess = list(self.__activeOrders)
             for order in ordersToProcess:
                 if order.isSubmitted():
                     order.switchState(broker.Order.State.ACCEPTED)
@@ -625,8 +629,8 @@ class LiveBroker(broker.Broker):
 
     def getActiveOrders(self, instrument=None):
         if instrument:
-            return [o for o in self.__activeOrders.values() if o.getInstrument() == instrument]
-        return list(self.__activeOrders.values())
+            return [o for o in self.__activeOrders if o.getInstrument() == instrument]
+        return list(self.__activeOrders)
 
     # Place a Limit order as follows
 #     api.place_order(buy_or_sell='B', product_type='C',
@@ -798,10 +802,9 @@ class LiveBroker(broker.Broker):
         return self._createOrder(broker.StopLimitOrder, action, instrument, quantity, limitPrice, stopPrice)
 
     def cancelOrder(self, order: Order):
-        activeOrder: Order = self.__activeOrders.get(order)
-        if activeOrder is None:
+        if order not in self.__activeOrders:
             raise Exception("The order is not active anymore")
-        if activeOrder.isFilled():
+        if order.isFilled():
             raise Exception("Can't cancel order that has already been filled")
 
         try:
