@@ -1,6 +1,7 @@
 """
 .. moduleauthor:: Nagaraju Gunda
 """
+
 import os
 import datetime
 import re
@@ -25,30 +26,30 @@ logger = logging.getLogger()
 # strategy.
 
 underlyingMapping = {
-    'MIDCPNIFTY': {
-        'optionPrefix': 'MIDCPNIFTY',
-        'index': UnderlyingIndex.MIDCPNIFTY,
-        'lotSize': 50,
-        'strikeDifference': 25
+    "MIDCPNIFTY": {
+        "optionPrefix": "MIDCPNIFTY",
+        "index": UnderlyingIndex.MIDCPNIFTY,
+        "lotSize": 50,
+        "strikeDifference": 25,
     },
-    'BANKNIFTY': {
-        'optionPrefix': 'BANKNIFTY',
-        'index': UnderlyingIndex.BANKNIFTY,
-        'lotSize': 15,
-        'strikeDifference': 100
+    "BANKNIFTY": {
+        "optionPrefix": "BANKNIFTY",
+        "index": UnderlyingIndex.BANKNIFTY,
+        "lotSize": 15,
+        "strikeDifference": 100,
     },
-    'NIFTY': {
-        'optionPrefix': 'NIFTY',
-        'index': UnderlyingIndex.NIFTY,
-        'lotSize': 50,
-        'strikeDifference': 50
+    "NIFTY": {
+        "optionPrefix": "NIFTY",
+        "index": UnderlyingIndex.NIFTY,
+        "lotSize": 50,
+        "strikeDifference": 50,
     },
-    'FINNIFTY': {
-        'optionPrefix': 'FINNIFTY',
-        'index': UnderlyingIndex.FINNIFTY,
-        'lotSize': 25,
-        'strikeDifference': 50
-    }
+    "FINNIFTY": {
+        "optionPrefix": "FINNIFTY",
+        "index": UnderlyingIndex.FINNIFTY,
+        "lotSize": 25,
+        "strikeDifference": 50,
+    },
 }
 
 
@@ -98,8 +99,13 @@ class BacktestingBroker(backtesting.Broker):
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
         return getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut)
 
-    def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
-        return underlyingInstrument + str(ceStrikePrice) + "CE", underlyingInstrument + str(peStrikePrice) + "PE"
+    def getOptionSymbols(
+        self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice
+    ):
+        return (
+            underlyingInstrument + str(ceStrikePrice) + "CE",
+            underlyingInstrument + str(peStrikePrice) + "PE",
+        )
 
     def getOptionContract(self, symbol):
         m = re.match(r"([A-Z\|]+)(\d{2})([A-Z]{3})(\d{2})([CP])(\d+)", symbol)
@@ -109,8 +115,15 @@ class BacktestingBroker(backtesting.Broker):
             month = m.group(3)
             year = int(m.group(4)) + 2000
             expiry = datetime.date(
-                year, datetime.datetime.strptime(month, '%b').month, day)
-            return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", m.group(1))
+                year, datetime.datetime.strptime(month, "%b").month, day
+            )
+            return OptionContract(
+                symbol,
+                int(m.group(6)),
+                expiry,
+                "c" if m.group(5) == "C" else "p",
+                m.group(1),
+            )
 
         m = re.match(r"([A-Z]+)(\d+)(CE|PE)", symbol)
 
@@ -118,12 +131,36 @@ class BacktestingBroker(backtesting.Broker):
             m = re.match(r"([A-Z]+)(\d{2})([A-Z]{3})(\d+)(CE|PE)", symbol)
             if m is None:
                 return None
-            return OptionContract(symbol, int(m.group(4)), None, "c" if m.group(5) == "CE" else "p", m.group(1))
+            return OptionContract(
+                symbol,
+                int(m.group(4)),
+                None,
+                "c" if m.group(5) == "CE" else "p",
+                m.group(1),
+            )
 
-        return OptionContract(symbol, int(m.group(2)), None, "c" if m.group(3) == "CE" else "p", m.group(1))
+        return OptionContract(
+            symbol,
+            int(m.group(2)),
+            None,
+            "c" if m.group(3) == "CE" else "p",
+            m.group(1),
+        )
 
-    def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame():
-        return pd.DataFrame(columns=['Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest'])
+    def getHistoricalData(
+        self, exchangeSymbol: str, startTime: datetime.datetime, interval: str
+    ) -> pd.DataFrame():
+        return pd.DataFrame(
+            columns=[
+                "Date/Time",
+                "Open",
+                "High",
+                "Low",
+                "Close",
+                "Volume",
+                "Open Interest",
+            ]
+        )
 
     def __init__(self, cash, barFeed, fee=0.0025):
         commission = backtesting.TradePercentage(fee)
@@ -145,7 +182,7 @@ class BacktestingBroker(backtesting.Broker):
             broker.Order.Action.BUY_TO_COVER: broker.Order.Action.BUY,
             broker.Order.Action.BUY: broker.Order.Action.BUY,
             broker.Order.Action.SELL_SHORT: broker.Order.Action.SELL,
-            broker.Order.Action.SELL: broker.Order.Action.SELL
+            broker.Order.Action.SELL: broker.Order.Action.SELL,
         }.get(action, None)
         if action is None:
             raise Exception("Only BUY/SELL orders are supported")
@@ -153,7 +190,9 @@ class BacktestingBroker(backtesting.Broker):
 
     def createMarketOrder(self, action, instrument, quantity, onClose=False):
         action = self._remapAction(action)
-        return super(BacktestingBroker, self).createMarketOrder(action, instrument, quantity, onClose)
+        return super(BacktestingBroker, self).createMarketOrder(
+            action, instrument, quantity, onClose
+        )
 
     def createLimitOrder(self, action, instrument, limitPrice, quantity):
         action = self._remapAction(action)
@@ -171,25 +210,44 @@ class BacktestingBroker(backtesting.Broker):
         # else:
         #     raise Exception("Only BUY/SELL orders are supported")
 
-        return super(BacktestingBroker, self).createLimitOrder(action, instrument, limitPrice, quantity)
+        return super(BacktestingBroker, self).createLimitOrder(
+            action, instrument, limitPrice, quantity
+        )
 
 
-def getFeed(creds, config, registerOptions: list = ['Weekly'], underlyings: list = ['NSE|NIFTY BANK']):
-    broker = config['Broker']
+def getFeed(
+    creds,
+    config,
+    registerOptions: list = ["Weekly"],
+    underlyings: list = ["NSE|NIFTY BANK"],
+):
+    broker = config["Broker"]
     barFeed = None
     api = None
-    if broker == 'Backtest':
-        data = pd.read_parquet(config['Data'])
+    if broker == "Backtest":
+        data = pd.read_parquet(config["Data"])
         filteredData = data.query(
-            f"'{config['FromDate']}' <= `Date/Time` <= '{config['ToDate']}'")
-        return DataFrameFeed(data, filteredData, underlyings=['BANKNIFTY'], feedDelay=config['FeedDelay'] if 'FeedDelay' in config else None), None
-    elif broker == 'Finvasia':
+            f"'{config['FromDate']}' <= `Date/Time` <= '{config['ToDate']}'"
+        )
+        return (
+            DataFrameFeed(
+                data,
+                filteredData,
+                underlyings=["BANKNIFTY"],
+                feedDelay=config["FeedDelay"] if "FeedDelay" in config else None,
+                loadAll=config["LoadAll"] if "LoadAll" in config else False,
+            ),
+            None,
+        )
+    elif broker == "Finvasia":
         import pyalgomate.brokers.finvasia as finvasia
+
         return finvasia.getFeed(creds[broker], registerOptions, underlyings)
-    elif broker == 'Zerodha':
+    elif broker == "Zerodha":
         import pyalgomate.brokers.zerodha as zerodha
+
         return zerodha.getFeed(creds[broker], registerOptions, underlyings)
-    elif broker == 'Kotak':
+    elif broker == "Kotak":
         from neo_api_client import NeoAPI
         import pyalgomate.brokers.kotak as kotak
         from pyalgomate.brokers.kotak.broker import getTokenMappings
@@ -197,49 +255,61 @@ def getFeed(creds, config, registerOptions: list = ['Weekly'], underlyings: list
 
         cred = creds[broker]
 
-        api = NeoAPI(consumer_key=cred['consumer_key'],
-                     consumer_secret=cred['consumer_secret'], environment=cred['environment'])
-        api.login(mobilenumber=cred['mobilenumber'], password=cred['Password'])
-        ret = api.session_2fa(cred['mpin'])
+        api = NeoAPI(
+            consumer_key=cred["consumer_key"],
+            consumer_secret=cred["consumer_secret"],
+            environment=cred["environment"],
+        )
+        api.login(mobilenumber=cred["mobilenumber"], password=cred["Password"])
+        ret = api.session_2fa(cred["mpin"])
         if ret == None:
-            print('Exited due to biscut')
+            print("Exited due to biscut")
             exit(0)
 
         if len(underlyings) == 0:
-            underlyings = ['BANKNIFTY']
+            underlyings = ["BANKNIFTY"]
 
         tokenMappings = []
         for underlying in underlyings:
             optionSymbols = []
-            ret = api.search_scrip('NSE' if underlying !=
-                                            'SENSEX' else 'BSE', underlying)
-            script = [
-                script for script in ret if script['pSymbolName'] == underlying][0]
-            tokId = script['pSymbol']
-            quotes = api.quotes([
-                {'instrument_token': str(tokId), 'exchange_segment': 'nse_cm'}])
-            ltp = float(quotes['message'][0]['last_traded_price'])
+            ret = api.search_scrip(
+                "NSE" if underlying != "SENSEX" else "BSE", underlying
+            )
+            script = [script for script in ret if script["pSymbolName"] == underlying][
+                0
+            ]
+            tokId = script["pSymbol"]
+            quotes = api.quotes(
+                [{"instrument_token": str(tokId), "exchange_segment": "nse_cm"}]
+            )
+            ltp = float(quotes["message"][0]["last_traded_price"])
 
             underlyingDetails = kotak.broker.getUnderlyingDetails(underlying)
-            index = underlyingDetails['index']
-            strikeDifference = underlyingDetails['strikeDifference']
+            index = underlyingDetails["index"]
+            strikeDifference = underlyingDetails["strikeDifference"]
 
             currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-                datetime.datetime.now().date(), index)
+                datetime.datetime.now().date(), index
+            )
             nextWeekExpiry = utils.getNextWeeklyExpiryDate(
-                datetime.datetime.now().date(), index)
+                datetime.datetime.now().date(), index
+            )
             monthlyExpiry = utils.getNearestMonthlyExpiryDate(
-                datetime.datetime.now().date(), index)
+                datetime.datetime.now().date(), index
+            )
 
             if "Weekly" in registerOptions:
                 optionSymbols += kotak.broker.getOptionSymbols(
-                    underlying, currentWeeklyExpiry, ltp, 10, strikeDifference)
+                    underlying, currentWeeklyExpiry, ltp, 10, strikeDifference
+                )
             if "NextWeekly" in registerOptions:
                 optionSymbols += kotak.broker.getOptionSymbols(
-                    underlying, nextWeekExpiry, ltp, 10, strikeDifference)
+                    underlying, nextWeekExpiry, ltp, 10, strikeDifference
+                )
             if "Monthly" in registerOptions:
                 optionSymbols += kotak.broker.getOptionSymbols(
-                    underlying, monthlyExpiry, ltp, 10, strikeDifference)
+                    underlying, monthlyExpiry, ltp, 10, strikeDifference
+                )
 
             optionSymbols = list(dict.fromkeys(optionSymbols))
             tokenMappings += getTokenMappings(api, underlying, optionSymbols)
@@ -250,43 +320,51 @@ def getFeed(creds, config, registerOptions: list = ['Weekly'], underlyings: list
 
 
 def getBroker(feed, api, broker, mode, capital=200000):
-    if str(broker).lower() == 'backtest':
+    if str(broker).lower() == "backtest":
         from pyalgomate.brokers import BacktestingBroker
+
         brokerInstance = BacktestingBroker(capital, feed)
-    elif str(broker).lower() == 'finvasia':
+    elif str(broker).lower() == "finvasia":
         from pyalgomate.brokers.finvasia.broker import PaperTradingBroker, LiveBroker
 
-        if str(mode).lower() == 'paper':
+        if str(mode).lower() == "paper":
             brokerInstance = PaperTradingBroker(capital, feed)
         else:
             brokerInstance = LiveBroker(api, feed)
-    elif str(broker).lower() == 'zerodha':
-        from pyalgomate.brokers.zerodha.broker import ZerodhaPaperTradingBroker, ZerodhaLiveBroker
+    elif str(broker).lower() == "zerodha":
+        from pyalgomate.brokers.zerodha.broker import (
+            ZerodhaPaperTradingBroker,
+            ZerodhaLiveBroker,
+        )
 
-        if str(mode).lower() == 'paper':
+        if str(mode).lower() == "paper":
             brokerInstance = ZerodhaPaperTradingBroker(capital, feed)
         else:
             brokerInstance = ZerodhaLiveBroker(api)
-    elif broker == 'Kotak':
+    elif broker == "Kotak":
         from pyalgomate.brokers.kotak.broker import PaperTradingBroker, LiveBroker
 
-        if mode == 'paper':
+        if mode == "paper":
             brokerInstance = PaperTradingBroker(200000, feed)
         else:
             brokerInstance = LiveBroker(api)
 
     return brokerInstance
 
+
 def getDefaultUnderlyings() -> List[str]:
-    return ['NSE:NIFTY BANK']
+    return ["NSE:NIFTY BANK"]
 
 
 def getExpiryDates(index: UnderlyingIndex):
     currentWeeklyExpiry = utils.getNearestWeeklyExpiryDate(
-        datetime.datetime.now().date(), index)
+        datetime.datetime.now().date(), index
+    )
     nextWeekExpiry = utils.getNextWeeklyExpiryDate(
-        datetime.datetime.now().date(), index)
+        datetime.datetime.now().date(), index
+    )
     monthlyExpiry = utils.getNearestMonthlyExpiryDate(
-        datetime.datetime.now().date(), index)
+        datetime.datetime.now().date(), index
+    )
 
     return currentWeeklyExpiry, nextWeekExpiry, monthlyExpiry
