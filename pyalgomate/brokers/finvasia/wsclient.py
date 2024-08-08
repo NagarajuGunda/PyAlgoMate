@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class WebSocketClient:
-    def __init__(self, api, tokenMappings, zmq_port="5555"):
+    def __init__(self, api, tokenMappings, zmq_ipc_path="/tmp/zmq_websocket.ipc"):
         assert len(tokenMappings), "Missing subscriptions"
         self.__quotes = dict()
         self.__lastQuoteDateTime = None
@@ -38,7 +38,7 @@ class WebSocketClient:
         # Set up ZeroMQ publisher
         self.__context = zmq.Context()
         self.__socket = self.__context.socket(zmq.PUB)
-        self.__socket.bind(f"tcp://*:{zmq_port}")
+        self.__socket.bind(f"ipc://{zmq_ipc_path}")
 
         self.periodicThread = threading.Thread(target=self.periodicPrint)
         self.periodicThread.daemon = True
