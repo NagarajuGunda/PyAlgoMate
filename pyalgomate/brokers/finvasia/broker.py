@@ -25,97 +25,160 @@ from . import getOptionContract, underlyingMapping
 
 logger = logging.getLogger(__name__)
 
+
 def getUnderlyingMappings():
     return underlyingMapping
+
 
 def getUnderlyingDetails(underlying):
     return underlyingMapping[underlying]
 
+
 def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
     underlyingDetails = getUnderlyingDetails(underlyingInstrument)
-    optionPrefix = underlyingDetails['optionPrefix']
-    index = underlyingDetails['index']
+    optionPrefix = underlyingDetails["optionPrefix"]
+    index = underlyingDetails["index"]
 
     if index not in [UnderlyingIndex.SENSEX, UnderlyingIndex.BANKEX]:
-        dayMonthYear = f"{expiry.day:02d}" + \
-            calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
+        dayMonthYear = (
+            f"{expiry.day:02d}"
+            + calendar.month_abbr[expiry.month].upper()
+            + str(expiry.year % 100)
+        )
         return optionPrefix + dayMonthYear + callOrPut + str(strikePrice)
     else:
-        strikePlusOption = str(strikePrice) + ('CE' if (callOrPut ==
-                                                        'C' or callOrPut == 'Call') else 'PE')
+        strikePlusOption = str(strikePrice) + (
+            "CE" if (callOrPut == "C" or callOrPut == "Call") else "PE"
+        )
 
         monthly = utils.getNearestMonthlyExpiryDate(expiry, index) == expiry
 
         if monthly:
-            return optionPrefix + str(expiry.year % 100) + calendar.month_abbr[expiry.month].upper() + strikePlusOption
+            return (
+                optionPrefix
+                + str(expiry.year % 100)
+                + calendar.month_abbr[expiry.month].upper()
+                + strikePlusOption
+            )
         else:
             if expiry.month == 10:
-                monthlySymbol = 'O'
+                monthlySymbol = "O"
             elif expiry.month == 11:
-                monthlySymbol = 'N'
+                monthlySymbol = "N"
             elif expiry.month == 12:
-                monthlySymbol = 'D'
+                monthlySymbol = "D"
             else:
-                monthlySymbol = f'{expiry.month}'
-            return optionPrefix + str(expiry.year % 100) + f"{monthlySymbol}{expiry.day:02d}" + strikePlusOption
+                monthlySymbol = f"{expiry.month}"
+            return (
+                optionPrefix
+                + str(expiry.year % 100)
+                + f"{monthlySymbol}{expiry.day:02d}"
+                + strikePlusOption
+            )
 
 
 def getOptionSymbols(underlyingInstrument, expiry, ltp, count, strikeDifference=100):
     ltp = int(float(ltp) / strikeDifference) * strikeDifference
     logger.info(f"Nearest strike price of {underlyingInstrument} is <{ltp}>")
     optionSymbols = []
-    for n in range(-count, count+1):
-       optionSymbols.append(getOptionSymbol(
-           underlyingInstrument, expiry, ltp + (n * strikeDifference), 'C'))
+    for n in range(-count, count + 1):
+        optionSymbols.append(
+            getOptionSymbol(
+                underlyingInstrument, expiry, ltp + (n * strikeDifference), "C"
+            )
+        )
 
-    for n in range(-count, count+1):
-       optionSymbols.append(getOptionSymbol(
-           underlyingInstrument, expiry, ltp - (n * strikeDifference), 'P'))
+    for n in range(-count, count + 1):
+        optionSymbols.append(
+            getOptionSymbol(
+                underlyingInstrument, expiry, ltp - (n * strikeDifference), "P"
+            )
+        )
 
     logger.info("Options symbols are " + ",".join(optionSymbols))
     return optionSymbols
 
-def getHistoricalData(api: NorenApi, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame:
-    startTime = startTime.replace(hour=0, minute=0, second=0, microsecond=0)
-    splitStrings = exchangeSymbol.split('|')
-    exchange = splitStrings[0]
-    token=finvasia.getToken(exchangeSymbol)
-    if '|' in token :
-        token = token.split('|')[1]
 
-    logger.info(
-        f'Retrieving {interval} timeframe historical data for {exchangeSymbol}')
-    ret = api.get_time_price_series(exchange=exchange, token=token, starttime=startTime.timestamp(), interval=interval)
+def getHistoricalData(
+    api: NorenApi, exchangeSymbol: str, startTime: datetime.datetime, interval: str
+) -> pd.DataFrame:
+    startTime = startTime.replace(hour=0, minute=0, second=0, microsecond=0)
+    splitStrings = exchangeSymbol.split("|")
+    exchange = splitStrings[0]
+    token = finvasia.getToken(exchangeSymbol)
+    if "|" in token:
+        token = token.split("|")[1]
+
+    logger.info(f"Retrieving {interval} timeframe historical data for {exchangeSymbol}")
+    ret = api.get_time_price_series(
+        exchange=exchange,
+        token=token,
+        starttime=startTime.timestamp(),
+        interval=interval,
+    )
     if ret != None:
-        df = pd.DataFrame(
-            ret)[['time', 'into', 'inth', 'intl', 'intc', 'v', 'oi']]
-        df = df.rename(columns={'time': 'Date/Time', 'into': 'Open', 'inth': 'High',
-                                'intl': 'Low', 'intc': 'Close', 'v': 'Volume', 'oi': 'Open Interest'})
-        df['Ticker'] = exchangeSymbol
-        df[['Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']] = df[[
-            'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']].astype(float)
-        df['Date/Time'] = pd.to_datetime(df['Date/Time'], format="%d-%m-%Y %H:%M:%S")
-        df = df[['Ticker', 'Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest']]
-        df = df.sort_values('Date/Time')
-        logger.info(f'Retrieved {df.shape[0]} rows of historical data')
+        df = pd.DataFrame(ret)[["time", "into", "inth", "intl", "intc", "v", "oi"]]
+        df = df.rename(
+            columns={
+                "time": "Date/Time",
+                "into": "Open",
+                "inth": "High",
+                "intl": "Low",
+                "intc": "Close",
+                "v": "Volume",
+                "oi": "Open Interest",
+            }
+        )
+        df["Ticker"] = exchangeSymbol
+        df[["Open", "High", "Low", "Close", "Volume", "Open Interest"]] = df[
+            ["Open", "High", "Low", "Close", "Volume", "Open Interest"]
+        ].astype(float)
+        df["Date/Time"] = pd.to_datetime(df["Date/Time"], format="%d-%m-%Y %H:%M:%S")
+        df = df[
+            [
+                "Ticker",
+                "Date/Time",
+                "Open",
+                "High",
+                "Low",
+                "Close",
+                "Volume",
+                "Open Interest",
+            ]
+        ]
+        df = df.sort_values("Date/Time")
+        logger.info(f"Retrieved {df.shape[0]} rows of historical data")
         return df
     else:
-        return pd.DataFrame(columns=['Date/Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Open Interest'])
+        return pd.DataFrame(
+            columns=[
+                "Date/Time",
+                "Open",
+                "High",
+                "Low",
+                "Close",
+                "Volume",
+                "Open Interest",
+            ]
+        )
+
 
 def getPriceType(orderType):
     return {
-                # LMT / MKT / SL-LMT / SL-MKT / DS / 2L / 3L
-                broker.Order.Type.MARKET: 'MKT',
-                broker.Order.Type.LIMIT: 'LMT',
-                broker.Order.Type.STOP_LIMIT: 'SL-LMT',
-                broker.Order.Type.STOP: 'SL-MKT'
-            }.get(orderType)
+        # LMT / MKT / SL-LMT / SL-MKT / DS / 2L / 3L
+        broker.Order.Type.MARKET: "MKT",
+        broker.Order.Type.LIMIT: "LMT",
+        broker.Order.Type.STOP_LIMIT: "SL-LMT",
+        broker.Order.Type.STOP: "SL-MKT",
+    }.get(orderType)
+
+
 class PaperTradingBroker(BacktestingBroker):
-    """A Finvasia paper trading broker.
-    """    
+    """A Finvasia paper trading broker."""
+
     def __init__(self, cash, barFeed, fee=0.0025):
         super().__init__(cash, barFeed, fee)
-        
+
         self.__api = barFeed.getApi()
 
     def getType(self):
@@ -127,18 +190,32 @@ class PaperTradingBroker(BacktestingBroker):
     def getUnderlyingDetails(self, underlying):
         return underlyingMapping[underlying]
 
-    def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame:
+    def getHistoricalData(
+        self, exchangeSymbol: str, startTime: datetime.datetime, interval: str
+    ) -> pd.DataFrame:
         return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
-        symbol = getUnderlyingDetails(underlyingInstrument)['optionPrefix']
+        symbol = getUnderlyingDetails(underlyingInstrument)["optionPrefix"]
 
-        dayMonthYear = f"{expiry.day:02d}" + \
-            calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
-        return symbol + dayMonthYear + ('C' if (callOrPut == 'C' or callOrPut == 'Call') else 'P') + str(strikePrice)
+        dayMonthYear = (
+            f"{expiry.day:02d}"
+            + calendar.month_abbr[expiry.month].upper()
+            + str(expiry.year % 100)
+        )
+        return (
+            symbol
+            + dayMonthYear
+            + ("C" if (callOrPut == "C" or callOrPut == "Call") else "P")
+            + str(strikePrice)
+        )
 
-    def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
-        return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
+    def getOptionSymbols(
+        self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice
+    ):
+        return getOptionSymbol(
+            underlyingInstrument, expiry, ceStrikePrice, "C"
+        ), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, "P")
 
     def getOptionContract(self, symbol) -> OptionContract:
         return getOptionContract(symbol)
@@ -240,33 +317,39 @@ class OrderEvent(object):
         self.__order = order
 
     def getStat(self):
-        return self.__eventDict.get('state', None)
-    
+        return self.__eventDict.get("state", None)
+
     def getErrorMessage(self):
-        return self.__eventDict.get('emsg', None)
+        return self.__eventDict.get("emsg", None)
 
     def getId(self):
-        return self.__eventDict.get('norenordno', None)
+        return self.__eventDict.get("norenordno", None)
 
     def getStatus(self):
-        return self.__eventDict.get('status', None)
+        return self.__eventDict.get("status", None)
 
     def getRejectedReason(self):
-        return self.__eventDict.get('rejreason', None)
+        return self.__eventDict.get("rejreason", None)
 
     def getAvgFilledPrice(self):
-        return float(self.__eventDict.get('avgprc', 0.0))
+        return float(self.__eventDict.get("avgprc", 0.0))
 
     def getTotalFilledQuantity(self):
-        return float(self.__eventDict.get('fillshares', 0.0))
+        return float(self.__eventDict.get("fillshares", 0.0))
 
     def getDateTime(self):
-        return datetime.datetime.strptime(self.__eventDict['norentm'], '%H:%M:%S %d-%m-%Y') if self.__eventDict.get('norentm', None) is not None else None
+        return (
+            datetime.datetime.strptime(self.__eventDict["norentm"], "%H:%M:%S %d-%m-%Y")
+            if self.__eventDict.get("norentm", None) is not None
+            else None
+        )
 
     def getOrder(self):
         return self.__order
 
-LiveBroker = ForwardRef('LiveBroker')
+
+LiveBroker = ForwardRef("LiveBroker")
+
 
 class TradeMonitor(threading.Thread):
     POLL_FREQUENCY = 1
@@ -290,24 +373,35 @@ class TradeMonitor(threading.Thread):
         activeOrders: List[Order] = list(self.__broker.getActiveOrders())
         orderBook = self.__api.get_order_book()
         for order in activeOrders:
-            filteredOrders = [orderBookOrder for orderBookOrder in orderBook if orderBookOrder.get('norenordno') == order.getId()]
+            filteredOrders = [
+                orderBookOrder
+                for orderBookOrder in orderBook
+                if orderBookOrder.get("norenordno") == order.getId()
+            ]
             if len(filteredOrders) == 0:
-                logger.warning(f'Order not found in the order book for order id {order.getId()}')
+                logger.warning(
+                    f"Order not found in the order book for order id {order.getId()}"
+                )
                 continue
 
             orderEvent = OrderEvent(filteredOrders[0], order)
 
             if order not in self.__retryData:
-                self.__retryData[order] = {'retryCount': 0, 'lastRetryTime': time.time()}
+                self.__retryData[order] = {
+                    "retryCount": 0,
+                    "lastRetryTime": time.time(),
+                }
 
-            if orderEvent.getStat() == 'Not_Ok':
-                logger.error(f'Fetching order history for {orderEvent.getId()} failed with reason {orderEvent.getErrorMessage()}')
+            if orderEvent.getStat() == "Not_Ok":
+                logger.error(
+                    f"Fetching order history for {orderEvent.getId()} failed with reason {orderEvent.getErrorMessage()}"
+                )
                 continue
-            elif orderEvent.getStatus() in ['PENDING', 'TRIGGER_PENDING']:
+            elif orderEvent.getStatus() in ["PENDING", "TRIGGER_PENDING"]:
                 pass
-            elif orderEvent.getStatus() == 'OPEN':
-                retryCount = self.__retryData[order]['retryCount']
-                lastRetryTime = self.__retryData[order]['lastRetryTime']
+            elif orderEvent.getStatus() == "OPEN":
+                retryCount = self.__retryData[order]["retryCount"]
+                lastRetryTime = self.__retryData[order]["lastRetryTime"]
 
                 if time.time() < (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
                     continue
@@ -315,43 +409,62 @@ class TradeMonitor(threading.Thread):
                 # Modify the order based on current LTP for retry 0 and convert to market for retry one
                 if retryCount == 0:
                     ltp = self.__broker.getLastPrice(order.getInstrument())
-                    logger.warning(f'Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}.'
-                                   f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with current LTP {ltp}')
-                    self.__broker.modifyOrder(order=order, newprice_type=getPriceType(broker.Order.Type.LIMIT), newprice=ltp)
+                    logger.warning(
+                        f"Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}."
+                        f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with current LTP {ltp}'
+                    )
+                    self.__broker.modifyOrder(
+                        order=order,
+                        newprice_type=getPriceType(broker.Order.Type.LIMIT),
+                        newprice=ltp,
+                    )
                 else:
-                    logger.warning(f'Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}.'
-                                   f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with market order')
-                    self.__broker.modifyOrder(order=order, newprice_type=getPriceType(broker.Order.Type.MARKET))
+                    logger.warning(
+                        f"Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}."
+                        f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with market order'
+                    )
+                    self.__broker.modifyOrder(
+                        order=order,
+                        newprice_type=getPriceType(broker.Order.Type.MARKET),
+                    )
 
-                self.__retryData[order]['retryCount'] += 1
-                self.__retryData[order]['lastRetryTime'] = time.time()
-            elif orderEvent.getStatus() in ['CANCELED', 'REJECTED']:
-                if orderEvent.getRejectedReason() is None or orderEvent.getRejectedReason() == 'Order Cancelled':
+                self.__retryData[order]["retryCount"] += 1
+                self.__retryData[order]["lastRetryTime"] = time.time()
+            elif orderEvent.getStatus() in ["CANCELED", "REJECTED"]:
+                if (
+                    orderEvent.getRejectedReason() is None
+                    or orderEvent.getRejectedReason() == "Order Cancelled"
+                ):
                     ret.append(orderEvent)
                     self.__retryData.pop(order, None)
                     continue
                 else:
                     logger.error(
-                        f'Order {orderEvent.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}')
+                        f"Order {orderEvent.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}"
+                    )
 
-                retryCount = self.__retryData[order]['retryCount']
-                lastRetryTime = self.__retryData[order]['lastRetryTime']
+                retryCount = self.__retryData[order]["retryCount"]
+                lastRetryTime = self.__retryData[order]["lastRetryTime"]
 
                 if retryCount < TradeMonitor.RETRY_COUNT:
                     if time.time() > (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
-                        logger.warning(f'Order {order.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"] + 1}')
+                        logger.warning(
+                            f'Order {order.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"] + 1}'
+                        )
                         self.__broker.placeOrder(order)
-                        self.__retryData[order]['retryCount'] += 1
-                        self.__retryData[order]['lastRetryTime'] = time.time()
+                        self.__retryData[order]["retryCount"] += 1
+                        self.__retryData[order]["lastRetryTime"] = time.time()
                 else:
-                    logger.warning(f'Exhausted retry attempts for Order {order.getId()}')
+                    logger.warning(
+                        f"Exhausted retry attempts for Order {order.getId()}"
+                    )
                     ret.append(orderEvent)
                     self.__retryData.pop(order, None)
-            elif orderEvent.getStatus() in ['COMPLETE']:
+            elif orderEvent.getStatus() in ["COMPLETE"]:
                 ret.append(orderEvent)
                 self.__retryData.pop(order, None)
             else:
-                logger.error(f'Unknown trade status {orderEvent.getStatus()}')
+                logger.error(f"Unknown trade status {orderEvent.getStatus()}")
 
         # Sort by time, so older trades first.
         return sorted(ret, key=lambda t: t.getDateTime())
@@ -363,7 +476,8 @@ class TradeMonitor(threading.Thread):
         trades = self.getNewTrades()
         if len(trades):
             logger.info(
-                f'Last trade found at {trades[-1].getDateTime()}. Order id {trades[-1].getId()}')
+                f"Last trade found at {trades[-1].getDateTime()}. Order id {trades[-1].getId()}"
+            )
             self.__queue.put((TradeMonitor.ON_USER_TRADE, trades))
 
         super(TradeMonitor, self).start()
@@ -373,11 +487,10 @@ class TradeMonitor(threading.Thread):
             try:
                 trades = self.getNewTrades()
                 if len(trades):
-                    logger.info(f'{len(trades)} new trade/s found')
+                    logger.info(f"{len(trades)} new trade/s found")
                     self.__queue.put((TradeMonitor.ON_USER_TRADE, trades))
             except Exception as e:
-                logger.critical(
-                    "Error retrieving user transactions", exc_info=e)
+                logger.critical("Error retrieving user transactions", exc_info=e)
 
             time.sleep(TradeMonitor.POLL_FREQUENCY)
 
@@ -395,10 +508,12 @@ class OrderResponse(object):
         self.__dict: dict = response
 
     def getId(self):
-        return self.__dict.get('norenordno', self.__dict.get('result', None))
+        return self.__dict.get("norenordno", self.__dict.get("result", None))
 
     def getDateTime(self):
-        return datetime.datetime.strptime(self.__dict["request_time"], "%H:%M:%S %d-%m-%Y")
+        return datetime.datetime.strptime(
+            self.__dict["request_time"], "%H:%M:%S %d-%m-%Y"
+        )
 
     def getStat(self):
         return self.__dict.get("stat", None)
@@ -409,7 +524,7 @@ class OrderResponse(object):
 
 class LiveBroker(broker.Broker):
     """A Finvasia live broker.
-    
+
     :param api: Logged in api object.
     :type api: NorenApi.
 
@@ -440,19 +555,33 @@ class LiveBroker(broker.Broker):
         return underlyingMapping[underlying]
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
-        symbol = getUnderlyingDetails(underlyingInstrument)['optionPrefix']
+        symbol = getUnderlyingDetails(underlyingInstrument)["optionPrefix"]
 
-        dayMonthYear = f"{expiry.day:02d}" + \
-            calendar.month_abbr[expiry.month].upper() + str(expiry.year % 100)
-        return symbol + dayMonthYear + ('C' if (callOrPut == 'C' or callOrPut == 'Call') else 'P') + str(strikePrice)
+        dayMonthYear = (
+            f"{expiry.day:02d}"
+            + calendar.month_abbr[expiry.month].upper()
+            + str(expiry.year % 100)
+        )
+        return (
+            symbol
+            + dayMonthYear
+            + ("C" if (callOrPut == "C" or callOrPut == "Call") else "P")
+            + str(strikePrice)
+        )
 
-    def getOptionSymbols(self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice):
-        return getOptionSymbol(underlyingInstrument, expiry, ceStrikePrice, 'C'), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, 'P')
+    def getOptionSymbols(
+        self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice
+    ):
+        return getOptionSymbol(
+            underlyingInstrument, expiry, ceStrikePrice, "C"
+        ), getOptionSymbol(underlyingInstrument, expiry, peStrikePrice, "P")
 
     def getOptionContract(self, symbol) -> OptionContract:
         return getOptionContract(symbol)
 
-    def getHistoricalData(self, exchangeSymbol: str, startTime: datetime.datetime, interval: str) -> pd.DataFrame:
+    def getHistoricalData(
+        self, exchangeSymbol: str, startTime: datetime.datetime, interval: str
+    ) -> pd.DataFrame:
         return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
 
     def __init__(self, api: NorenApi, barFeed: BaseBarFeed):
@@ -473,7 +602,7 @@ class LiveBroker(broker.Broker):
 
     def getTradeMonitor(self):
         return self.__tradeMonitor
-    
+
     def getLastPrice(self, instrument):
         ret = None
         bar = self.getFeed().getLastBar(instrument)
@@ -485,11 +614,11 @@ class LiveBroker(broker.Broker):
         return QuantityTraits()
 
     def _registerOrder(self, order: Order):
-        assert (order not in self.__activeOrders)
+        assert order not in self.__activeOrders
         self.__activeOrders.add(order)
 
     def _unregisterOrder(self, order: Order):
-        assert (order in self.__activeOrders)
+        assert order in self.__activeOrders
         self.__activeOrders.remove(order)
 
     def refreshAccountBalance(self):
@@ -497,20 +626,22 @@ class LiveBroker(broker.Broker):
             logger.info("Retrieving account balance.")
             limits = self.__api.get_limits()
 
-            if not limits or limits['stat'] != 'Ok':
+            if not limits or limits["stat"] != "Ok":
                 logger.error(
-                    f'Error retrieving account balance. Reason: {limits["emsg"]}')
+                    f'Error retrieving account balance. Reason: {limits["emsg"]}'
+                )
 
             marginUsed = 0
 
-            if 'marginused' in limits:
-                marginUsed = float(limits['marginused'])
+            if "marginused" in limits:
+                marginUsed = float(limits["marginused"])
 
-            self.__cash = float(limits['cash']) - marginUsed
-            logger.info(f'Available balance is <{self.__cash:.2f}>')
+            self.__cash = float(limits["cash"]) - marginUsed
+            logger.info(f"Available balance is <{self.__cash:.2f}>")
         except Exception as e:
             logger.exception(
-                f'Exception retrieving account balance. Reason: {limits["emsg"]}')
+                f'Exception retrieving account balance. Reason: {limits["emsg"]}'
+            )
 
     def refreshOpenOrders(self):
         return
@@ -531,15 +662,20 @@ class LiveBroker(broker.Broker):
         self.__stop = False  # No errors. Keep running.
 
     def _onTrade(self, order: Order, trade: OrderEvent):
-        if trade.getStatus() == 'REJECTED' or trade.getStatus() == 'CANCELED':
+        if trade.getStatus() == "REJECTED" or trade.getStatus() == "CANCELED":
             self._unregisterOrder(order)
             order.switchState(broker.Order.State.CANCELED)
-            self.notifyOrderEvent(broker.OrderEvent(
-                order, broker.OrderEvent.Type.CANCELED, None))
-        elif trade.getStatus() == 'COMPLETE':
+            self.notifyOrderEvent(
+                broker.OrderEvent(order, broker.OrderEvent.Type.CANCELED, None)
+            )
+        elif trade.getStatus() == "COMPLETE":
             fee = 0
             orderExecutionInfo = broker.OrderExecutionInfo(
-                trade.getAvgFilledPrice(), trade.getTotalFilledQuantity() - order.getFilled(), fee, trade.getDateTime())
+                trade.getAvgFilledPrice(),
+                trade.getTotalFilledQuantity() - order.getFilled(),
+                fee,
+                trade.getDateTime(),
+            )
             order.addExecutionInfo(orderExecutionInfo)
             if not order.isActive():
                 self._unregisterOrder(order)
@@ -548,11 +684,14 @@ class LiveBroker(broker.Broker):
                 eventType = broker.OrderEvent.Type.FILLED
             else:
                 eventType = broker.OrderEvent.Type.PARTIALLY_FILLED
-            self.notifyOrderEvent(broker.OrderEvent(
-                order, eventType, orderExecutionInfo))
-            logger.info(f'Order filled<{order.isFilled()}> for {order.getInstrument()} at <{orderExecutionInfo.getDateTime()}>. Avg Filled Price <{orderExecutionInfo.getPrice()}>. Quantity <{orderExecutionInfo.getQuantity()}>')
+            self.notifyOrderEvent(
+                broker.OrderEvent(order, eventType, orderExecutionInfo)
+            )
+            logger.info(
+                f"Order filled<{order.isFilled()}> for {order.getInstrument()} at <{orderExecutionInfo.getDateTime()}>. Avg Filled Price <{orderExecutionInfo.getPrice()}>. Quantity <{orderExecutionInfo.getQuantity()}>"
+            )
         else:
-            logger.error(f'Unknown order status {trade.getStatus()}')
+            logger.error(f"Unknown order status {trade.getStatus()}")
 
         self.refreshAccountBalance()
 
@@ -563,7 +702,8 @@ class LiveBroker(broker.Broker):
                 self._onTrade(order, trade)
             else:
                 logger.info(
-                    f"Trade {trade.getId()} referred to order that is not active")
+                    f"Trade {trade.getId()} referred to order that is not active"
+                )
 
     # BEGIN observer.Subject interface
     def start(self):
@@ -591,17 +731,21 @@ class LiveBroker(broker.Broker):
             for order in ordersToProcess:
                 if order.isSubmitted():
                     order.switchState(broker.Order.State.ACCEPTED)
-                    self.notifyOrderEvent(broker.OrderEvent(
-                        order, broker.OrderEvent.Type.ACCEPTED, None))
+                    self.notifyOrderEvent(
+                        broker.OrderEvent(order, broker.OrderEvent.Type.ACCEPTED, None)
+                    )
 
             eventType, eventData = self.__tradeMonitor.getQueue().get(
-                True, LiveBroker.QUEUE_TIMEOUT)
+                True, LiveBroker.QUEUE_TIMEOUT
+            )
 
             if eventType == TradeMonitor.ON_USER_TRADE:
                 self._onUserTrades(eventData)
             else:
                 logger.error(
-                    "Invalid event received to dispatch: %s - %s" % (eventType, eventData))
+                    "Invalid event received to dispatch: %s - %s"
+                    % (eventType, eventData)
+                )
         except six.moves.queue.Empty:
             pass
         except Exception as e:
@@ -633,126 +777,142 @@ class LiveBroker(broker.Broker):
         return list(self.__activeOrders)
 
     # Place a Limit order as follows
-#     api.place_order(buy_or_sell='B', product_type='C',
-#                         exchange='NSE', tradingsymbol='INFY-EQ',
-#                         quantity=1, discloseqty=0,price_type='LMT', price=1500, trigger_price=None,
-#                         retention='DAY', remarks='my_order_001')
-# Place a Market Order as follows
-#     api.place_order(buy_or_sell='B', product_type='C',
-#                         exchange='NSE', tradingsymbol='INFY-EQ',
-#                         quantity=1, discloseqty=0,price_type='MKT', price=0, trigger_price=None,
-#                         retention='DAY', remarks='my_order_001')
-# Place a StopLoss Order as follows
-#     api.place_order(buy_or_sell='B', product_type='C',
-#                         exchange='NSE', tradingsymbol='INFY-EQ',
-#                         quantity=1, discloseqty=0,price_type='SL-LMT', price=1500, trigger_price=1450,
-#                         retention='DAY', remarks='my_order_001')
-# Place a Cover Order as follows
-#     api.place_order(buy_or_sell='B', product_type='H',
-#                         exchange='NSE', tradingsymbol='INFY-EQ',
-#                         quantity=1, discloseqty=0,price_type='LMT', price=1500, trigger_price=None,
-#                         retention='DAY', remarks='my_order_001', bookloss_price = 1490)
-# Place a Bracket Order as follows
-#     api.place_order(buy_or_sell='B', product_type='B',
-#                         exchange='NSE', tradingsymbol='INFY-EQ',
-#                         quantity=1, discloseqty=0,price_type='LMT', price=1500, trigger_price=None,
-#                         retention='DAY', remarks='my_order_001', bookloss_price = 1490, bookprofit_price = 1510)
-# Modify Order
-# Modify a New Order by providing the OrderNumber
-#     api.modify_order(exchange='NSE', tradingsymbol='INFY-EQ', orderno=orderno,
-#                                    newquantity=2, newprice_type='LMT', newprice=1505)
-# Cancel Order
-# Cancel a New Order by providing the Order Number
-#     api.cancel_order(orderno=orderno)
+    #     api.place_order(buy_or_sell='B', product_type='C',
+    #                         exchange='NSE', tradingsymbol='INFY-EQ',
+    #                         quantity=1, discloseqty=0,price_type='LMT', price=1500, trigger_price=None,
+    #                         retention='DAY', remarks='my_order_001')
+    # Place a Market Order as follows
+    #     api.place_order(buy_or_sell='B', product_type='C',
+    #                         exchange='NSE', tradingsymbol='INFY-EQ',
+    #                         quantity=1, discloseqty=0,price_type='MKT', price=0, trigger_price=None,
+    #                         retention='DAY', remarks='my_order_001')
+    # Place a StopLoss Order as follows
+    #     api.place_order(buy_or_sell='B', product_type='C',
+    #                         exchange='NSE', tradingsymbol='INFY-EQ',
+    #                         quantity=1, discloseqty=0,price_type='SL-LMT', price=1500, trigger_price=1450,
+    #                         retention='DAY', remarks='my_order_001')
+    # Place a Cover Order as follows
+    #     api.place_order(buy_or_sell='B', product_type='H',
+    #                         exchange='NSE', tradingsymbol='INFY-EQ',
+    #                         quantity=1, discloseqty=0,price_type='LMT', price=1500, trigger_price=None,
+    #                         retention='DAY', remarks='my_order_001', bookloss_price = 1490)
+    # Place a Bracket Order as follows
+    #     api.place_order(buy_or_sell='B', product_type='B',
+    #                         exchange='NSE', tradingsymbol='INFY-EQ',
+    #                         quantity=1, discloseqty=0,price_type='LMT', price=1500, trigger_price=None,
+    #                         retention='DAY', remarks='my_order_001', bookloss_price = 1490, bookprofit_price = 1510)
+    # Modify Order
+    # Modify a New Order by providing the OrderNumber
+    #     api.modify_order(exchange='NSE', tradingsymbol='INFY-EQ', orderno=orderno,
+    #                                    newquantity=2, newprice_type='LMT', newprice=1505)
+    # Cancel Order
+    # Cancel a New Order by providing the Order Number
+    #     api.cancel_order(orderno=orderno)
 
     def modifyOrder(self, order: Order, newprice_type=None, newprice=0.0):
         try:
-            splitStrings = order.getInstrument().split('|')
-            exchange = splitStrings[0] if len(splitStrings) > 1 else 'NSE'
-            symbol = splitStrings[1] if len(
-                splitStrings) > 1 else order.getInstrument()
+            splitStrings = order.getInstrument().split("|")
+            exchange = splitStrings[0] if len(splitStrings) > 1 else "NSE"
+            symbol = splitStrings[1] if len(splitStrings) > 1 else order.getInstrument()
             quantity = order.getQuantity()
 
-            modifyOrderResponse = self.__api.modify_order(orderno=order.getId(),
-                                                    exchange=exchange,
-                                                    tradingsymbol=symbol,
-                                                    newquantity=quantity,
-                                                    newprice_type=newprice_type,
-                                                    newprice=newprice,
-                                                    newtrigger_price=None,
-                                                    bookloss_price = 0.0,
-                                                    bookprofit_price = 0.0,
-                                                    trail_price = 0.0)
+            modifyOrderResponse = self.__api.modify_order(
+                orderno=order.getId(),
+                exchange=exchange,
+                tradingsymbol=symbol,
+                newquantity=quantity,
+                newprice_type=newprice_type,
+                newprice=newprice,
+                newtrigger_price=None,
+                bookloss_price=0.0,
+                bookprofit_price=0.0,
+                trail_price=0.0,
+            )
 
             if modifyOrderResponse is None:
-                raise Exception('modify_order returned None')
+                raise Exception("modify_order returned None")
 
             ret = OrderResponse(modifyOrderResponse)
 
             if ret.getStat() != "Ok":
                 raise Exception(ret.getErrorMessage())
-            
+
             oldOrderId = order.getId()
             if oldOrderId is not None:
                 self._unregisterOrder(order)
-            
-            order.setSubmitted(ret.getId(),
-                                ret.getDateTime())
+
+            order.setSubmitted(ret.getId(), ret.getDateTime())
             self._registerOrder(order)
 
             logger.info(
-                f'Modified {newprice_type} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} with New order {order.getId()} at {order.getSubmitDateTime()}')
+                f'Modified {newprice_type} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} with New order {order.getId()} at {order.getSubmitDateTime()}'
+            )
         except Exception as e:
-            logger.critical(f'Could not place order for {symbol}. Reason: {e}')
+            logger.critical(f"Could not place order for {symbol}. Reason: {e}")
 
     def placeOrder(self, order: Order):
         try:
-            buyOrSell = 'B' if order.isBuy() else 'S'
-            splitStrings = order.getInstrument().split('|')
-            exchange = splitStrings[0] if len(splitStrings) > 1 else 'NSE'
+            buyOrSell = "B" if order.isBuy() else "S"
+            splitStrings = order.getInstrument().split("|")
+            exchange = splitStrings[0] if len(splitStrings) > 1 else "NSE"
             # "C" For CNC, "M" FOR NRML, "I" FOR MIS, "B" FOR BRACKET ORDER, "H" FOR COVER ORDER
-            productType = 'I' if exchange != 'BFO' else 'M'
-            symbol = splitStrings[1] if len(
-                splitStrings) > 1 else order.getInstrument()
+            productType = "I" if exchange != "BFO" else "M"
+            symbol = splitStrings[1] if len(splitStrings) > 1 else order.getInstrument()
             quantity = order.getQuantity()
-            price = order.getLimitPrice() if order.getType() in [
-                broker.Order.Type.LIMIT, broker.Order.Type.STOP_LIMIT] else 0
-            stopPrice = order.getStopPrice() if order.getType() in [
-                broker.Order.Type.STOP_LIMIT] else 0
+            price = (
+                order.getLimitPrice()
+                if order.getType()
+                in [broker.Order.Type.LIMIT, broker.Order.Type.STOP_LIMIT]
+                else 0
+            )
+            stopPrice = (
+                order.getStopPrice()
+                if order.getType() in [broker.Order.Type.STOP_LIMIT]
+                else 0
+            )
             priceType = getPriceType(order.getType())
-            retention = 'DAY'  # DAY / EOS / IOC
+            retention = "DAY"  # DAY / EOS / IOC
 
             logger.info(
-                f'Placing order with buyOrSell={buyOrSell}, product_type={productType}, exchange={exchange}, '
-                f'tradingsymbol={symbol}, quantity={quantity}, discloseqty=0, price_type={priceType}, '
-                f'price={price}, trigger_price={stopPrice}, retention={retention}, remarks="PyAlgoMate order"')
-            placedOrderResponse = self.__api.place_order(buy_or_sell=buyOrSell, product_type=productType,
-                                                    exchange=exchange, tradingsymbol=symbol,
-                                                    quantity=quantity, discloseqty=0, price_type=priceType,
-                                                    price=price, trigger_price=stopPrice,
-                                                    retention=retention, remarks=f'PyAlgoMate order')
+                f"Placing order with buyOrSell={buyOrSell}, product_type={productType}, exchange={exchange}, "
+                f"tradingsymbol={symbol}, quantity={quantity}, discloseqty=0, price_type={priceType}, "
+                f'price={price}, trigger_price={stopPrice}, retention={retention}, remarks="PyAlgoMate order"'
+            )
+            placedOrderResponse = self.__api.place_order(
+                buy_or_sell=buyOrSell,
+                product_type=productType,
+                exchange=exchange,
+                tradingsymbol=symbol,
+                quantity=quantity,
+                discloseqty=0,
+                price_type=priceType,
+                price=price,
+                trigger_price=stopPrice,
+                retention=retention,
+                remarks=f"PyAlgoMate order",
+            )
 
             if placedOrderResponse is None:
-                raise Exception('place_order returned None')
+                raise Exception("place_order returned None")
 
             orderResponse = OrderResponse(placedOrderResponse)
 
             if orderResponse.getStat() != "Ok":
                 raise Exception(orderResponse.getErrorMessage())
-            
+
             oldOrderId = order.getId()
             if oldOrderId is not None:
                 self._unregisterOrder(order)
-            
-            order.setSubmitted(orderResponse.getId(),
-                                orderResponse.getDateTime())
+
+            order.setSubmitted(orderResponse.getId(), orderResponse.getDateTime())
 
             self._registerOrder(order)
 
             logger.info(
-                f'Placed {priceType} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} New order {order.getId()} at {order.getSubmitDateTime()}')            
+                f'Placed {priceType} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} New order {order.getId()} at {order.getSubmitDateTime()}'
+            )
         except Exception as e:
-            logger.critical(f'Could not place order for {symbol}. Reason: {e}')
+            logger.critical(f"Could not place order for {symbol}. Reason: {e}")
 
     def submitOrder(self, order: Order):
         if order.isInitial():
@@ -772,34 +932,67 @@ class LiveBroker(broker.Broker):
     def _createOrder(self, orderType, action, instrument, quantity, price, stopPrice):
         action = {
             broker.Order.Action.BUY_TO_COVER: broker.Order.Action.BUY,
-            broker.Order.Action.BUY:          broker.Order.Action.BUY,
-            broker.Order.Action.SELL_SHORT:   broker.Order.Action.SELL,
-            broker.Order.Action.SELL:         broker.Order.Action.SELL
+            broker.Order.Action.BUY: broker.Order.Action.BUY,
+            broker.Order.Action.SELL_SHORT: broker.Order.Action.SELL,
+            broker.Order.Action.SELL: broker.Order.Action.SELL,
         }.get(action, None)
 
         if action is None:
             raise Exception("Only BUY/SELL orders are supported")
 
         if orderType == broker.MarketOrder:
-            return broker.MarketOrder(action, instrument, quantity, False, self.getInstrumentTraits(instrument))
+            return broker.MarketOrder(
+                action,
+                instrument,
+                quantity,
+                False,
+                self.getInstrumentTraits(instrument),
+            )
         elif orderType == broker.LimitOrder:
-            return broker.LimitOrder(action, instrument, price, quantity, self.getInstrumentTraits(instrument))
+            return broker.LimitOrder(
+                action,
+                instrument,
+                price,
+                quantity,
+                self.getInstrumentTraits(instrument),
+            )
         elif orderType == broker.StopOrder:
-            return broker.StopOrder(action, instrument, stopPrice, quantity, self.getInstrumentTraits(instrument))
+            return broker.StopOrder(
+                action,
+                instrument,
+                stopPrice,
+                quantity,
+                self.getInstrumentTraits(instrument),
+            )
         elif orderType == broker.StopLimitOrder:
-            return broker.StopLimitOrder(action, instrument, stopPrice, price, quantity, self.getInstrumentTraits(instrument))
+            return broker.StopLimitOrder(
+                action,
+                instrument,
+                stopPrice,
+                price,
+                quantity,
+                self.getInstrumentTraits(instrument),
+            )
 
     def createMarketOrder(self, action, instrument, quantity, onClose=False):
-        return self._createOrder(broker.MarketOrder, action, instrument, quantity, None, None)
+        return self._createOrder(
+            broker.MarketOrder, action, instrument, quantity, None, None
+        )
 
     def createLimitOrder(self, action, instrument, limitPrice, quantity):
-        return self._createOrder(broker.LimitOrder, action, instrument, quantity, limitPrice, None)
+        return self._createOrder(
+            broker.LimitOrder, action, instrument, quantity, limitPrice, None
+        )
 
     def createStopOrder(self, action, instrument, stopPrice, quantity):
-        return self._createOrder(broker.StopOrder, action, instrument, quantity, None, stopPrice)
+        return self._createOrder(
+            broker.StopOrder, action, instrument, quantity, None, stopPrice
+        )
 
     def createStopLimitOrder(self, action, instrument, stopPrice, limitPrice, quantity):
-        return self._createOrder(broker.StopLimitOrder, action, instrument, quantity, limitPrice, stopPrice)
+        return self._createOrder(
+            broker.StopLimitOrder, action, instrument, quantity, limitPrice, stopPrice
+        )
 
     def cancelOrder(self, order: Order):
         if order not in self.__activeOrders:
@@ -811,15 +1004,17 @@ class LiveBroker(broker.Broker):
             cancelOrderResponse = self.__api.cancel_order(orderno=order.getId())
 
             if cancelOrderResponse is None:
-                raise Exception('cancel_order returned None')
+                raise Exception("cancel_order returned None")
 
             orderResponse = OrderResponse(cancelOrderResponse)
 
             if orderResponse.getStat() != "Ok":
                 raise Exception(orderResponse.getErrorMessage())
 
-            logger.info(f'Canceled order {orderResponse.getId()} at {orderResponse.getDateTime()}')
+            logger.info(
+                f"Canceled order {orderResponse.getId()} at {orderResponse.getDateTime()}"
+            )
         except Exception as e:
-            logger.critical(f'Could not cancel order for {order.getId()}. Reason: {e}')
+            logger.critical(f"Could not cancel order for {order.getId()}. Reason: {e}")
 
     # END broker.Broker interface
