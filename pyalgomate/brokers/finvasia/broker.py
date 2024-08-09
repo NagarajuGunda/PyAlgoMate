@@ -2,25 +2,26 @@
 .. moduleauthor:: Nagaraju Gunda
 """
 
+import calendar
+import datetime
+import logging
 import threading
 import time
-import logging
-import datetime
-import six
-import calendar
-import re
-import pandas as pd
-from typing import ForwardRef, List, Dict, Set
+from typing import ForwardRef, List, Set
 
+import pandas as pd
+import six
+from NorenRestApiPy.NorenApi import NorenApi
 from pyalgotrade import broker
 from pyalgotrade.broker import Order
+
+import pyalgomate.brokers.finvasia as finvasia
+import pyalgomate.utils as utils
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.brokers import BacktestingBroker, QuantityTraits
 from pyalgomate.strategies import OptionContract
-from NorenRestApiPy.NorenApi import NorenApi
 from pyalgomate.utils import UnderlyingIndex
-import pyalgomate.utils as utils
-import pyalgomate.brokers.finvasia as finvasia
+
 from . import getOptionContract, underlyingMapping
 
 logger = logging.getLogger(__name__)
@@ -116,7 +117,7 @@ def getHistoricalData(
         starttime=startTime.timestamp(),
         interval=interval,
     )
-    if ret != None:
+    if ret is not None:
         df = pd.DataFrame(ret)[["time", "into", "inth", "intl", "intc", "v", "oi"]]
         df = df.rename(
             columns={
@@ -369,9 +370,17 @@ class TradeMonitor(threading.Thread):
         self.__retryData = dict()
 
     def getNewTrades(self):
+        start_time = time.time()
+
         ret: List[OrderEvent] = []
         activeOrders: List[Order] = list(self.__broker.getActiveOrders())
+
         orderBook = self.__api.get_order_book()
+        orderBookFetchTime = time.time() - start_time
+
+        orderBookOrderIds = set()
+        confirmedOrderIds = set()
+
         for order in activeOrders:
             filteredOrders = [
                 orderBookOrder
@@ -385,6 +394,7 @@ class TradeMonitor(threading.Thread):
                 continue
 
             orderEvent = OrderEvent(filteredOrders[0], order)
+            orderBookOrderIds.add(order.getId())
 
             if order not in self.__retryData:
                 self.__retryData[order] = {
@@ -436,6 +446,7 @@ class TradeMonitor(threading.Thread):
                     or orderEvent.getRejectedReason() == "Order Cancelled"
                 ):
                     ret.append(orderEvent)
+                    confirmedOrderIds.add(order.getId())
                     self.__retryData.pop(order, None)
                     continue
                 else:
@@ -459,15 +470,30 @@ class TradeMonitor(threading.Thread):
                         f"Exhausted retry attempts for Order {order.getId()}"
                     )
                     ret.append(orderEvent)
+                    confirmedOrderIds.add(order.getId())
                     self.__retryData.pop(order, None)
             elif orderEvent.getStatus() in ["COMPLETE"]:
                 ret.append(orderEvent)
+                confirmedOrderIds.add(order.getId())
                 self.__retryData.pop(order, None)
             else:
                 logger.error(f"Unknown trade status {orderEvent.getStatus()}")
 
         # Sort by time, so older trades first.
-        return sorted(ret, key=lambda t: t.getDateTime())
+        ret = sorted(ret, key=lambda t: t.getDateTime())
+
+        if len(ret) > 0:
+            end_time = time.time()
+            logger.info("New trades found:")
+            logger.info(f"  Order book fetch time: {orderBookFetchTime:.3f} seconds")
+            logger.info(f"  Total processing time: {end_time - start_time:.3f} seconds")
+            logger.info(f"  Number of active orders: {len(activeOrders)}")
+            logger.info(f"  Number of orders in order book: {len(orderBook)}")
+            logger.info(f"  Number of new trades: {len(ret)}")
+            logger.info(f"  Order IDs in order book: {orderBookOrderIds}")
+            logger.info(f"  Confirmed Order IDs: {confirmedOrderIds}")
+
+        return ret
 
     def getQueue(self):
         return self.__queue
@@ -638,7 +664,7 @@ class LiveBroker(broker.Broker):
 
             self.__cash = float(limits["cash"]) - marginUsed
             logger.info(f"Available balance is <{self.__cash:.2f}>")
-        except Exception as e:
+        except Exception:
             logger.exception(
                 f'Exception retrieving account balance. Reason: {limits["emsg"]}'
             )
@@ -889,7 +915,7 @@ class LiveBroker(broker.Broker):
                 price=price,
                 trigger_price=stopPrice,
                 retention=retention,
-                remarks=f"PyAlgoMate order",
+                remarks="PyAlgoMate order",
             )
 
             if placedOrderResponse is None:
