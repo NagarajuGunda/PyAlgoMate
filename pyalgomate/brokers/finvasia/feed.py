@@ -105,7 +105,8 @@ class QuoteMessage(object):
 
 
 class LiveTradeFeed(BaseBarFeed):
-    def __init__(self, api: NorenApi, tokenMappings: dict, instruments: list, zmq_port="5555", timeout=10, maxLen=None):
+    def __init__(self, api: NorenApi, tokenMappings: dict, instruments: list, zmq_ipc_path="/tmp/zmq_websocket.ipc",
+                 timeout=10, maxLen=None):
         super(LiveTradeFeed, self).__init__(bar.Frequency.TRADE, maxLen)
         self.__instruments = instruments
         self.__instrumentToTokenIdMapping = {
@@ -131,7 +132,7 @@ class LiveTradeFeed(BaseBarFeed):
         # ZeroMQ setup
         self.__context = zmq.asyncio.Context()
         self.__socket = self.__context.socket(zmq.SUB)
-        self.__socket.connect(f"tcp://localhost:{zmq_port}")
+        self.__socket.connect(f"ipc://{zmq_ipc_path}")
         self.__socket.setsockopt_string(zmq.SUBSCRIBE, '')
 
         # Queue to communicate between threads
