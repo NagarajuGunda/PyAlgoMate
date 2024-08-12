@@ -5,7 +5,7 @@ import pyalgotrade.broker
 import six
 from pyalgotrade import logger, observer
 from pyalgotrade.broker import backtesting
-from pyalgotrade.strategy import position
+from pyalgomate.strategy import position
 
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.core import dispatcher, resampled

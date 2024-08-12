@@ -1,8 +1,7 @@
-from pyalgotrade.stratanalyzer import returns
-from pyalgotrade import warninghelpers
-from pyalgotrade import broker
-
 import datetime
+
+from pyalgotrade import broker, warninghelpers
+from pyalgotrade.stratanalyzer import returns
 
 
 class PositionState(object):
@@ -143,7 +142,7 @@ class Position(object):
         This is a base class and should not be used directly.
     """
 
-    def __init__(self, strategy, entryOrder, goodTillCanceled, allOrNone):
+    def __init__(self, strategy, entryOrder, goodTillCanceled, allOrNone, **kwargs):
         # The order must be created but not submitted.
         assert entryOrder.isInitial()
 
@@ -157,6 +156,7 @@ class Position(object):
         self.__exitDateTime = None
         self.__posTracker = returns.PositionTracker(entryOrder.getInstrumentTraits())
         self.__allOrNone = allOrNone
+        self.__customAttributes = kwargs  # Store custom attributes
 
         self.switchState(WaitingEntryState())
 
@@ -433,6 +433,18 @@ class Position(object):
             ret = last - self.__entryDateTime
         return ret
 
+    def setCustomAttribute(self, key, value):
+        """Set a custom attribute for the position."""
+        self.__customAttributes[key] = value
+
+    def getCustomAttribute(self, key, default=None):
+        """Get a custom attribute for the position."""
+        return self.__customAttributes.get(key, default)
+
+    def getAllCustomAttributes(self):
+        """Get all custom attributes for the position."""
+        return self.__customAttributes.copy()
+
 
 # This class is reponsible for order management in long positions.
 class LongPosition(Position):
@@ -445,6 +457,7 @@ class LongPosition(Position):
         quantity,
         goodTillCanceled,
         allOrNone,
+        **kwargs
     ):
         if limitPrice is None and stopPrice is None:
             entryOrder = strategy.getBroker().createMarketOrder(
@@ -466,7 +479,7 @@ class LongPosition(Position):
             assert False
 
         super(LongPosition, self).__init__(
-            strategy, entryOrder, goodTillCanceled, allOrNone
+            strategy, entryOrder, goodTillCanceled, allOrNone, **kwargs
         )
 
     def buildExitOrder(self, stopPrice, limitPrice):
@@ -525,6 +538,7 @@ class ShortPosition(Position):
         quantity,
         goodTillCanceled,
         allOrNone,
+        **kwargs
     ):
         if limitPrice is None and stopPrice is None:
             entryOrder = strategy.getBroker().createMarketOrder(
@@ -550,7 +564,7 @@ class ShortPosition(Position):
             assert False
 
         super(ShortPosition, self).__init__(
-            strategy, entryOrder, goodTillCanceled, allOrNone
+            strategy, entryOrder, goodTillCanceled, allOrNone, **kwargs
         )
 
     def buildExitOrder(self, stopPrice, limitPrice):
