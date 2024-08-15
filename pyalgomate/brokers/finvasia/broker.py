@@ -4,6 +4,7 @@
 
 import calendar
 import datetime
+import json
 import logging
 import threading
 import time
@@ -11,6 +12,7 @@ from typing import ForwardRef, List, Set
 
 import pandas as pd
 import six
+import zmq
 from NorenRestApiPy.NorenApi import NorenApi
 from pyalgotrade import broker
 from pyalgotrade.broker import Order
@@ -221,104 +223,11 @@ class PaperTradingBroker(BacktestingBroker):
     def getOptionContract(self, symbol) -> OptionContract:
         return getOptionContract(symbol)
 
-    # get_order_book
-    # Response data will be in json Array of objects with below fields in case of success.
-
-    # Json Fields	Possible value	Description
-    # stat	        Ok or Not_Ok	Order book success or failure indication.
-    # exch		                    Exchange Segment
-    # tsym		                    Trading symbol / contract on which order is placed.
-    # norenordno		            Noren Order Number
-    # prc		                    Order Price
-    # qty		                    Order Quantity
-    # prd		                    Display product alias name, using prarr returned in user details.
-    # status
-    # trantype	    B / S       	Transaction type of the order
-    # prctyp	    LMT / MKT   	Price type
-    # fillshares	                Total Traded Quantity of this order
-    # avgprc		                Average trade price of total traded quantity
-    # rejreason		                If order is rejected, reason in text form
-    # exchordid		                Exchange Order Number
-    # cancelqty		                Canceled quantity for order which is in status cancelled.
-    # remarks		                Any message Entered during order entry.
-    # dscqty		                Order disclosed quantity.
-    # trgprc		                Order trigger price
-    # ret           DAY / IOC / EOS	Order validity
-    # uid
-    # actid
-    # bpprc		                    Book Profit Price applicable only if product is selected as B (Bracket order )
-    # blprc		                    Book loss Price applicable only if product is selected as H and B (High Leverage and Bracket order )
-    # trailprc	                    Trailing Price applicable only if product is selected as H and B (High Leverage and Bracket order )
-    # amo		                    Yes / No
-    # pp		                    Price precision
-    # ti		                    Tick size
-    # ls		                    Lot size
-    # token		                    Contract Token
-    # norentm
-    # ordenttm
-    # exch_tm
-    # snoordt		                0 for profit leg and 1 for stoploss leg
-    # snonum		                This field will be present for product H and B; and only if it is profit/sl order.
-
-    # Response data will be in json format with below fields in case of failure:
-
-    # Json Fields	Possible value	Description
-    # stat	        Not_Ok	        Order book failure indication.
-    # request_time		            Response received time.
-    # emsg		                    Error message
-
-    # single_order_history
-
-    # Json Fields	Possible value	Description
-    # stat	        Ok or Not_Ok	Order book success or failure indication.
-    # exch		                    Exchange Segment
-    # tsym		                    Trading symbol / contract on which order is placed.
-    # norenordno		            Noren Order Number
-    # prc		                    Order Price
-    # qty		                    Order Quantity
-    # prd		                    Display product alias name, using prarr returned in user details.
-    # status
-    # rpt		                    (fill/complete etc)
-    # trantype	    B / S	        Transaction type of the order
-    # prctyp	    LMT / MKT	    Price type
-    # fillshares	                Total Traded Quantity of this order
-    # avgprc		                Average trade price of total traded quantity
-    # rejreason		                If order is rejected, reason in text form
-    # exchordid		                Exchange Order Number
-    # cancelqty		                Canceled quantity for order which is in status cancelled.
-    # remarks		                Any message Entered during order entry.
-    # dscqty		                Order disclosed quantity.
-    # trgprc		                Order trigger price
-    # ret	        DAY / IOC / EOS	Order validity
-    # uid
-    # actid
-    # bpprc		                    Book Profit Price applicable only if product is selected as B (Bracket order )
-    # blprc		                    Book loss Price applicable only if product is selected as H and B (High Leverage and Bracket order )
-    # trailprc	                    	Trailing Price applicable only if product is selected as H and B (High Leverage and Bracket order )
-    # amo		                    Yes / No
-    # pp		                    Price precision
-    # ti		                    Tick size
-    # ls		                    Lot size
-    # token		                    Contract Token
-    # norentm
-    # ordenttm
-    # exch_tm
-    #
-    # Response data will be in json format with below fields in case of failure:
-
-    # Json Fields	Possible value	Description
-    # stat	        Not_Ok	        Order book failure indication.
-    # request_time		            Response received time.
-    # emsg		                    Error message
-
 
 class OrderEvent(object):
     def __init__(self, eventDict, order):
         self.__eventDict = eventDict
         self.__order = order
-
-    def getStat(self):
-        return self.__eventDict.get("state", None)
 
     def getErrorMessage(self):
         return self.__eventDict.get("emsg", None)
@@ -339,11 +248,16 @@ class OrderEvent(object):
         return float(self.__eventDict.get("fillshares", 0.0))
 
     def getDateTime(self):
-        return (
-            datetime.datetime.strptime(self.__eventDict["norentm"], "%H:%M:%S %d-%m-%Y")
-            if self.__eventDict.get("norentm", None) is not None
-            else None
-        )
+        if "exch_tm" in self.__eventDict:
+            return datetime.datetime.strptime(
+                self.__eventDict["exch_tm"], "%d-%m-%Y %H:%M:%S"
+            )
+        elif "norentm" in self.__eventDict:
+            return datetime.datetime.strptime(
+                self.__eventDict["norentm"], "%H:%M:%S %d-%m-%Y"
+            )
+        else:
+            return None
 
     def getOrder(self):
         return self.__order
@@ -353,159 +267,135 @@ LiveBroker = ForwardRef("LiveBroker")
 
 
 class TradeMonitor(threading.Thread):
-    POLL_FREQUENCY = 1
-
+    POLL_FREQUENCY = 0.1
     RETRY_COUNT = 3
-
     RETRY_INTERVAL = 5
 
     ON_USER_TRADE = 1
 
-    def __init__(self, liveBroker: LiveBroker):
+    def __init__(self, liveBroker: LiveBroker, zmq_port="5555"):
         super(TradeMonitor, self).__init__()
-        self.__api: NorenApi = liveBroker.getApi()
         self.__broker: LiveBroker = liveBroker
         self.__queue = six.moves.queue.Queue()
         self.__stop = False
         self.__retryData = dict()
 
-    def getNewTrades(self):
-        start_time = time.time()
+        # Set up ZeroMQ subscriber
+        self.__context = zmq.Context()
+        self.__socket = self.__context.socket(zmq.SUB)
+        self.__socket.connect(f"tcp://localhost:{zmq_port}")
+        self.__socket.setsockopt_string(zmq.SUBSCRIBE, "ORDER_UPDATE")
 
+    def getNewTrades(self):
         ret: List[OrderEvent] = []
         activeOrders: List[Order] = list(self.__broker.getActiveOrders())
 
-        orderBook = self.__api.get_order_book()
-        orderBookFetchTime = time.time() - start_time
+        try:
+            while True:
+                topic, message = self.__socket.recv_multipart(flags=zmq.NOBLOCK)
+                if topic == b"ORDER_UPDATE":
+                    order_update = json.loads(message)
+                    order = self.__broker.getActiveOrder(order_update.get("norenordno"))
+                    if order:
+                        orderEvent = OrderEvent(order_update, order)
+                        self.processOrderEvent(orderEvent, ret)
+        except zmq.Again:
+            pass
 
-        orderBookOrderIds = set()
-        confirmedOrderIds = set()
-
+        # Process retry logic for orders not updated via ZMQ
         for order in activeOrders:
-            filteredOrders = [
-                orderBookOrder
-                for orderBookOrder in orderBook
-                if orderBookOrder.get("norenordno") == order.getId()
-            ]
-            if len(filteredOrders) == 0:
-                logger.warning(
-                    f"Order not found in the order book for order id {order.getId()}"
-                )
-                continue
-
-            orderEvent = OrderEvent(filteredOrders[0], order)
-            orderBookOrderIds.add(order.getId())
-
-            if order not in self.__retryData:
-                self.__retryData[order] = {
-                    "retryCount": 0,
-                    "lastRetryTime": time.time(),
-                }
-
-            if orderEvent.getStat() == "Not_Ok":
-                logger.error(
-                    f"Fetching order history for {orderEvent.getId()} failed with reason {orderEvent.getErrorMessage()}"
-                )
-                continue
-            elif orderEvent.getStatus() in ["PENDING", "TRIGGER_PENDING"]:
-                pass
-            elif orderEvent.getStatus() == "OPEN":
-                retryCount = self.__retryData[order]["retryCount"]
-                lastRetryTime = self.__retryData[order]["lastRetryTime"]
-
-                if time.time() < (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
-                    continue
-
-                # Modify the order based on current LTP for retry 0 and convert to market for retry one
-                if retryCount == 0:
-                    ltp = self.__broker.getLastPrice(order.getInstrument())
-                    logger.warning(
-                        f"Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}."
-                        f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with current LTP {ltp}'
-                    )
-                    self.__broker.modifyOrder(
-                        order=order,
-                        newprice_type=getPriceType(broker.Order.Type.LIMIT),
-                        newprice=ltp,
-                    )
-                else:
-                    logger.warning(
-                        f"Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}."
-                        f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with market order'
-                    )
-                    self.__broker.modifyOrder(
-                        order=order,
-                        newprice_type=getPriceType(broker.Order.Type.MARKET),
-                    )
-
-                self.__retryData[order]["retryCount"] += 1
-                self.__retryData[order]["lastRetryTime"] = time.time()
-            elif orderEvent.getStatus() in ["CANCELED", "REJECTED"]:
-                if (
-                    orderEvent.getRejectedReason() is None
-                    or orderEvent.getRejectedReason() == "Order Cancelled"
-                ):
-                    ret.append(orderEvent)
-                    confirmedOrderIds.add(order.getId())
-                    self.__retryData.pop(order, None)
-                    continue
-                else:
-                    logger.error(
-                        f"Order {orderEvent.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}"
-                    )
-
-                retryCount = self.__retryData[order]["retryCount"]
-                lastRetryTime = self.__retryData[order]["lastRetryTime"]
-
-                if retryCount < TradeMonitor.RETRY_COUNT:
-                    if time.time() > (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
-                        logger.warning(
-                            f'Order {order.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"] + 1}'
-                        )
-                        self.__broker.placeOrder(order)
-                        self.__retryData[order]["retryCount"] += 1
-                        self.__retryData[order]["lastRetryTime"] = time.time()
-                else:
-                    logger.warning(
-                        f"Exhausted retry attempts for Order {order.getId()}"
-                    )
-                    ret.append(orderEvent)
-                    confirmedOrderIds.add(order.getId())
-                    self.__retryData.pop(order, None)
-            elif orderEvent.getStatus() in ["COMPLETE"]:
-                ret.append(orderEvent)
-                confirmedOrderIds.add(order.getId())
-                self.__retryData.pop(order, None)
-            else:
-                logger.error(f"Unknown trade status {orderEvent.getStatus()}")
-
-        # Sort by time, so older trades first.
-        ret = sorted(ret, key=lambda t: t.getDateTime())
-
-        if len(ret) > 0:
-            end_time = time.time()
-            logger.info("New trades found:")
-            logger.info(f"  Order book fetch time: {orderBookFetchTime:.3f} seconds")
-            logger.info(f"  Total processing time: {end_time - start_time:.3f} seconds")
-            logger.info(f"  Number of active orders: {len(activeOrders)}")
-            logger.info(f"  Number of orders in order book: {len(orderBook)}")
-            logger.info(f"  Number of new trades: {len(ret)}")
-            logger.info(f"  Order IDs in order book: {orderBookOrderIds}")
-            logger.info(f"  Confirmed Order IDs: {confirmedOrderIds}")
+            if order.getId() not in [event.getId() for event in ret]:
+                self.processOpenOrder(order)
 
         return ret
+
+    def processOrderEvent(self, orderEvent: OrderEvent, ret: List[OrderEvent]):
+        order = orderEvent.getOrder()
+
+        if orderEvent.getStatus() in ["OPEN", "PENDING", "TRIGGER_PENDING"]:
+            return
+
+        if order not in self.__retryData:
+            self.__retryData[order] = {
+                "retryCount": 0,
+                "lastRetryTime": time.time(),
+            }
+
+        if orderEvent.getStatus() in ["CANCELED", "REJECTED"]:
+            if (
+                orderEvent.getRejectedReason() is None
+                or orderEvent.getRejectedReason() == "Order Cancelled"
+            ):
+                ret.append(orderEvent)
+                self.__retryData.pop(order, None)
+            else:
+                logger.error(
+                    f"Order {orderEvent.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}"
+                )
+
+            retryCount = self.__retryData[order]["retryCount"]
+            lastRetryTime = self.__retryData[order]["lastRetryTime"]
+
+            if retryCount < TradeMonitor.RETRY_COUNT:
+                if time.time() > (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
+                    logger.warning(
+                        f'Order {order.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"] + 1}'
+                    )
+                    self.__broker.placeOrder(order)
+                    self.__retryData[order]["retryCount"] += 1
+                    self.__retryData[order]["lastRetryTime"] = time.time()
+            else:
+                logger.warning(f"Exhausted retry attempts for Order {order.getId()}")
+                ret.append(orderEvent)
+                self.__retryData.pop(order, None)
+        elif orderEvent.getStatus() in ["COMPLETE"]:
+            ret.append(orderEvent)
+            self.__retryData.pop(order, None)
+        else:
+            logger.error(f"Unknown trade status {orderEvent.getStatus()}")
+
+    def processOpenOrder(self, order: Order):
+        if order not in self.__retryData:
+            self.__retryData[order] = {
+                "retryCount": 0,
+                "lastRetryTime": time.time(),
+            }
+
+        retryCount = self.__retryData[order]["retryCount"]
+        lastRetryTime = self.__retryData[order]["lastRetryTime"]
+
+        if time.time() < (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
+            return
+
+        # Modify the order based on current LTP for retry 0 and convert to market for retry one
+        if retryCount == 0:
+            ltp = self.__broker.getLastPrice(order.getInstrument())
+            logger.warning(
+                f"Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}."
+                f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with current LTP {ltp}'
+            )
+            self.__broker.modifyOrder(
+                order=order,
+                newprice_type=getPriceType(broker.Order.Type.LIMIT),
+                newprice=ltp,
+            )
+        else:
+            logger.warning(
+                f"Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}."
+                f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with market order'
+            )
+            self.__broker.modifyOrder(
+                order=order,
+                newprice_type=getPriceType(broker.Order.Type.MARKET),
+            )
+
+        self.__retryData[order]["retryCount"] += 1
+        self.__retryData[order]["lastRetryTime"] = time.time()
 
     def getQueue(self):
         return self.__queue
 
     def start(self):
-        trades = self.getNewTrades()
-        if len(trades):
-            logger.info(
-                f"Last trade found at {trades[-1].getDateTime()}. Order id {trades[-1].getId()}"
-            )
-            self.__queue.put((TradeMonitor.ON_USER_TRADE, trades))
-
         super(TradeMonitor, self).start()
 
     def run(self):
@@ -522,6 +412,8 @@ class TradeMonitor(threading.Thread):
 
     def stop(self):
         self.__stop = True
+        self.__socket.close()
+        self.__context.term()
 
 
 class OrderResponse(object):
@@ -610,12 +502,12 @@ class LiveBroker(broker.Broker):
     ) -> pd.DataFrame:
         return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
 
-    def __init__(self, api: NorenApi, barFeed: BaseBarFeed):
+    def __init__(self, api: NorenApi, barFeed: BaseBarFeed, zmq_port="5555"):
         super(LiveBroker, self).__init__()
         self.__stop = False
         self.__api: NorenApi = api
         self.__barFeed: BaseBarFeed = barFeed
-        self.__tradeMonitor = TradeMonitor(self)
+        self.__tradeMonitor = TradeMonitor(self, zmq_port)
         self.__cash = 0
         self.__shares = {}
         self.__activeOrders: Set[Order] = set()
@@ -713,7 +605,7 @@ class LiveBroker(broker.Broker):
             self.notifyOrderEvent(
                 broker.OrderEvent(order, eventType, orderExecutionInfo)
             )
-            logger.info(
+            logger.debug(
                 f"Order filled<{order.isFilled()}> for {order.getInstrument()} at <{orderExecutionInfo.getDateTime()}>. Avg Filled Price <{orderExecutionInfo.getPrice()}>. Quantity <{orderExecutionInfo.getQuantity()}>"
             )
         else:
@@ -870,7 +762,7 @@ class LiveBroker(broker.Broker):
             order.setSubmitted(ret.getId(), ret.getDateTime())
             self._registerOrder(order)
 
-            logger.info(
+            logger.debug(
                 f'Modified {newprice_type} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} with New order {order.getId()} at {order.getSubmitDateTime()}'
             )
         except Exception as e:
@@ -899,7 +791,7 @@ class LiveBroker(broker.Broker):
             priceType = getPriceType(order.getType())
             retention = "DAY"  # DAY / EOS / IOC
 
-            logger.info(
+            logger.debug(
                 f"Placing order with buyOrSell={buyOrSell}, product_type={productType}, exchange={exchange}, "
                 f"tradingsymbol={symbol}, quantity={quantity}, discloseqty=0, price_type={priceType}, "
                 f'price={price}, trigger_price={stopPrice}, retention={retention}, remarks="PyAlgoMate order"'
@@ -934,7 +826,7 @@ class LiveBroker(broker.Broker):
 
             self._registerOrder(order)
 
-            logger.info(
+            logger.debug(
                 f'Placed {priceType} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} New order {order.getId()} at {order.getSubmitDateTime()}'
             )
         except Exception as e:
@@ -1037,7 +929,7 @@ class LiveBroker(broker.Broker):
             if orderResponse.getStat() != "Ok":
                 raise Exception(orderResponse.getErrorMessage())
 
-            logger.info(
+            logger.debug(
                 f"Canceled order {orderResponse.getId()} at {orderResponse.getDateTime()}"
             )
         except Exception as e:

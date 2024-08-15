@@ -2,13 +2,18 @@
 .. moduleauthor:: Nagaraju Gunda
 """
 
-
 import sys
 import os
 
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))), os.pardir))
+sys.path.append(
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        os.pardir,
+    )
+)
 
+import json
+import pickle
 from pyalgotrade import bar
 from NorenRestApiPy.NorenApi import NorenApi
 import yaml
@@ -45,11 +50,13 @@ class WebSocketClient:
         self.periodicThread.start()
 
     def startClient(self):
-        self.__api.start_websocket(order_update_callback=self.onOrderBookUpdate,
-                                   subscribe_callback=self.onQuoteUpdate,
-                                   socket_open_callback=self.onOpened,
-                                   socket_close_callback=self.onClosed,
-                                   socket_error_callback=self.onError)
+        self.__api.start_websocket(
+            order_update_callback=self.onOrderUpdate,
+            subscribe_callback=self.onQuoteUpdate,
+            socket_open_callback=self.onOpened,
+            socket_close_callback=self.onClosed,
+            socket_error_callback=self.onError,
+        )
 
     def stopClient(self):
         try:
@@ -62,19 +69,21 @@ class WebSocketClient:
 
     def waitInitialized(self, timeout=10):
         logger.info(
-            f"Waiting for WebSocketClient waitInitialized with timeout of {timeout}")
+            f"Waiting for WebSocketClient waitInitialized with timeout of {timeout}"
+        )
         opened = self.__connectionOpened.wait(timeout)
 
         if opened:
-            logger.info(
-                'Connection opened. Waiting for subscriptions to complete')
+            logger.info("Connection opened. Waiting for subscriptions to complete")
         else:
-            logger.error(
-                f'Connection not opened in {timeout} secs. Stopping the feed')
+            logger.error(f"Connection not opened in {timeout} secs. Stopping the feed")
             return False
 
         for _ in range(timeout):
-            if {pendingSubscription for pendingSubscription in self.__pendingSubscriptions}.issubset(self.__quotes.keys()):
+            if {
+                pendingSubscription
+                for pendingSubscription in self.__pendingSubscriptions
+            }.issubset(self.__quotes.keys()):
                 self.__pendingSubscriptions.clear()
                 return True
             time.sleep(1)
@@ -88,6 +97,7 @@ class WebSocketClient:
         for channel in self.__pendingSubscriptions:
             logger.info("Subscribing to channel %s." % channel)
             self.__api.subscribe(channel)
+        self.__api.subscribe_orders()
         self.__connectionOpened.set()
 
     def onClosed(self):
@@ -103,12 +113,15 @@ class WebSocketClient:
         logger.warning("Unknown event: %s." % event)
 
     def onQuoteUpdate(self, message):
-        key = message['e'] + '|' + message['tk']
+        key = message["e"] + "|" + message["tk"]
         self.__lastReceivedDateTime = datetime.datetime.now()
-        message['ct'] = self.__lastReceivedDateTime
-        self.__lastQuoteDateTime = datetime.datetime.fromtimestamp(int(
-            message['ft'])) if 'ft' in message else self.__lastReceivedDateTime.replace(microsecond=0)
-        message['ft'] = self.__lastQuoteDateTime
+        message["ct"] = self.__lastReceivedDateTime
+        self.__lastQuoteDateTime = (
+            datetime.datetime.fromtimestamp(int(message["ft"]))
+            if "ft" in message
+            else self.__lastReceivedDateTime.replace(microsecond=0)
+        )
+        message["ft"] = self.__lastQuoteDateTime
 
         if key in self.__quotes:
             symbolInfo = self.__quotes[key]
@@ -117,15 +130,17 @@ class WebSocketClient:
         else:
             self.__quotes[key] = message
 
-        self.__socket.send_pyobj(message)
+        self.__socket.send_multipart([b"FEED_UPDATE", pickle.dumps(message)])
 
-    def onOrderBookUpdate(self, message):
-        pass
+    def onOrderUpdate(self, message):
+        logger.info(f"Order update: {message}")
+        self.__socket.send_multipart([b"ORDER_UPDATE", json.dumps(message).encode()])
 
     def periodicPrint(self):
         while True:
             logger.info(
-                f'Last Quote: {self.__lastQuoteDateTime}\tLast Received: {self.__lastReceivedDateTime}')
+                f"Last Quote: {self.__lastQuoteDateTime}\tLast Received: {self.__lastReceivedDateTime}"
+            )
             time.sleep(60)
 
 
@@ -138,7 +153,7 @@ if __name__ == "__main__":
         "lineno)d]|=> %(message)s"
     )
 
-    fileHandler = logging.FileHandler('Feed.log', 'a', 'utf-8')
+    fileHandler = logging.FileHandler("WebsocketClient.log", "a", "utf-8")
     fileHandler.setLevel(logging.INFO)
     fileHandler.setFormatter(formatter)
 
@@ -152,19 +167,21 @@ if __name__ == "__main__":
     logging.getLogger("requests").setLevel(logging.WARNING)
 
     creds = None
-    with open('cred.yml') as f:
+    with open("cred.yml") as f:
         creds = yaml.load(f, Loader=yaml.FullLoader)
 
     with open("strategies.yaml", "r") as file:
         config = yaml.safe_load(file)
 
-    broker = config['Broker']
+    broker = config["Broker"]
     api, tokenMappings = None, None
 
-    if broker == 'Finvasia':
+    if broker == "Finvasia":
         api, tokenMappings = finvasia.getApiAndTokenMappings(
-            creds[broker], registerOptions=['Weekly'], underlyings=config['Underlyings'])
+            creds[broker], registerOptions=["Weekly"], underlyings=config["Underlyings"]
+        )
     else:
+        logger.error("Broker not supported")
         exit(1)
 
     wsClient = WebSocketClient(api, tokenMappings)
@@ -172,7 +189,7 @@ if __name__ == "__main__":
     if not wsClient.waitInitialized():
         exit(1)
     else:
-        logger.info('Initialization complete!')
+        logger.info("Initialization complete!")
     try:
         while True:
             time.sleep(1)
