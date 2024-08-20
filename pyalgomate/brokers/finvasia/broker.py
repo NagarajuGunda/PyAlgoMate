@@ -290,17 +290,22 @@ class TradeMonitor(threading.Thread):
         ret: List[OrderEvent] = []
         activeOrders: List[Order] = list(self.__broker.getActiveOrders())
 
-        try:
-            while True:
+        # Collect all available ZMQ messages
+        zmq_messages = []
+        while True:
+            try:
                 topic, message = self.__socket.recv_multipart(flags=zmq.NOBLOCK)
                 if topic == b"ORDER_UPDATE":
-                    order_update = json.loads(message)
-                    order = self.__broker.getActiveOrder(order_update.get("norenordno"))
-                    if order:
-                        orderEvent = OrderEvent(order_update, order)
-                        self.processOrderEvent(orderEvent, ret)
-        except zmq.Again:
-            pass
+                    zmq_messages.append(json.loads(message))
+            except zmq.Again:
+                break  # No more messages available
+
+        # Process all collected ZMQ messages
+        for order_update in zmq_messages:
+            order = self.__broker.getActiveOrder(order_update.get("norenordno"))
+            if order:
+                orderEvent = OrderEvent(order_update, order)
+                self.processOrderEvent(orderEvent, ret)
 
         # Process retry logic for orders not updated via ZMQ
         for order in activeOrders:
