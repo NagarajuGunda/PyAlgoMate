@@ -310,9 +310,10 @@ class TradeMonitor(threading.Thread):
         return ret
 
     def processOrderEvent(self, orderEvent: OrderEvent, ret: List[OrderEvent]):
+        logger.info(f'Processing order {orderEvent.getId()} with status {orderEvent.getStatus()}')
         order = orderEvent.getOrder()
 
-        if orderEvent.getStatus() in ["OPEN", "PENDING", "TRIGGER_PENDING"]:
+        if orderEvent.getStatus() in ["PENDING", "TRIGGER_PENDING"]:
             return
 
         if order not in self.__retryData:
@@ -321,6 +322,9 @@ class TradeMonitor(threading.Thread):
                 "lastRetryTime": time.time(),
             }
 
+        if orderEvent.getStatus() == "OPEN":
+            return
+
         if orderEvent.getStatus() in ["CANCELED", "REJECTED"]:
             if (
                 orderEvent.getRejectedReason() is None
@@ -328,6 +332,7 @@ class TradeMonitor(threading.Thread):
             ):
                 ret.append(orderEvent)
                 self.__retryData.pop(order, None)
+                return
             else:
                 logger.error(
                     f"Order {orderEvent.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}"
@@ -348,24 +353,25 @@ class TradeMonitor(threading.Thread):
                 logger.warning(f"Exhausted retry attempts for Order {order.getId()}")
                 ret.append(orderEvent)
                 self.__retryData.pop(order, None)
+                return
         elif orderEvent.getStatus() in ["COMPLETE"]:
             ret.append(orderEvent)
             self.__retryData.pop(order, None)
+            return
         else:
             logger.error(f"Unknown trade status {orderEvent.getStatus()}")
 
     def processOpenOrder(self, order: Order):
         if order not in self.__retryData:
-            self.__retryData[order] = {
-                "retryCount": 0,
-                "lastRetryTime": time.time(),
-            }
+            return
 
         retryCount = self.__retryData[order]["retryCount"]
         lastRetryTime = self.__retryData[order]["lastRetryTime"]
 
         if time.time() < (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
             return
+
+        logger.info(f'Processing open order {order.getId()}')
 
         # Modify the order based on current LTP for retry 0 and convert to market for retry one
         if retryCount == 0:
@@ -762,7 +768,7 @@ class LiveBroker(broker.Broker):
             order.setSubmitted(ret.getId(), ret.getDateTime())
             self._registerOrder(order)
 
-            logger.debug(
+            logger.info(
                 f'Modified {newprice_type} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} with New order {order.getId()} at {order.getSubmitDateTime()}'
             )
         except Exception as e:
@@ -791,7 +797,7 @@ class LiveBroker(broker.Broker):
             priceType = getPriceType(order.getType())
             retention = "DAY"  # DAY / EOS / IOC
 
-            logger.debug(
+            logger.info(
                 f"Placing order with buyOrSell={buyOrSell}, product_type={productType}, exchange={exchange}, "
                 f"tradingsymbol={symbol}, quantity={quantity}, discloseqty=0, price_type={priceType}, "
                 f'price={price}, trigger_price={stopPrice}, retention={retention}, remarks="PyAlgoMate order"'
