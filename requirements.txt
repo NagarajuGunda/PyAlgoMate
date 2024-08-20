@@ -35,3 +35,5 @@ websocket-client
 wheel
 yfinance
 sentry_sdk
+tabulate
+quantstats
