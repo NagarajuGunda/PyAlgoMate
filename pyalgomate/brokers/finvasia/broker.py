@@ -342,13 +342,32 @@ class TradeMonitor(threading.Thread):
             lastRetryTime = self.__retryData[order]["lastRetryTime"]
 
             if retryCount < TradeMonitor.RETRY_COUNT:
-                if time.time() > (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
+                logger.warning(
+                    f'Order {order.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"] + 1}'
+                )
+                # Modify the order based on current LTP for retry 0 and convert to market for retry one
+                if retryCount == 0:
+                    ltp = self.__broker.getLastPrice(order.getInstrument())
                     logger.warning(
-                        f'Order {order.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"] + 1}'
+                        f"Order {order.getId()} rejected. "
+                        f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with current LTP {ltp}'
                     )
-                    self.__broker.placeOrder(order)
-                    self.__retryData[order]["retryCount"] += 1
-                    self.__retryData[order]["lastRetryTime"] = time.time()
+                    self.__broker.modifyOrder(
+                        order=order,
+                        newprice_type=getPriceType(broker.Order.Type.LIMIT),
+                        newprice=ltp,
+                    )
+                else:
+                    logger.warning(
+                        f"Order {order.getId()} rejected. "
+                        f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with market order'
+                    )
+                    self.__broker.modifyOrder(
+                        order=order,
+                        newprice_type=getPriceType(broker.Order.Type.MARKET),
+                    )
+                self.__retryData[order]["retryCount"] += 1
+                self.__retryData[order]["lastRetryTime"] = time.time()                 
             else:
                 logger.warning(f"Exhausted retry attempts for Order {order.getId()}")
                 ret.append(orderEvent)
@@ -832,7 +851,7 @@ class LiveBroker(broker.Broker):
 
             self._registerOrder(order)
 
-            logger.debug(
+            logger.info(
                 f'Placed {priceType} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} New order {order.getId()} at {order.getSubmitDateTime()}'
             )
         except Exception as e:
