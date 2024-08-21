@@ -445,7 +445,7 @@ class TradeMonitor(threading.Thread):
                     order = next(
                         (
                             o
-                            for o in list(self.__broker.getActiveOrders())
+                            for o in self.__broker.getActiveOrders().copy()
                             if f"PyAlgoMate order {id(o)}" == orderUpdate.get("remarks")
                         ),
                         None,
@@ -457,16 +457,19 @@ class TradeMonitor(threading.Thread):
 
                         if len(ret):
                             self.__queue.put((TradeMonitor.ON_USER_TRADE, ret))
-                            trades.append(ret)
+                            trades.extend(ret)
                 except queue.Empty:
                     break
                 except Exception as e:
                     logger.exception(e)
 
-            # Process retry logic for orders not updated via ZMQ
-            for order in list(self.__broker.getActiveOrders()):
-                if order.getId() not in [event.getId() for event in trades]:
-                    self.processOpenOrder(order)
+            try:
+                # Process retry logic for orders not updated via ZMQ
+                for order in self.__broker.getActiveOrders().copy():
+                    if order.getId() not in [event.getId() for event in trades]:
+                        self.processOpenOrder(order)
+            except Exception as e:
+                logger.exception(e)
 
             time.sleep(TradeMonitor.POLL_FREQUENCY)
 
