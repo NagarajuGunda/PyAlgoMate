@@ -8,6 +8,7 @@ import json
 import logging
 import threading
 import time
+import queue
 from typing import ForwardRef, List, Set
 
 import pandas as pd
@@ -266,6 +267,38 @@ class OrderEvent(object):
 LiveBroker = ForwardRef("LiveBroker")
 
 
+class OrderUpdateThread(threading.Thread):
+    def __init__(self, zmq_port="5555"):
+        super(OrderUpdateThread, self).__init__()
+        self.__context = zmq.Context()
+        self.__socket = self.__context.socket(zmq.SUB)
+        self.__socket.connect(f"tcp://localhost:{zmq_port}")
+        self.__socket.setsockopt_string(zmq.SUBSCRIBE, "ORDER_UPDATE")
+        self.__queue = queue.Queue()
+        self.__stop = False
+
+    def getQueue(self):
+        return self.__queue
+
+    def run(self):
+        while not self.__stop:
+            try:
+                topic, message = self.__socket.recv_multipart(flags=zmq.NOBLOCK)
+                if topic == b"ORDER_UPDATE":
+                    order_update = json.loads(message)
+                    logger.info("Received order update: %s", order_update)
+                    self.__queue.put(order_update)
+            except zmq.Again:
+                time.sleep(0.01)
+            except Exception as e:
+                logger.critical("Error retrieving ZMQ updates", exc_info=e)
+
+    def stop(self):
+        self.__stop = True
+        self.__socket.close()
+        self.__context.term()
+
+
 class TradeMonitor(threading.Thread):
     POLL_FREQUENCY = 0.1
     RETRY_COUNT = 3
@@ -273,46 +306,16 @@ class TradeMonitor(threading.Thread):
 
     ON_USER_TRADE = 1
 
-    def __init__(self, liveBroker: LiveBroker, zmq_port="5555"):
+    def __init__(self, liveBroker: LiveBroker):
         super(TradeMonitor, self).__init__()
         self.__broker: LiveBroker = liveBroker
         self.__queue = six.moves.queue.Queue()
         self.__stop = False
         self.__retryData = dict()
 
-        # Set up ZeroMQ subscriber
-        self.__context = zmq.Context()
-        self.__socket = self.__context.socket(zmq.SUB)
-        self.__socket.connect(f"tcp://localhost:{zmq_port}")
-        self.__socket.setsockopt_string(zmq.SUBSCRIBE, "ORDER_UPDATE")
-
-    def getNewTrades(self):
-        ret: List[OrderEvent] = []
-        activeOrders: List[Order] = list(self.__broker.getActiveOrders())
-
-        # Collect all available ZMQ messages
-        zmq_messages = []
-        while True:
-            try:
-                topic, message = self.__socket.recv_multipart(flags=zmq.NOBLOCK)
-                if topic == b"ORDER_UPDATE":
-                    zmq_messages.append(json.loads(message))
-            except zmq.Again:
-                break  # No more messages available
-
-        # Process all collected ZMQ messages
-        for order_update in zmq_messages:
-            order = self.__broker.getActiveOrder(order_update.get("norenordno"))
-            if order:
-                orderEvent = OrderEvent(order_update, order)
-                self.processOrderEvent(orderEvent, ret)
-
-        # Process retry logic for orders not updated via ZMQ
-        for order in activeOrders:
-            if order.getId() not in [event.getId() for event in ret]:
-                self.processOpenOrder(order)
-
-        return ret
+        self.__zmq_update_thread = OrderUpdateThread()
+        self.__zmq_update_thread.start()
+        self.__stop = False
 
     def processOrderEvent(self, orderEvent: OrderEvent, ret: List[OrderEvent]):
         logger.info(f'Processing order {orderEvent.getId()} with status {orderEvent.getStatus()}')
@@ -430,20 +433,36 @@ class TradeMonitor(threading.Thread):
 
     def run(self):
         while not self.__stop:
-            try:
-                trades = self.getNewTrades()
-                if len(trades):
-                    logger.info(f"{len(trades)} new trade/s found")
-                    self.__queue.put((TradeMonitor.ON_USER_TRADE, trades))
-            except Exception as e:
-                logger.critical("Error retrieving user transactions", exc_info=e)
+            trades: List[OrderEvent] = []
+            activeOrders: List[Order] = list(self.__broker.getActiveOrders())
+            while True:
+                try:
+                    orderUpdate = self.__zmq_update_thread.getQueue().get(block=False)
+                    order = self.__broker.getActiveOrder(orderUpdate.get("norenordno"))
+                    if order:
+                        orderEvent = OrderEvent(orderUpdate, order)
+                        ret: List[OrderEvent] = []
+                        self.processOrderEvent(orderEvent, ret)
+
+                        if len(ret):
+                            self.__queue.put((TradeMonitor.ON_USER_TRADE, ret))
+                            trades.append(ret)
+                except queue.Empty:
+                    break
+                except Exception as e:
+                    logger.exception(e)
+
+            # Process retry logic for orders not updated via ZMQ
+            for order in activeOrders:
+                if order.getId() not in [event.getId() for event in trades]:
+                    self.processOpenOrder(order)
 
             time.sleep(TradeMonitor.POLL_FREQUENCY)
 
     def stop(self):
         self.__stop = True
-        self.__socket.close()
-        self.__context.term()
+        self.__zmq_update_thread.stop()
+        self.__zmq_update_thread.join()
 
 
 class OrderResponse(object):
