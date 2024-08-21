@@ -434,11 +434,22 @@ class TradeMonitor(threading.Thread):
     def run(self):
         while not self.__stop:
             trades: List[OrderEvent] = []
-            activeOrders: List[Order] = list(self.__broker.getActiveOrders())
             while True:
                 try:
                     orderUpdate = self.__zmq_update_thread.getQueue().get(block=False)
-                    order = self.__broker.getActiveOrder(orderUpdate.get("norenordno"))
+                    logger.info(
+                        "Pulled order %s with status %s from zmq queue",
+                        orderUpdate.get("norenordno"),
+                        orderUpdate.get("status"),
+                    )
+                    order = next(
+                        (
+                            o
+                            for o in list(self.__broker.getActiveOrders())
+                            if f"PyAlgoMate order {id(o)}" == orderUpdate.get("remarks")
+                        ),
+                        None,
+                    )
                     if order:
                         orderEvent = OrderEvent(orderUpdate, order)
                         ret: List[OrderEvent] = []
@@ -453,7 +464,7 @@ class TradeMonitor(threading.Thread):
                     logger.exception(e)
 
             # Process retry logic for orders not updated via ZMQ
-            for order in activeOrders:
+            for order in list(self.__broker.getActiveOrders()):
                 if order.getId() not in [event.getId() for event in trades]:
                     self.processOpenOrder(order)
 
@@ -856,7 +867,7 @@ class LiveBroker(broker.Broker):
                 price=price,
                 trigger_price=stopPrice,
                 retention=retention,
-                remarks="PyAlgoMate order",
+                remarks=f"PyAlgoMate order {id(order)}",
             )
 
             if placedOrderResponse is None:
