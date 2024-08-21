@@ -551,12 +551,12 @@ class LiveBroker(broker.Broker):
     ) -> pd.DataFrame:
         return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
 
-    def __init__(self, api: NorenApi, barFeed: BaseBarFeed, zmq_port="5555"):
+    def __init__(self, api: NorenApi, barFeed: BaseBarFeed):
         super(LiveBroker, self).__init__()
         self.__stop = False
         self.__api: NorenApi = api
         self.__barFeed: BaseBarFeed = barFeed
-        self.__tradeMonitor = TradeMonitor(self, zmq_port)
+        self.__tradeMonitor = TradeMonitor(self)
         self.__cash = 0
         self.__shares = {}
         self.__activeOrders: Set[Order] = set()
