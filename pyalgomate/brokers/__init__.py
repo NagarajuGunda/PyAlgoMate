@@ -11,7 +11,7 @@ from typing import List
 
 from pyalgotrade import broker
 from pyalgotrade.broker import fillstrategy
-from pyalgotrade.broker import backtesting
+from pyalgomate.core import backtesting
 from pyalgomate.utils import UnderlyingIndex
 import pyalgomate.utils as utils
 from pyalgomate.backtesting.DataFrameFeed import DataFrameFeed

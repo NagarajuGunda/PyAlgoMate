@@ -1,6 +1,7 @@
 import datetime
 
-from pyalgotrade import broker, warninghelpers
+from pyalgotrade import warninghelpers
+from pyalgomate.core import broker
 from pyalgotrade.stratanalyzer import returns
 
 
@@ -146,13 +147,13 @@ class Position(object):
         # The order must be created but not submitted.
         assert entryOrder.isInitial()
 
-        self.__state = None
+        self.__state: PositionState = None
         self.__activeOrders = set()
         self.__shares = 0
         self.__strategy = strategy
-        self.__entryOrder = None
+        self.__entryOrder: broker.Order = None
         self.__entryDateTime = None
-        self.__exitOrder = None
+        self.__exitOrder: broker.Order = None
         self.__exitDateTime = None
         self.__posTracker = returns.PositionTracker(entryOrder.getInstrumentTraits())
         self.__allOrNone = allOrNone
@@ -177,6 +178,20 @@ class Position(object):
 
         self.__activeOrders.add(order)
         self.getStrategy().registerPositionOrder(self, order)
+
+    def __modifyAndRegisterOrder(self, oldOrder, newOrder):
+        # Check if an order can be submitted in the current state.
+        self.__state.canSubmitOrder(self, newOrder)
+
+        # This may raise an exception, so we wan't to submit the order before moving forward and registering
+        # the order in the strategy.
+        self.getStrategy().getBroker().modifyOrder(oldOrder, newOrder)
+
+        self.__activeOrders.discard(oldOrder)
+        self.__activeOrders.add(newOrder)
+
+        self.getStrategy().unregisterPositionOrder(self, oldOrder)
+        self.getStrategy().registerPositionOrder(self, newOrder)
 
     def setEntryDateTime(self, dateTime):
         self.__entryDateTime = dateTime
@@ -347,6 +362,22 @@ class Position(object):
         """
 
         self.__state.exit(self, stopPrice, limitPrice, goodTillCanceled)
+
+    def modifyExitToLimit(self, limitPrice, goodTillCanceled=None):
+        """Modifies the exit order to a limit order."""
+        assert self.exitActive()
+
+        exitOrder: broker.Order = self.buildExitOrder(None, limitPrice)
+
+        # If goodTillCanceled was not set, match the entry order.
+        if goodTillCanceled is None:
+            goodTillCanceled = self.__entryOrder.getGoodTillCanceled()
+        exitOrder.setGoodTillCanceled(goodTillCanceled)
+
+        exitOrder.setAllOrNone(self.__allOrNone)
+
+        self.__modifyAndRegisterOrder(self.__exitOrder, exitOrder)
+        self.__exitOrder = exitOrder
 
     def _submitExitOrder(self, stopPrice, limitPrice, goodTillCanceled):
         assert not self.exitActive()

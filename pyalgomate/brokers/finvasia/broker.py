@@ -15,8 +15,8 @@ import pandas as pd
 import six
 import zmq
 from NorenRestApiPy.NorenApi import NorenApi
-from pyalgotrade import broker
-from pyalgotrade.broker import Order
+from pyalgomate.core import broker
+from pyalgomate.core.broker import Order
 
 import pyalgomate.brokers.finvasia as finvasia
 import pyalgomate.utils as utils
@@ -360,7 +360,7 @@ class TradeMonitor(threading.Thread):
                         f"Order {order.getId()} rejected. "
                         f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with current LTP {ltp}'
                     )
-                    self.__broker.modifyOrder(
+                    self.__broker.modifyFinvasiaOrder(
                         order=order,
                         newprice_type=getPriceType(broker.Order.Type.LIMIT),
                         newprice=ltp,
@@ -370,7 +370,7 @@ class TradeMonitor(threading.Thread):
                         f"Order {order.getId()} rejected. "
                         f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with market order'
                     )
-                    self.__broker.modifyOrder(
+                    self.__broker.modifyFinvasiaOrder(
                         order=order,
                         newprice_type=getPriceType(broker.Order.Type.MARKET),
                     )
@@ -407,7 +407,7 @@ class TradeMonitor(threading.Thread):
                 f"Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}."
                 f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with current LTP {ltp}'
             )
-            self.__broker.modifyOrder(
+            self.__broker.modifyFinvasiaOrder(
                 order=order,
                 newprice_type=getPriceType(broker.Order.Type.LIMIT),
                 newprice=ltp,
@@ -417,7 +417,7 @@ class TradeMonitor(threading.Thread):
                 f"Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}."
                 f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with market order'
             )
-            self.__broker.modifyOrder(
+            self.__broker.modifyFinvasiaOrder(
                 order=order,
                 newprice_type=getPriceType(broker.Order.Type.MARKET),
             )
@@ -790,7 +790,9 @@ class LiveBroker(broker.Broker):
     # Cancel a New Order by providing the Order Number
     #     api.cancel_order(orderno=orderno)
 
-    def modifyOrder(self, order: Order, newprice_type=None, newprice=0.0):
+    def modifyFinvasiaOrder(
+        self, order: Order, newprice_type=None, newprice=0.0, newOrder: Order = None
+    ):
         try:
             splitStrings = order.getInstrument().split("|")
             exchange = splitStrings[0] if len(splitStrings) > 1 else "NSE"
@@ -822,8 +824,14 @@ class LiveBroker(broker.Broker):
             if oldOrderId is not None:
                 self._unregisterOrder(order)
 
-            order.setSubmitted(ret.getId(), ret.getDateTime())
-            self._registerOrder(order)
+            order.setSubmitted(ret.getId(), ret.getDateTime(), order.getRemarks())
+            if newOrder:
+                newOrder.setSubmitted(
+                    ret.getId(), ret.getDateTime(), order.getRemarks()
+                )
+                self._registerOrder(newOrder)
+            else:
+                self._registerOrder(order)
 
             logger.info(
                 f'Modified {newprice_type} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} with New order {order.getId()} at {order.getSubmitDateTime()}'
@@ -853,11 +861,12 @@ class LiveBroker(broker.Broker):
             )
             priceType = getPriceType(order.getType())
             retention = "DAY"  # DAY / EOS / IOC
+            remarks = f"PyAlgoMate order {id(order)}"
 
             logger.info(
                 f"Placing order with buyOrSell={buyOrSell}, product_type={productType}, exchange={exchange}, "
                 f"tradingsymbol={symbol}, quantity={quantity}, discloseqty=0, price_type={priceType}, "
-                f'price={price}, trigger_price={stopPrice}, retention={retention}, remarks="PyAlgoMate order"'
+                f"price={price}, trigger_price={stopPrice}, retention={retention}, remarks={remarks}"
             )
             placedOrderResponse = self.__api.place_order(
                 buy_or_sell=buyOrSell,
@@ -870,7 +879,7 @@ class LiveBroker(broker.Broker):
                 price=price,
                 trigger_price=stopPrice,
                 retention=retention,
-                remarks=f"PyAlgoMate order {id(order)}",
+                remarks=remarks,
             )
 
             if placedOrderResponse is None:
@@ -885,7 +894,9 @@ class LiveBroker(broker.Broker):
             if oldOrderId is not None:
                 self._unregisterOrder(order)
 
-            order.setSubmitted(orderResponse.getId(), orderResponse.getDateTime())
+            order.setSubmitted(
+                orderResponse.getId(), orderResponse.getDateTime(), remarks
+            )
 
             self._registerOrder(order)
 
@@ -909,6 +920,14 @@ class LiveBroker(broker.Broker):
             order.switchState(broker.Order.State.SUBMITTED)
         else:
             raise Exception("The order was already processed")
+
+    def modifyOrder(self, oldOrder: Order, newOrder: Order):
+        self.modifyFinvasiaOrder(
+            order=oldOrder,
+            newprice_type=getPriceType(newOrder.getType()),
+            newprice=newOrder.getLimitPrice(),
+            newOrder=newOrder,
+        )
 
     def _createOrder(self, orderType, action, instrument, quantity, price, stopPrice):
         action = {
