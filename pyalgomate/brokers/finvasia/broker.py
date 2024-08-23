@@ -450,7 +450,7 @@ class TradeMonitor(threading.Thread):
                         (
                             o
                             for o in self.__broker.getActiveOrders().copy()
-                            if f"PyAlgoMate order {id(o)}" == orderUpdate.get("remarks")
+                            if o.getRemarks() == orderUpdate.get("remarks")
                         ),
                         None,
                     )
