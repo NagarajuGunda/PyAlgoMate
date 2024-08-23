@@ -249,7 +249,11 @@ class OrderEvent(object):
         return float(self.__eventDict.get("fillshares", 0.0))
 
     def getDateTime(self):
-        if "exch_tm" in self.__eventDict:
+        if "fltm" in self.__eventDict:
+            return datetime.datetime.strptime(
+                self.__eventDict["fltm"], "%d-%m-%Y %H:%M:%S"
+            )
+        elif "exch_tm" in self.__eventDict:
             return datetime.datetime.strptime(
                 self.__eventDict["exch_tm"], "%d-%m-%Y %H:%M:%S"
             )
