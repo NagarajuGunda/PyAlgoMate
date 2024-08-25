@@ -600,7 +600,7 @@ class Broker(broker.Broker):
             self.getInstrumentTraits(instrument),
         )
 
-    def cancelOrder(self, order):
+    async def cancelOrder(self, order):
         activeOrder = order
         if activeOrder not in self.__activeOrders:
             raise Exception("The order is not active anymore")

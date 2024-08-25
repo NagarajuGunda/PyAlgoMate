@@ -681,7 +681,7 @@ class Broker(observer.Subject):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def cancelOrder(self, order):
+    async def cancelOrder(self, order):
         """Requests an order to be canceled. If the order is filled an Exception is raised.
 
         :param order: The order to cancel.
