@@ -3,8 +3,6 @@ import asyncio
 import logging
 import threading
 from functools import wraps
-from concurrent.futures import Future
-
 
 import pyalgotrade.broker
 import six
@@ -26,37 +24,45 @@ class AsyncDispatcher:
         asyncio.set_event_loop(self.loop)
         self.loop.run_forever()
 
-    def run(self, coro):
-        future = Future()
+    def run(self, coroutine, callback=None):
+        """
+        Runs an asynchronous coroutine, optionally executing a callback with the result.
 
-        def callback(asyncio_future):
-            try:
-                result = asyncio_future.result()
-                future.set_result(result)
-            except Exception as e:
-                future.set_exception(e)
+        :param coroutine: The asynchronous coroutine to be executed.
+        :param callback: An optional callback function that takes the result of the coroutine.
+        """
+
+        def done_callback(future):
+            if callback:
+                result = future.result()  # Get the result of the coroutine
+                callback(result)  # Execute the callback with the result
 
         async def wrapper():
             try:
-                result = await coro
+                result = await coroutine
                 return result
             except Exception as e:
                 raise e
 
         asyncio.run_coroutine_threadsafe(wrapper(), self.loop).add_done_callback(
-            callback
+            done_callback
         )
-        return future.result()
 
     def stop(self):
+        """Stops the event loop and joins the thread."""
         self.loop.call_soon_threadsafe(self.loop.stop)
         self.thread.join()
 
 
 def run_async(func):
+    """Decorator to run functions asynchronously."""
+
     @wraps(func)
-    async def wrapper(*args, **kwargs):
-        return await func(*args, **kwargs)
+    def wrapper(*args, **kwargs):
+        coro = func(*args, **kwargs)
+        if asyncio.iscoroutine(coro):
+            return asyncio.run(coro)
+        raise ValueError(f"Function {func.__name__} is not a coroutine.")
 
     return wrapper
 
