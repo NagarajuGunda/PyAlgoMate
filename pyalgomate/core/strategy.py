@@ -54,19 +54,6 @@ class AsyncDispatcher:
         self.thread.join()
 
 
-def run_async(func):
-    """Decorator to run functions asynchronously."""
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        coro = func(*args, **kwargs)
-        if asyncio.iscoroutine(coro):
-            return asyncio.run(coro)
-        raise ValueError(f"Function {func.__name__} is not a coroutine.")
-
-    return wrapper
-
-
 @six.add_metaclass(abc.ABCMeta)
 class BaseStrategy(object):
     """Base class for strategies.
@@ -112,8 +99,8 @@ class BaseStrategy(object):
         self.__activePositions = set()
         self.__closedPositions = set()
 
-    def runAsync(self, coro):
-        return self.dispatcher.run(coro)
+    def runAsync(self, coro, callback=None):
+        return self.dispatcher.run(coro, callback)
 
     # Only valid for testing purposes.
     def _setBroker(self, broker):
@@ -387,7 +374,6 @@ class BaseStrategy(object):
             )
         )
 
-    @run_async
     async def enterLongAsync(
         self, instrument, quantity, goodTillCanceled=False, allOrNone=False
     ):
@@ -414,7 +400,6 @@ class BaseStrategy(object):
             self.enterShortAsync(instrument, quantity, goodTillCanceled, allOrNone)
         )
 
-    @run_async
     async def enterShortAsync(
         self, instrument, quantity, goodTillCanceled=False, allOrNone=False
     ):
@@ -452,7 +437,6 @@ class BaseStrategy(object):
             )
         )
 
-    @run_async
     async def enterLongLimitAsync(
         self, instrument, limitPrice, quantity, goodTillCanceled=False, allOrNone=False
     ):
@@ -489,7 +473,6 @@ class BaseStrategy(object):
             )
         )
 
-    @run_async
     async def enterShortLimitAsync(
         self, instrument, limitPrice, quantity, goodTillCanceled=False, allOrNone=False
     ):
@@ -522,7 +505,6 @@ class BaseStrategy(object):
             )
         )
 
-    @run_async
     async def enterLongStopAsync(
         self, instrument, stopPrice, quantity, goodTillCanceled=False, allOrNone=False
     ):
@@ -555,7 +537,6 @@ class BaseStrategy(object):
             )
         )
 
-    @run_async
     async def enterShortStopAsync(
         self, instrument, stopPrice, quantity, goodTillCanceled=False, allOrNone=False
     ):
@@ -600,7 +581,6 @@ class BaseStrategy(object):
             )
         )
 
-    @run_async
     async def enterLongStopLimitAsync(
         self,
         instrument,
@@ -658,7 +638,6 @@ class BaseStrategy(object):
             )
         )
 
-    @run_async
     async def enterShortStopLimitAsync(
         self,
         instrument,

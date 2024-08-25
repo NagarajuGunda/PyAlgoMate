@@ -379,7 +379,7 @@ class Position(object):
         """Modifies the exit order to a limit order."""
         assert self.exitActive()
 
-        exitOrder: broker.Order = self.buildExitOrder(None, limitPrice)
+        exitOrder: broker.Order = await self.buildExitOrder(None, limitPrice)
 
         # If goodTillCanceled was not set, match the entry order.
         if goodTillCanceled is None:
