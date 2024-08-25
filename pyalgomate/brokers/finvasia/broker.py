@@ -910,7 +910,7 @@ class LiveBroker(broker.Broker):
         except Exception as e:
             logger.critical(f"Could not place order for {symbol}. Reason: {e}")
 
-    def submitOrder(self, order: Order):
+    async def submitOrder(self, order: Order):
         if order.isInitial():
             # Override user settings based on Finvasia limitations.
             order.setAllOrNone(False)
@@ -925,7 +925,7 @@ class LiveBroker(broker.Broker):
         else:
             raise Exception("The order was already processed")
 
-    def modifyOrder(self, oldOrder: Order, newOrder: Order):
+    async def modifyOrder(self, oldOrder: Order, newOrder: Order):
         self.modifyFinvasiaOrder(
             order=oldOrder,
             newprice_type=getPriceType(newOrder.getType()),

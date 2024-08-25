@@ -582,7 +582,7 @@ class Broker(observer.Subject):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def submitOrder(self, order):
+    async def submitOrder(self, order):
         """Submits an order.
 
         :param order: The order to submit.
@@ -595,7 +595,7 @@ class Broker(observer.Subject):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def modifyOrder(self, oldOrder, newOrder):
+    async def modifyOrder(self, oldOrder, newOrder):
         raise NotImplementedError()
 
     @abc.abstractmethod

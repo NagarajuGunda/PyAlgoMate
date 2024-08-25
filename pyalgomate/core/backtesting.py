@@ -426,7 +426,7 @@ class Broker(broker.Broker):
                 % (order.getInstrument(), order.getId(), order.getRemaining())
             )
 
-    def submitOrder(self, order):
+    async def submitOrder(self, order):
         if order.isInitial():
             order.setSubmitted(
                 self._getNextOrderId(),
@@ -442,7 +442,7 @@ class Broker(broker.Broker):
         else:
             raise Exception("The order was already processed")
 
-    def modifyOrder(self, oldOrder: broker.Order, newOrder: broker.Order):
+    async def modifyOrder(self, oldOrder: broker.Order, newOrder: broker.Order):
         assert oldOrder.isActive() and newOrder.isActive()
 
         if newOrder.isInitial():
