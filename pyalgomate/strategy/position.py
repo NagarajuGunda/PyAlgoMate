@@ -388,7 +388,6 @@ class Position(object):
 
         exitOrder.setAllOrNone(self.__allOrNone)
 
-        exitOrder.switchState(broker.Order.State.SUBMITTED)
         await self.__modifyAndRegisterOrder(self.__exitOrder, exitOrder)
         self.__exitOrder = exitOrder
 

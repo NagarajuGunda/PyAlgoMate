@@ -946,12 +946,23 @@ class LiveBroker(broker.Broker):
             raise Exception("The order was already processed")
 
     async def modifyOrder(self, oldOrder: Order, newOrder: Order):
-        await self.modifyFinvasiaOrder(
-            order=oldOrder,
-            newprice_type=getPriceType(newOrder.getType()),
-            newprice=newOrder.getLimitPrice(),
-            newOrder=newOrder,
-        )
+        if newOrder.isInitial():
+            newOrder.setAllOrNone(False)
+            newOrder.setGoodTillCanceled(True)
+
+            await self.modifyFinvasiaOrder(
+                order=oldOrder,
+                newprice_type=getPriceType(newOrder.getType()),
+                newprice=newOrder.getLimitPrice(),
+                newOrder=newOrder,
+            )
+
+            # Switch from INITIAL -> SUBMITTED
+            # IMPORTANT: Do not emit an event for this switch because when using the position interface
+            # the order is not yet mapped to the position and Position.onOrderUpdated will get called.
+            newOrder.switchState(broker.Order.State.SUBMITTED)
+        else:
+            raise Exception("The order was already processed")
 
     def _createOrder(self, orderType, action, instrument, quantity, price, stopPrice):
         action = {
