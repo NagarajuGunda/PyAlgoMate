@@ -329,6 +329,7 @@ class TradeMonitor(threading.Thread):
         self.__queue = six.moves.queue.Queue()
         self.__stop = False
         self.__retryData = dict()
+        self.__pendingUpdates = set()
 
         self.__zmq_update_thread = OrderUpdateThread()
         self.__zmq_update_thread.start()
@@ -434,6 +435,15 @@ class TradeMonitor(threading.Thread):
         asyncio.set_event_loop(loop)
         loop.run_until_complete(self.run_async())
 
+    async def processOrderUpdate(self, order, orderUpdate, trades):
+        orderEvent = OrderEvent(orderUpdate, order)
+        ret: List[OrderEvent] = []
+        await self.processOrderEvent(orderEvent, ret)
+
+        if len(ret):
+            self.__queue.put((TradeMonitor.ON_USER_TRADE, ret))
+            trades.extend(ret)
+
     async def run_async(self):
         while not self.__stop:
             trades: List[OrderEvent] = []
@@ -454,21 +464,28 @@ class TradeMonitor(threading.Thread):
                         None,
                     )
                     if order:
-                        orderEvent = OrderEvent(orderUpdate, order)
-                        ret: List[OrderEvent] = []
-                        await self.processOrderEvent(
-                            orderEvent, ret
-                        )  # Await the async method
-
-                        if len(ret):
-                            self.__queue.put((TradeMonitor.ON_USER_TRADE, ret))
-                            trades.extend(ret)
+                        await self.processOrderUpdate(order, orderUpdate, trades)
+                    else:
+                        self.__pendingUpdates.add(orderUpdate)
                 except queue.Empty:
                     break
                 except Exception as e:
                     logger.exception(e)
 
             try:
+                for orderUpdate in list(self.__pendingUpdates):
+                    order = next(
+                        (
+                            o
+                            for o in self.__broker.getActiveOrders().copy()
+                            if o.getRemarks() == orderUpdate.get("remarks")
+                        ),
+                        None,
+                    )
+                    if order:
+                        await self.processOrderUpdate(order, orderUpdate, trades)
+                        self.__pendingUpdates.discard(orderUpdate)
+
                 # Process retry logic for orders not updated via ZMQ
                 for order in self.__broker.getActiveOrders().copy():
                     if order.getId() not in [event.getId() for event in trades]:

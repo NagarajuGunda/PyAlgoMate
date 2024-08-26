@@ -388,6 +388,23 @@ class Position(object):
 
         exitOrder.setAllOrNone(self.__allOrNone)
 
+        exitOrder.switchState(broker.Order.State.SUBMITTED)
+        await self.__modifyAndRegisterOrder(self.__exitOrder, exitOrder)
+        self.__exitOrder = exitOrder
+
+    async def modifyExitStopLimit(self, stopPrice, limitPrice, goodTillCanceled=None):
+        """Modifies the exit order to a limit order."""
+        assert self.exitActive()
+
+        exitOrder: broker.Order = await self.buildExitOrder(stopPrice, limitPrice)
+
+        # If goodTillCanceled was not set, match the entry order.
+        if goodTillCanceled is None:
+            goodTillCanceled = self.__entryOrder.getGoodTillCanceled()
+        exitOrder.setGoodTillCanceled(goodTillCanceled)
+
+        exitOrder.setAllOrNone(self.__allOrNone)
+
         await self.__modifyAndRegisterOrder(self.__exitOrder, exitOrder)
         self.__exitOrder = exitOrder
 
