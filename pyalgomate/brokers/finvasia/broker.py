@@ -372,7 +372,7 @@ class TradeMonitor(threading.Thread):
                 logger.warning(
                     f'Order {order.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"] + 1}'
                 )
-                self.__broker.placeOrder(order)
+                await self.__broker.placeOrder(order)
                 self.__retryData[order]["retryCount"] += 1
                 self.__retryData[order]["lastRetryTime"] = time.time()
             else:
