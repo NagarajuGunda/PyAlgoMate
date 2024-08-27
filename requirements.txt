@@ -38,3 +38,5 @@ yfinance
 sentry_sdk
 tabulate
 quantstats
+pytest
+pytest-asyncio

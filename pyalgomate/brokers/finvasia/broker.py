@@ -466,7 +466,8 @@ class TradeMonitor(threading.Thread):
                     if order:
                         await self.processOrderUpdate(order, orderUpdate, trades)
                     else:
-                        self.__pendingUpdates.add(orderUpdate)
+                        # Convert the orderUpdate dict to a frozenset of its items
+                        self.__pendingUpdates.add(frozenset(orderUpdate.items()))
                 except queue.Empty:
                     break
                 except Exception as e:
@@ -474,17 +475,19 @@ class TradeMonitor(threading.Thread):
 
             try:
                 for orderUpdate in list(self.__pendingUpdates):
+                    # Convert the frozenset back to a dict
+                    update_dict = dict(orderUpdate)
                     order = next(
                         (
                             o
                             for o in self.__broker.getActiveOrders().copy()
-                            if o.getRemarks() == orderUpdate.get("remarks")
+                            if o.getRemarks() == update_dict.get("remarks")
                         ),
                         None,
                     )
                     if order:
-                        await self.processOrderUpdate(order, orderUpdate, trades)
-                        self.__pendingUpdates.discard(orderUpdate)
+                        await self.processOrderUpdate(order, update_dict, trades)
+                        self.__pendingUpdates.remove(orderUpdate)
 
                 # Process retry logic for orders not updated via ZMQ
                 for order in self.__broker.getActiveOrders().copy():
