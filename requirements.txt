@@ -8,7 +8,7 @@ kaleido
 kiteconnect
 NorenRestApi @ https://raw.githubusercontent.com/Shoonya-Dev/ShoonyaApi-py/master/dist/NorenRestApi-0.0.30-py2.py3-none-any.whl
 NorenRestApiAsync @ https://raw.githubusercontent.com/NagarajuGunda/ShoonyaApi-py/master/dist/NorenRestApiAsync-0.0.30-py3-none-any.whl
-numpy==1.26.4
+numpy
 pandas
 pendulum
 plotly
