@@ -199,7 +199,7 @@ class LiveTradeFeed(BaseBarFeed):
                 self.__lastQuoteDateTime = message["ft"]
                 self.__lastReceivedDateTime = datetime.datetime.now()
             except zmq.Again:
-                pass
+                await asyncio.sleep(0.01)
 
     def getNextBars(self):
         def getBar(message, lastQuoteDateTime):

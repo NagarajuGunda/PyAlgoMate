@@ -7,7 +7,8 @@ flet-core==0.23.2
 kaleido
 kiteconnect
 NorenRestApi @ https://raw.githubusercontent.com/Shoonya-Dev/ShoonyaApi-py/master/dist/NorenRestApi-0.0.30-py2.py3-none-any.whl
-numpy==1.26.4
+NorenRestApiAsync @ https://raw.githubusercontent.com/NagarajuGunda/ShoonyaApi-py/master/dist/NorenRestApiAsync-0.0.30-py3-none-any.whl
+numpy
 pandas
 pendulum
 plotly
@@ -37,3 +38,5 @@ yfinance
 sentry_sdk
 tabulate
 quantstats
+pytest
+pytest-asyncio

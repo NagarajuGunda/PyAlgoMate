@@ -6,6 +6,7 @@ from pyalgotrade.stratanalyzer import returns
 
 
 class PositionState(object):
+
     def onEnter(self, position):
         pass
 
@@ -19,17 +20,19 @@ class PositionState(object):
     def isOpen(self, position):
         raise NotImplementedError()
 
-    def exit(self, position, stopPrice=None, limitPrice=None, goodTillCanceled=None):
+    async def exit(
+        self, position, stopPrice=None, limitPrice=None, goodTillCanceled=None
+    ):
         raise NotImplementedError()
 
 
 class WaitingEntryState(PositionState):
+
     def canSubmitOrder(self, position, order):
         if position.entryActive():
             raise Exception("The entry order is still active")
 
     def onOrderEvent(self, position, orderEvent):
-        # Only entry order events are valid in this state.
         assert position.getEntryOrder().getId() == orderEvent.getOrder().getId()
 
         if orderEvent.getEventType() in (
@@ -46,13 +49,16 @@ class WaitingEntryState(PositionState):
     def isOpen(self, position):
         return True
 
-    def exit(self, position, stopPrice=None, limitPrice=None, goodTillCanceled=None):
+    async def exit(
+        self, position, stopPrice=None, limitPrice=None, goodTillCanceled=None
+    ):
         assert position.getShares() == 0
         assert position.getEntryOrder().isActive()
-        position.getStrategy().getBroker().cancelOrder(position.getEntryOrder())
+        await position.getStrategy().getBroker().cancelOrder(position.getEntryOrder())
 
 
 class OpenState(PositionState):
+
     def onEnter(self, position):
         entryDateTime = position.getEntryOrder().getExecutionInfo().getDateTime()
         position.setEntryDateTime(entryDateTime)
@@ -84,7 +90,9 @@ class OpenState(PositionState):
     def isOpen(self, position):
         return True
 
-    def exit(self, position, stopPrice=None, limitPrice=None, goodTillCanceled=None):
+    async def exit(
+        self, position, stopPrice=None, limitPrice=None, goodTillCanceled=None
+    ):
         assert position.getShares() != 0
 
         # Fail if a previous exit order is active.
@@ -93,12 +101,15 @@ class OpenState(PositionState):
 
         # If the entry order is active, request cancellation.
         if position.entryActive():
-            position.getStrategy().getBroker().cancelOrder(position.getEntryOrder())
+            await position.getStrategy().getBroker().cancelOrder(
+                position.getEntryOrder()
+            )
 
-        position._submitExitOrder(stopPrice, limitPrice, goodTillCanceled)
+        await position._submitExitOrder(stopPrice, limitPrice, goodTillCanceled)
 
 
 class ClosedState(PositionState):
+
     def onEnter(self, position):
         # Set the exit datetime if the exit order was filled.
         if position.exitFilled():
@@ -119,31 +130,30 @@ class ClosedState(PositionState):
     def isOpen(self, position):
         return False
 
-    def exit(self, position, stopPrice=None, limitPrice=None, goodTillCanceled=None):
+    async def exit(
+        self, position, stopPrice=None, limitPrice=None, goodTillCanceled=None
+    ):
         pass
 
 
 class Position(object):
-    """Base class for positions.
 
-    Positions are higher level abstractions for placing orders.
-    They are escentially a pair of entry-exit orders and allow
-    to track returns and PnL easier that placing orders manually.
+    def __init__(self):
+        self.__state: PositionState = None
+        self.__activeOrders = set()
+        self.__shares = 0
+        self.__strategy = None
+        self.__entryOrder = None
+        self.__entryDateTime = None
+        self.__exitOrder = None
+        self.__exitDateTime = None
+        self.__posTracker = None
+        self.__allOrNone = None
+        self.__customAttributes = None  # Store custom attributes
 
-    :param strategy: The strategy that this position belongs to.
-    :type strategy: :class:`pyalgotrade.strategy.BaseStrategy`.
-    :param entryOrder: The order used to enter the position.
-    :type entryOrder: :class:`pyalgotrade.broker.Order`
-    :param goodTillCanceled: True if the entry order should be set as good till canceled.
-    :type goodTillCanceled: boolean.
-    :param allOrNone: True if the orders should be completely filled or not at all.
-    :type allOrNone: boolean.
+        self.switchState(WaitingEntryState())
 
-    .. note::
-        This is a base class and should not be used directly.
-    """
-
-    def __init__(self, strategy, entryOrder, goodTillCanceled, allOrNone, **kwargs):
+    async def build(self, strategy, entryOrder, goodTillCanceled, allOrNone, **kwargs):
         # The order must be created but not submitted.
         assert entryOrder.isInitial()
 
@@ -163,10 +173,12 @@ class Position(object):
 
         entryOrder.setGoodTillCanceled(goodTillCanceled)
         entryOrder.setAllOrNone(allOrNone)
-        self.__submitAndRegisterOrder(entryOrder)
+        await self.__submitAndRegisterOrder(entryOrder)
         self.__entryOrder = entryOrder
 
-    def __submitAndRegisterOrder(self, order):
+        return self
+
+    async def __submitAndRegisterOrder(self, order):
         assert order.isInitial()
 
         # Check if an order can be submitted in the current state.
@@ -174,18 +186,18 @@ class Position(object):
 
         # This may raise an exception, so we wan't to submit the order before moving forward and registering
         # the order in the strategy.
-        self.getStrategy().getBroker().submitOrder(order)
+        await self.getStrategy().getBroker().submitOrder(order)
 
         self.__activeOrders.add(order)
         self.getStrategy().registerPositionOrder(self, order)
 
-    def __modifyAndRegisterOrder(self, oldOrder, newOrder):
+    async def __modifyAndRegisterOrder(self, oldOrder, newOrder):
         # Check if an order can be submitted in the current state.
         self.__state.canSubmitOrder(self, newOrder)
 
         # This may raise an exception, so we wan't to submit the order before moving forward and registering
         # the order in the strategy.
-        self.getStrategy().getBroker().modifyOrder(oldOrder, newOrder)
+        await self.getStrategy().getBroker().modifyOrder(oldOrder, newOrder)
 
         self.__activeOrders.discard(oldOrder)
         self.__activeOrders.add(newOrder)
@@ -249,7 +261,7 @@ class Position(object):
         """Returns the instrument used for this position."""
         return self.__entryOrder.getInstrument()
 
-    def getReturn(self, includeCommissions=True):
+    async def getReturn(self, includeCommissions=True):
         """
         Calculates cumulative percentage returns up to this point.
         If the position is not closed, these will be unrealized returns.
@@ -289,17 +301,17 @@ class Position(object):
             )
         return ret
 
-    def cancelEntry(self):
+    async def cancelEntry(self):
         """Cancels the entry order if its active."""
         if self.entryActive():
-            self.getStrategy().getBroker().cancelOrder(self.getEntryOrder())
+            await self.getStrategy().getBroker().cancelOrder(self.getEntryOrder())
 
-    def cancelExit(self):
+    async def cancelExit(self):
         """Cancels the exit order if its active."""
         if self.exitActive():
-            self.getStrategy().getBroker().cancelOrder(self.getExitOrder())
+            await self.getStrategy().getBroker().cancelOrder(self.getExitOrder())
 
-    def exitMarket(self, goodTillCanceled=None):
+    async def exitMarket(self, goodTillCanceled=None):
         """Submits a market order to close this position.
 
         :param goodTillCanceled: True if the exit order is good till canceled. If False then the order gets automatically canceled when the session closes. If None, then it will match the entry order.
@@ -311,9 +323,9 @@ class Position(object):
             * If the entry order is active, cancellation will be requested.
         """
 
-        self.__state.exit(self, None, None, goodTillCanceled)
+        await self.__state.exit(self, None, None, goodTillCanceled)
 
-    def exitLimit(self, limitPrice, goodTillCanceled=None):
+    async def exitLimit(self, limitPrice, goodTillCanceled=None):
         """Submits a limit order to close this position.
 
         :param limitPrice: The limit price.
@@ -327,9 +339,9 @@ class Position(object):
             * If the entry order is active, cancellation will be requested.
         """
 
-        self.__state.exit(self, None, limitPrice, goodTillCanceled)
+        await self.__state.exit(self, None, limitPrice, goodTillCanceled)
 
-    def exitStop(self, stopPrice, goodTillCanceled=None):
+    async def exitStop(self, stopPrice, goodTillCanceled=None):
         """Submits a stop order to close this position.
 
         :param stopPrice: The stop price.
@@ -343,9 +355,9 @@ class Position(object):
             * If the entry order is active, cancellation will be requested.
         """
 
-        self.__state.exit(self, stopPrice, None, goodTillCanceled)
+        await self.__state.exit(self, stopPrice, None, goodTillCanceled)
 
-    def exitStopLimit(self, stopPrice, limitPrice, goodTillCanceled=None):
+    async def exitStopLimit(self, stopPrice, limitPrice, goodTillCanceled=None):
         """Submits a stop limit order to close this position.
 
         :param stopPrice: The stop price.
@@ -361,13 +373,13 @@ class Position(object):
             * If the entry order is active, cancellation will be requested.
         """
 
-        self.__state.exit(self, stopPrice, limitPrice, goodTillCanceled)
+        await self.__state.exit(self, stopPrice, limitPrice, goodTillCanceled)
 
-    def modifyExitToLimit(self, limitPrice, goodTillCanceled=None):
+    async def modifyExitToLimit(self, limitPrice, goodTillCanceled=None):
         """Modifies the exit order to a limit order."""
         assert self.exitActive()
 
-        exitOrder: broker.Order = self.buildExitOrder(None, limitPrice)
+        exitOrder: broker.Order = await self.buildExitOrder(None, limitPrice)
 
         # If goodTillCanceled was not set, match the entry order.
         if goodTillCanceled is None:
@@ -376,13 +388,14 @@ class Position(object):
 
         exitOrder.setAllOrNone(self.__allOrNone)
 
-        self.__modifyAndRegisterOrder(self.__exitOrder, exitOrder)
+        await self.__modifyAndRegisterOrder(self.__exitOrder, exitOrder)
         self.__exitOrder = exitOrder
 
-    def _submitExitOrder(self, stopPrice, limitPrice, goodTillCanceled):
-        assert not self.exitActive()
+    async def modifyExitStopLimit(self, stopPrice, limitPrice, goodTillCanceled=None):
+        """Modifies the exit order to a limit order."""
+        assert self.exitActive()
 
-        exitOrder = self.buildExitOrder(stopPrice, limitPrice)
+        exitOrder: broker.Order = await self.buildExitOrder(stopPrice, limitPrice)
 
         # If goodTillCanceled was not set, match the entry order.
         if goodTillCanceled is None:
@@ -391,7 +404,22 @@ class Position(object):
 
         exitOrder.setAllOrNone(self.__allOrNone)
 
-        self.__submitAndRegisterOrder(exitOrder)
+        await self.__modifyAndRegisterOrder(self.__exitOrder, exitOrder)
+        self.__exitOrder = exitOrder
+
+    async def _submitExitOrder(self, stopPrice, limitPrice, goodTillCanceled):
+        assert not self.exitActive()
+
+        exitOrder = await self.buildExitOrder(stopPrice, limitPrice)
+
+        # If goodTillCanceled was not set, match the entry order.
+        if goodTillCanceled is None:
+            goodTillCanceled = self.__entryOrder.getGoodTillCanceled()
+        exitOrder.setGoodTillCanceled(goodTillCanceled)
+
+        exitOrder.setAllOrNone(self.__allOrNone)
+
+        await self.__submitAndRegisterOrder(exitOrder)
         self.__exitOrder = exitOrder
 
     def onOrderEvent(self, orderEvent):
@@ -439,14 +467,14 @@ class Position(object):
                     execInfo.getCommission(),
                 )
 
-    def buildExitOrder(self, stopPrice, limitPrice):
+    async def buildExitOrder(self, stopPrice, limitPrice):
         raise NotImplementedError()
 
     def isOpen(self):
         """Returns True if the position is open."""
         return self.__state.isOpen(self)
 
-    def getAge(self):
+    async def getAge(self):
         """Returns the duration in open state.
 
         :rtype: datetime.timedelta.
@@ -479,7 +507,11 @@ class Position(object):
 
 # This class is reponsible for order management in long positions.
 class LongPosition(Position):
-    def __init__(
+
+    def __init__(self):
+        super(LongPosition, self).__init__()
+
+    async def build(
         self,
         strategy,
         instrument,
@@ -509,11 +541,11 @@ class LongPosition(Position):
         else:
             assert False
 
-        super(LongPosition, self).__init__(
+        return await super(LongPosition, self).build(
             strategy, entryOrder, goodTillCanceled, allOrNone, **kwargs
         )
 
-    def buildExitOrder(self, stopPrice, limitPrice):
+    async def buildExitOrder(self, stopPrice, limitPrice):
         quantity = self.getShares()
         assert quantity > 0
         if limitPrice is None and stopPrice is None:
@@ -560,7 +592,11 @@ class LongPosition(Position):
 
 # This class is reponsible for order management in short positions.
 class ShortPosition(Position):
-    def __init__(
+
+    def __init__(self):
+        super(ShortPosition, self).__init__()
+
+    async def build(
         self,
         strategy,
         instrument,
@@ -594,11 +630,11 @@ class ShortPosition(Position):
         else:
             assert False
 
-        super(ShortPosition, self).__init__(
+        return await super(ShortPosition, self).build(
             strategy, entryOrder, goodTillCanceled, allOrNone, **kwargs
         )
 
-    def buildExitOrder(self, stopPrice, limitPrice):
+    async def buildExitOrder(self, stopPrice, limitPrice):
         quantity = self.getShares() * -1
         assert quantity > 0
         if limitPrice is None and stopPrice is None:

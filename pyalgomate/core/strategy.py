@@ -1,14 +1,57 @@
 import abc
+import asyncio
 import logging
+import threading
+from functools import wraps
 
 import pyalgotrade.broker
 import six
 from pyalgotrade import logger, observer
 from pyalgotrade.broker import backtesting
-from pyalgomate.strategy import position
 
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.core import dispatcher, resampled
+from pyalgomate.strategy import position
+
+
+class AsyncDispatcher:
+    def __init__(self):
+        self.loop = asyncio.new_event_loop()
+        self.thread = threading.Thread(target=self._run_event_loop, daemon=True)
+        self.thread.start()
+
+    def _run_event_loop(self):
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
+    def run(self, coroutine, callback=None):
+        """
+        Runs an asynchronous coroutine, optionally executing a callback with the result.
+
+        :param coroutine: The asynchronous coroutine to be executed.
+        :param callback: An optional callback function that takes the result of the coroutine.
+        """
+
+        def done_callback(future):
+            if callback:
+                result = future.result()  # Get the result of the coroutine
+                callback(result)  # Execute the callback with the result
+
+        async def wrapper():
+            try:
+                result = await coroutine
+                return result
+            except Exception as e:
+                raise e
+
+        asyncio.run_coroutine_threadsafe(wrapper(), self.loop).add_done_callback(
+            done_callback
+        )
+
+    def stop(self):
+        """Stops the event loop and joins the thread."""
+        self.loop.call_soon_threadsafe(self.loop.stop)
+        self.thread.join()
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -37,6 +80,7 @@ class BaseStrategy(object):
         self.__namedAnalyzers = {}
         self.__resampledBarFeeds = []
         self.__dispatcher = dispatcher.Dispatcher()
+        self.dispatcher = AsyncDispatcher()
         self.__broker.getOrderUpdatedEvent().subscribe(self.__onOrderEvent)
         self.__barFeed.getNewValuesEvent().subscribe(self.__onBars)
 
@@ -54,6 +98,9 @@ class BaseStrategy(object):
     def reset(self):
         self.__activePositions = set()
         self.__closedPositions = set()
+
+    def runAsync(self, coro, callback=None):
+        return self.dispatcher.run(coro, callback)
 
     # Only valid for testing purposes.
     def _setBroker(self, broker):
@@ -321,7 +368,16 @@ class BaseStrategy(object):
         :rtype: The :class:`position.Position` entered.
         """
 
-        return position.LongPosition(
+        return self.dispatcher.run(
+            self.enterLongAsync(
+                self, instrument, None, None, quantity, goodTillCanceled, allOrNone
+            )
+        )
+
+    async def enterLongAsync(
+        self, instrument, quantity, goodTillCanceled=False, allOrNone=False
+    ):
+        return await position.LongPosition().build(
             self, instrument, None, None, quantity, goodTillCanceled, allOrNone
         )
 
@@ -340,7 +396,14 @@ class BaseStrategy(object):
         :rtype: The :class:`position.Position` entered.
         """
 
-        return position.ShortPosition(
+        return self.dispatcher.run(
+            self.enterShortAsync(instrument, quantity, goodTillCanceled, allOrNone)
+        )
+
+    async def enterShortAsync(
+        self, instrument, quantity, goodTillCanceled=False, allOrNone=False
+    ):
+        return await position.ShortPosition().build(
             self, instrument, None, None, quantity, goodTillCanceled, allOrNone
         )
 
@@ -363,7 +426,21 @@ class BaseStrategy(object):
         :rtype: The :class:`position.Position` entered.
         """
 
-        return position.LongPosition(
+        return self.dispatcher.run(
+            self.enterLongLimitAsync(
+                instrument,
+                None,
+                limitPrice,
+                quantity,
+                goodTillCanceled,
+                allOrNone,
+            )
+        )
+
+    async def enterLongLimitAsync(
+        self, instrument, limitPrice, quantity, goodTillCanceled=False, allOrNone=False
+    ):
+        return await position.LongPosition(
             self, instrument, None, limitPrice, quantity, goodTillCanceled, allOrNone
         )
 
@@ -386,7 +463,20 @@ class BaseStrategy(object):
         :rtype: The :class:`position.Position` entered.
         """
 
-        return position.ShortPosition(
+        return self.dispatcher.run(
+            self.enterShortLimitAsync(
+                instrument,
+                limitPrice,
+                quantity,
+                goodTillCanceled,
+                allOrNone,
+            )
+        )
+
+    async def enterShortLimitAsync(
+        self, instrument, limitPrice, quantity, goodTillCanceled=False, allOrNone=False
+    ):
+        return await position.ShortPosition().build(
             self, instrument, None, limitPrice, quantity, goodTillCanceled, allOrNone
         )
 
@@ -409,7 +499,16 @@ class BaseStrategy(object):
         :rtype: The :class:`position.Position` entered.
         """
 
-        return position.LongPosition(
+        return self.dispatcher.run(
+            self.enterLongStopAsync(
+                instrument, stopPrice, quantity, goodTillCanceled, allOrNone
+            )
+        )
+
+    async def enterLongStopAsync(
+        self, instrument, stopPrice, quantity, goodTillCanceled=False, allOrNone=False
+    ):
+        return await position.LongPosition().build(
             self, instrument, stopPrice, None, quantity, goodTillCanceled, allOrNone
         )
 
@@ -432,7 +531,16 @@ class BaseStrategy(object):
         :rtype: The :class:`position.Position` entered.
         """
 
-        return position.ShortPosition(
+        return self.dispatcher.run(
+            self.enterShortStopAsync(
+                instrument, stopPrice, quantity, goodTillCanceled, allOrNone
+            )
+        )
+
+    async def enterShortStopAsync(
+        self, instrument, stopPrice, quantity, goodTillCanceled=False, allOrNone=False
+    ):
+        return await position.ShortPosition().build(
             self, instrument, stopPrice, None, quantity, goodTillCanceled, allOrNone
         )
 
@@ -462,7 +570,27 @@ class BaseStrategy(object):
         :rtype: The :class:`position.Position` entered.
         """
 
-        return position.LongPosition(
+        return self.dispatcher.run(
+            self.enterLongStopLimitAsync(
+                instrument,
+                stopPrice,
+                limitPrice,
+                quantity,
+                goodTillCanceled,
+                allOrNone,
+            )
+        )
+
+    async def enterLongStopLimitAsync(
+        self,
+        instrument,
+        stopPrice,
+        limitPrice,
+        quantity,
+        goodTillCanceled=False,
+        allOrNone=False,
+    ):
+        return await position.LongPosition().build(
             self,
             instrument,
             stopPrice,
@@ -499,7 +627,27 @@ class BaseStrategy(object):
         :rtype: The :class:`position.Position` entered.
         """
 
-        return position.ShortPosition(
+        return self.dispatcher.run(
+            self.enterShortStopLimitAsync(
+                instrument,
+                stopPrice,
+                limitPrice,
+                quantity,
+                goodTillCanceled,
+                allOrNone,
+            )
+        )
+
+    async def enterShortStopLimitAsync(
+        self,
+        instrument,
+        stopPrice,
+        limitPrice,
+        quantity,
+        goodTillCanceled=False,
+        allOrNone=False,
+    ):
+        return await position.ShortPosition().build(
             self,
             instrument,
             stopPrice,
@@ -602,7 +750,7 @@ class BaseStrategy(object):
         self.onOrderUpdated(order)
 
         # Notify the position about the order event.
-        pos = self.__orderToPosition.get(order, None)
+        pos: position.Position = self.__orderToPosition.get(order, None)
         if pos is not None:
             # Unlink the order from the position if its not active anymore.
             if not order.isActive():
@@ -640,6 +788,7 @@ class BaseStrategy(object):
     def stop(self):
         """Stops a running strategy."""
         self.__dispatcher.stop()
+        self.dispatcher.stop()
 
     def attachAnalyzer(self, strategyAnalyzer):
         """Adds a :class:`pyalgotrade.stratanalyzer.StrategyAnalyzer`."""
