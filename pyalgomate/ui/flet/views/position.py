@@ -5,7 +5,6 @@ from pyalgomate.strategy.position import Position
 
 
 class ExpandableLegRow(ft.UserControl):
-
     def __init__(self, position, data, colors, width):
         super().__init__()
         self.position = position
@@ -31,12 +30,6 @@ class ExpandableLegRow(ft.UserControl):
         )
 
     def build(self):
-        self.copy_icon = ft.IconButton(
-            icon=ft.icons.CONTENT_COPY_OUTLINED,
-            icon_size=16,
-            on_click=self.copy_row,
-        )
-
         self.expand_icon = ft.IconButton(
             icon=ft.icons.KEYBOARD_ARROW_DOWN,
             on_click=self.toggle_expand,
@@ -64,15 +57,26 @@ class ExpandableLegRow(ft.UserControl):
             [
                 ft.Container(
                     content=ft.Row(
-                        [self.row, self.copy_icon, self.expand_icon],
+                        [self.row, self.expand_icon],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
                     padding=ft.padding.symmetric(vertical=5),
                 ),
+                ft.Divider(height=1, color=ft.colors.GREY_300),
                 self.expanded_details,
             ],
             spacing=0,
         )
+
+    def toggle_expand(self, e):
+        self.expanded = not self.expanded
+        self.expand_icon.icon = (
+            ft.icons.KEYBOARD_ARROW_UP
+            if self.expanded
+            else ft.icons.KEYBOARD_ARROW_DOWN
+        )
+        self.expanded_details.visible = self.expanded
+        self.update()
 
     def create_detail_row(self, label):
         order = (
@@ -148,20 +152,6 @@ class ExpandableLegRow(ft.UserControl):
             width=self.width - 40,  # Adjust width to occupy full row
         )
 
-    def toggle_expand(self, e):
-        self.expanded = not self.expanded
-        self.expand_icon.icon = (
-            ft.icons.KEYBOARD_ARROW_UP
-            if self.expanded
-            else ft.icons.KEYBOARD_ARROW_DOWN
-        )
-        self.expanded_details.visible = self.expanded
-        self.update()
-
-    def copy_row(self, e):
-        # Implement copy functionality here
-        pass
-
     def update_data(self):
         if not self.data:
             return
@@ -174,23 +164,29 @@ class ExpandableLegRow(ft.UserControl):
         self.data[-2] = f"{ltp:.2f}"
         self.colors[-1] = ft.colors.GREEN if mtm >= 0 else ft.colors.RED
 
-        # Update the row
-        if len(self.row.controls) >= 2:
-            self.row.controls[-1].value = self.data[-1]
-            self.row.controls[-1].color = self.colors[-1]
-            self.row.controls[-2].value = self.data[-2]
+        # Recreate the row with updated data
+        self.row = self.create_row()
+
+        # Update the container's content
+        self.controls[0].controls[0].content.controls[0] = self.row
         self.update()
 
 
 class LegTable(ft.UserControl):
-
     def __init__(self, title, headers, rows):
         super().__init__()
         self.title = title
         self.headers = headers
         self.rows = rows
+        self.all_expanded = False
 
     def build(self):
+        self.expand_all_button = ft.TextButton(
+            text="Expand All",
+            style=ft.ButtonStyle(color=ft.colors.BLUE),
+            on_click=self.toggle_all_rows,
+        )
+
         header_row = ft.Container(
             content=ft.Row(
                 [
@@ -216,9 +212,7 @@ class LegTable(ft.UserControl):
                 ft.Row(
                     [
                         ft.Text(self.title, size=16, weight=ft.FontWeight.BOLD),
-                        ft.TextButton(
-                            "Expand All", style=ft.ButtonStyle(color=ft.colors.BLUE)
-                        ),
+                        self.expand_all_button,
                     ],
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 ),
@@ -228,6 +222,21 @@ class LegTable(ft.UserControl):
             spacing=0,
         )
 
+    def toggle_all_rows(self, e):
+        self.all_expanded = not self.all_expanded
+        for row in self.rows:
+            row.expanded = self.all_expanded
+            row.expand_icon.icon = (
+                ft.icons.KEYBOARD_ARROW_UP
+                if self.all_expanded
+                else ft.icons.KEYBOARD_ARROW_DOWN
+            )
+            row.expanded_details.visible = self.all_expanded
+        self.expand_all_button.text = (
+            "Collapse All" if self.all_expanded else "Expand All"
+        )
+        self.update()
+
     def update_data(self):
         for row in self.rows:
             row.update_data()
@@ -235,7 +244,6 @@ class LegTable(ft.UserControl):
 
 
 class PositionView(ft.View):
-
     def __init__(self, positions: List[Position], width: float = 1000):
         super().__init__(route="/positions")
         self.positions = positions
@@ -307,33 +315,6 @@ class PositionView(ft.View):
                                         track_color=ft.colors.BLUE_100,
                                         inactive_track_color=ft.colors.GREY_300,
                                         scale=0.8,
-                                    ),
-                                ],
-                                spacing=2,
-                                alignment=ft.MainAxisAlignment.CENTER,
-                            ),
-                            ft.Column(
-                                [
-                                    ft.Text(
-                                        "Taxes & charges", weight=ft.FontWeight.BOLD
-                                    ),
-                                    ft.Row(
-                                        [
-                                            ft.Switch(
-                                                value=True,
-                                                active_color=ft.colors.BLUE,
-                                                inactive_thumb_color=ft.colors.BLUE_GREY,
-                                                thumb_color=ft.colors.WHITE,
-                                                track_color=ft.colors.BLUE_100,
-                                                inactive_track_color=ft.colors.GREY_300,
-                                                scale=0.8,
-                                            ),
-                                            ft.Text("₹ 4.44", size=12),
-                                            ft.Icon(
-                                                ft.icons.KEYBOARD_ARROW_DOWN, size=16
-                                            ),
-                                        ],
-                                        spacing=2,
                                     ),
                                 ],
                                 spacing=2,
@@ -415,9 +396,6 @@ class PositionView(ft.View):
             "Entry Price",
             "Entry Time",
             "Initial SL",
-            "Updated SL",
-            "Target",
-            "Underlying",
             "LTP",
             "MTM",
         ]
@@ -431,8 +409,6 @@ class PositionView(ft.View):
             "Entry Price",
             "Entry Time",
             "Initial SL",
-            "Updated SL",
-            "Target",
             "Exit Price",
             "Exit Time",
             "MTM",
@@ -465,13 +441,10 @@ class PositionView(ft.View):
                     f"{entry_price:.2f}",
                     entry_time,
                     "N/A",  # Initial SL
-                    "N/A",  # Updated SL
-                    "N/A",  # Target
-                    "N/A",  # Underlying
                     f"{ltp:.2f}",
                     f"{mtm:.2f}",
                 ]
-                row_colors = [None] * 10  # Initialize with 10 None values
+                row_colors = [None] * 7  # Initialize with 7 None values
                 row_colors[-1] = ft.colors.GREEN if mtm >= 0 else ft.colors.RED
 
                 running_legs_rows.append(
@@ -510,13 +483,11 @@ class PositionView(ft.View):
                     f"{entry_price:.2f}",
                     entry_time,
                     "N/A",  # Initial SL
-                    "N/A",  # Updated SL
-                    "N/A",  # Target
                     f"{exit_price:.2f}",
                     exit_time,
                     f"{mtm:.2f}",
                 ]
-                row_colors = [None] * 10  # Initialize with 10 None values
+                row_colors = [None] * 8  # Initialize with 8 None values
                 row_colors[-1] = ft.colors.GREEN if mtm >= 0 else ft.colors.RED
 
                 closed_legs_rows.append(

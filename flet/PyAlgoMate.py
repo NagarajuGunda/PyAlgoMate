@@ -242,17 +242,21 @@ def main(page: ft.Page):
                 try:
                     if len(page.views):
                         topView = page.views[-1]
-                        if topView in page.views:
-                            if hasattr(topView, 'updateData'):
-                                topView.updateData()
-                            elif hasattr(topView, 'update'):
-                                topView.update()
+                        if (
+                            topView in page.views
+                        ):  # Check if the view is still in the page
+                            try:
+                                if hasattr(topView, "updateData"):
+                                    topView.updateData()
+                                elif hasattr(topView, "update"):
+                                    topView.update()
+                            except Exception:
+                                pass
                 except PageDisconnectedException:
                     logger.warning(
                         "Page disconnected during view update. Will retry on next iteration.")
-                except Exception as e:
-                    logger.error(f"Error updating views: {str(e)}")
-                    logger.exception("Exception details:")
+                except Exception:
+                    pass
             time.sleep(1)
 
     update_thread = threading.Thread(target=update_views, daemon=True)
