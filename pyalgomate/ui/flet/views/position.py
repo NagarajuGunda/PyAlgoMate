@@ -6,13 +6,12 @@ from pyalgomate.strategy.position import Position
 
 class ExpandableLegRow(ft.UserControl):
 
-    def __init__(self, position, data, colors, entry_details, exit_details):
+    def __init__(self, position, data, colors, width):
         super().__init__()
         self.position = position
         self.data = data
         self.colors = colors
-        self.entry_details = entry_details
-        self.exit_details = exit_details
+        self.width = width
         self.expanded = False
         self.row = self.create_row()
 
@@ -44,12 +43,21 @@ class ExpandableLegRow(ft.UserControl):
             icon_size=16,
         )
 
-        self.expanded_details = ft.Column(
-            [
-                self.create_detail_row("ENTRY:", self.entry_details),
-                self.create_detail_row("EXIT:", self.exit_details),
-            ],
+        self.expanded_details = ft.Container(
+            content=ft.Column(
+                [
+                    self.create_detail_row("ENTRY:"),
+                    (
+                        self.create_detail_row("EXIT:")
+                        if self.position.getExitOrder().isFilled()
+                        else ft.Container()
+                    ),
+                ],
+                spacing=0,
+            ),
             visible=False,
+            bgcolor=ft.colors.GREY_100,
+            padding=ft.padding.only(top=5, bottom=5),
         )
 
         return ft.Column(
@@ -59,30 +67,85 @@ class ExpandableLegRow(ft.UserControl):
                         [self.row, self.copy_icon, self.expand_icon],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
-                    border=ft.border.only(bottom=ft.BorderSide(1, ft.colors.GREY_300)),
                     padding=ft.padding.symmetric(vertical=5),
                 ),
                 self.expanded_details,
-            ]
+            ],
+            spacing=0,
         )
 
-    def create_detail_row(self, label, details):
+    def create_detail_row(self, label):
+        order = (
+            self.position.getEntryOrder()
+            if label == "ENTRY:"
+            else self.position.getExitOrder()
+        )
+        order_type = order.getType()
+
+        details = [
+            ("Type", str(order_type)),
+            (
+                "Limit",
+                (
+                    f"{order.getLimitPrice():.2f}"
+                    if hasattr(order, "getLimitPrice") and order.getLimitPrice()
+                    else "NA"
+                ),
+            ),
+            (
+                "Stop",
+                (
+                    f"{order.getStopPrice():.2f}"
+                    if hasattr(order, "getStopPrice") and order.getStopPrice()
+                    else "NA"
+                ),
+            ),
+            (
+                "Fill",
+                f"{order.getAvgFillPrice():.2f}" if order.getAvgFillPrice() else "NA",
+            ),
+            (
+                "Submit",
+                (
+                    order.getSubmitDateTime().strftime("%H:%M:%S")
+                    if order.getSubmitDateTime()
+                    else "NA"
+                ),
+            ),
+            (
+                "Exec",
+                (
+                    order.getExecutionInfo().getDateTime().strftime("%H:%M:%S")
+                    if order.getExecutionInfo()
+                    else "NA"
+                ),
+            ),
+        ]
+
         return ft.Container(
             content=ft.Row(
                 [
-                    ft.Text(label, size=12, width=50, weight=ft.FontWeight.BOLD),
-                    ft.Row(
-                        [
-                            ft.Text(f"{k}: {v}", size=12, width=200)
-                            for k, v in details.items()
-                        ],
-                        wrap=True,
-                    ),
+                    ft.Text(label, size=14, weight=ft.FontWeight.BOLD, width=60),
+                    *[
+                        ft.Container(
+                            content=ft.Row(
+                                [
+                                    ft.Text(k, size=12, color=ft.colors.GREY_700),
+                                    ft.Text(v, size=12, weight=ft.FontWeight.W_500),
+                                ],
+                                spacing=5,
+                            ),
+                            width=100,
+                            padding=ft.padding.only(right=10),
+                        )
+                        for k, v in details
+                    ],
                 ],
                 alignment=ft.MainAxisAlignment.START,
+                spacing=5,
             ),
-            bgcolor=ft.colors.GREY_100,
-            padding=5,
+            padding=ft.padding.only(left=10, top=5, bottom=5),
+            width=self.width - 40,  # Adjust width to occupy full row
         )
 
     def toggle_expand(self, e):
@@ -100,6 +163,9 @@ class ExpandableLegRow(ft.UserControl):
         pass
 
     def update_data(self):
+        if not self.data:
+            return
+
         mtm = self.position.getPnL()
         ltp = self.position.getLastPrice()
 
@@ -109,21 +175,20 @@ class ExpandableLegRow(ft.UserControl):
         self.colors[-1] = ft.colors.GREEN if mtm >= 0 else ft.colors.RED
 
         # Update the row
-        self.row.controls[-1].value = self.data[-1]
-        self.row.controls[-1].color = self.colors[-1]
-        self.row.controls[-2].value = self.data[-2]
+        if len(self.row.controls) >= 2:
+            self.row.controls[-1].value = self.data[-1]
+            self.row.controls[-1].color = self.colors[-1]
+            self.row.controls[-2].value = self.data[-2]
         self.update()
 
 
 class LegTable(ft.UserControl):
 
-    def __init__(self, title, headers, rows, entry_details, exit_details):
+    def __init__(self, title, headers, rows):
         super().__init__()
         self.title = title
         self.headers = headers
         self.rows = rows
-        self.entry_details = entry_details
-        self.exit_details = exit_details
 
     def build(self):
         header_row = ft.Container(
@@ -171,9 +236,10 @@ class LegTable(ft.UserControl):
 
 class PositionView(ft.View):
 
-    def __init__(self, positions: List[Position]):
+    def __init__(self, positions: List[Position], width: float = 1000):
         super().__init__(route="/positions")
         self.positions = positions
+        self.width = width
         self.expand = True
         self.__did_mount = False
 
@@ -196,16 +262,7 @@ class PositionView(ft.View):
                             ft.Column(
                                 [
                                     ft.Text("Status", weight=ft.FontWeight.BOLD),
-                                    ft.Container(
-                                        ft.Text(
-                                            "RUNNING", color=ft.colors.WHITE, size=12
-                                        ),
-                                        bgcolor=ft.colors.GREEN,
-                                        border_radius=5,
-                                        padding=ft.padding.symmetric(
-                                            horizontal=8, vertical=2
-                                        ),
-                                    ),
+                                    self.create_status_container(),
                                 ],
                                 spacing=2,
                                 alignment=ft.MainAxisAlignment.CENTER,
@@ -213,7 +270,7 @@ class PositionView(ft.View):
                             ft.Column(
                                 [
                                     ft.Text("Open Position", weight=ft.FontWeight.BOLD),
-                                    ft.Text("1"),
+                                    ft.Text(self.get_open_position_count()),
                                 ],
                                 spacing=2,
                                 alignment=ft.MainAxisAlignment.CENTER,
@@ -365,7 +422,7 @@ class PositionView(ft.View):
             "MTM",
         ]
         running_legs_rows = self.prepare_running_legs_data()
-        return LegTable("Running Legs", running_legs_headers, running_legs_rows, {}, {})
+        return LegTable("Running Legs", running_legs_headers, running_legs_rows)
 
     def create_closed_legs_table(self):
         closed_legs_headers = [
@@ -381,7 +438,7 @@ class PositionView(ft.View):
             "MTM",
         ]
         closed_legs_rows = self.prepare_closed_legs_data()
-        return LegTable("Closed Legs", closed_legs_headers, closed_legs_rows, {}, {})
+        return LegTable("Closed Legs", closed_legs_headers, closed_legs_rows)
 
     def prepare_running_legs_data(self):
         running_legs_rows = []
@@ -390,12 +447,14 @@ class PositionView(ft.View):
                 position.getEntryOrder().isFilled()
                 and not position.getExitOrder().isFilled()
             ):
-                entry_order = position.getEntryOrder()
                 instrument = position.getInstrument()
-                qty = entry_order.getQuantity()
-                entry_price = f"{'S' if entry_order.isSell() else 'B'} {entry_order.getAvgFillPrice():.2f}"
+                qty = position.getEntryOrder().getQuantity()
+                entry_price = position.getEntryOrder().getAvgFillPrice()
                 entry_time = (
-                    entry_order.getExecutionInfo().getDateTime().strftime("%H:%M:%S")
+                    position.getEntryOrder()
+                    .getExecutionInfo()
+                    .getDateTime()
+                    .strftime("%H:%M:%S")
                 )
                 ltp = position.getLastPrice()
                 mtm = position.getPnL()
@@ -403,39 +462,20 @@ class PositionView(ft.View):
                 row_data = [
                     instrument,
                     str(qty),
-                    entry_price,
+                    f"{entry_price:.2f}",
                     entry_time,
-                    "N/A",
-                    "N/A",
-                    "N/A",
-                    "N/A",  # Initial SL, Updated SL, Target, Underlying
+                    "N/A",  # Initial SL
+                    "N/A",  # Updated SL
+                    "N/A",  # Target
+                    "N/A",  # Underlying
                     f"{ltp:.2f}",
                     f"{mtm:.2f}",
                 ]
-                row_colors = [
-                    None,
-                    None,
-                    ft.colors.RED if entry_order.isSell() else ft.colors.GREEN,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    ft.colors.GREEN if mtm >= 0 else ft.colors.RED,
-                ]
-                entry_details = {
-                    "Order ID": entry_order.getId(),
-                    "Avg Fill Price": f"{entry_order.getAvgFillPrice():.2f}",
-                    "Filled Qty": str(entry_order.getFilled()),
-                    "Remaining Qty": str(entry_order.getRemaining()),
-                    "Status": entry_order.getState(),
-                }
-                exit_details = {}  # Empty for running legs
+                row_colors = [None] * 10  # Initialize with 10 None values
+                row_colors[-1] = ft.colors.GREEN if mtm >= 0 else ft.colors.RED
+
                 running_legs_rows.append(
-                    ExpandableLegRow(
-                        position, row_data, row_colors, entry_details, exit_details
-                    )
+                    ExpandableLegRow(position, row_data, row_colors, width=self.width)
                 )
         return running_legs_rows
 
@@ -446,62 +486,69 @@ class PositionView(ft.View):
                 position.getEntryOrder().isFilled()
                 and position.getExitOrder().isFilled()
             ):
-                entry_order = position.getEntryOrder()
-                exit_order = position.getExitOrder()
                 instrument = position.getInstrument()
-                qty = entry_order.getQuantity()
-                entry_price = f"{entry_order.getAvgFillPrice():.2f} {'S' if entry_order.isSell() else 'B'}"
+                qty = position.getEntryOrder().getQuantity()
+                entry_price = position.getEntryOrder().getAvgFillPrice()
                 entry_time = (
-                    entry_order.getExecutionInfo().getDateTime().strftime("%H:%M:%S")
+                    position.getEntryOrder()
+                    .getExecutionInfo()
+                    .getDateTime()
+                    .strftime("%H:%M:%S")
                 )
-                exit_price = f"{exit_order.getAvgFillPrice():.2f} {'B' if entry_order.isSell() else 'S'}"
+                exit_price = position.getExitOrder().getAvgFillPrice()
                 exit_time = (
-                    exit_order.getExecutionInfo().getDateTime().strftime("%H:%M:%S")
+                    position.getExitOrder()
+                    .getExecutionInfo()
+                    .getDateTime()
+                    .strftime("%H:%M:%S")
                 )
                 mtm = position.getPnL()
 
                 row_data = [
                     instrument,
                     str(qty),
-                    entry_price,
+                    f"{entry_price:.2f}",
                     entry_time,
-                    "N/A",
-                    "N/A",
-                    "N/A",  # Initial SL, Updated SL, Target
-                    exit_price,
+                    "N/A",  # Initial SL
+                    "N/A",  # Updated SL
+                    "N/A",  # Target
+                    f"{exit_price:.2f}",
                     exit_time,
                     f"{mtm:.2f}",
                 ]
-                row_colors = [
-                    None,
-                    None,
-                    ft.colors.RED if entry_order.isSell() else ft.colors.GREEN,
-                    None,
-                    None,
-                    None,
-                    None,
-                    ft.colors.GREEN if entry_order.isSell() else ft.colors.RED,
-                    None,
-                    ft.colors.GREEN if mtm >= 0 else ft.colors.RED,
-                ]
-                entry_details = {
-                    "Order ID": entry_order.getId(),
-                    "Avg Fill Price": f"{entry_order.getAvgFillPrice():.2f}",
-                    "Filled Qty": str(entry_order.getFilled()),
-                    "Status": entry_order.getState(),
-                }
-                exit_details = {
-                    "Order ID": exit_order.getId(),
-                    "Avg Fill Price": f"{exit_order.getAvgFillPrice():.2f}",
-                    "Filled Qty": str(exit_order.getFilled()),
-                    "Status": exit_order.getState(),
-                }
+                row_colors = [None] * 10  # Initialize with 10 None values
+                row_colors[-1] = ft.colors.GREEN if mtm >= 0 else ft.colors.RED
+
                 closed_legs_rows.append(
-                    ExpandableLegRow(
-                        position, row_data, row_colors, entry_details, exit_details
-                    )
+                    ExpandableLegRow(position, row_data, row_colors, width=self.width)
                 )
         return closed_legs_rows
+
+    def create_status_container(self):
+        is_running = any(
+            position.getEntryOrder().isFilled()
+            and not position.getExitOrder().isFilled()
+            for position in self.positions
+        )
+        status_text = "RUNNING" if is_running else "IDLE"
+        status_color = ft.colors.GREEN if is_running else ft.colors.ORANGE
+
+        return ft.Container(
+            ft.Text(status_text, color=ft.colors.WHITE, size=12),
+            bgcolor=status_color,
+            border_radius=5,
+            padding=ft.padding.symmetric(horizontal=8, vertical=2),
+        )
+
+    def get_open_position_count(self):
+        return str(
+            sum(
+                1
+                for position in self.positions
+                if position.getEntryOrder().isFilled()
+                and not position.getExitOrder().isFilled()
+            )
+        )
 
     def updateData(self):
         if not self.__did_mount:
@@ -533,5 +580,12 @@ class PositionView(ft.View):
         mtm_column.controls[1].color = (
             ft.colors.GREEN if total_mtm >= 0 else ft.colors.RED
         )
+
+        # Update status and open position count
+        status_column = self.status_section.content.controls[0].controls[0]
+        status_column.controls[1] = self.create_status_container()
+
+        open_position_column = self.status_section.content.controls[0].controls[1]
+        open_position_column.controls[1].value = self.get_open_position_count()
 
         self.content.update()
