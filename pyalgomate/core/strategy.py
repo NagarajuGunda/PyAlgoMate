@@ -440,7 +440,7 @@ class BaseStrategy(object):
     async def enterLongLimitAsync(
         self, instrument, limitPrice, quantity, goodTillCanceled=False, allOrNone=False
     ):
-        return await position.LongPosition(
+        return await position.LongPosition().build(
             self, instrument, None, limitPrice, quantity, goodTillCanceled, allOrNone
         )
 
