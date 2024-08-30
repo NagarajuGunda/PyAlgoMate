@@ -7,8 +7,8 @@ os.path.dirname(os.path.abspath(__file__)), os.pardir)))
 from pyalgomate.core import State
 from pyalgomate.brokers import getFeed, getBroker
 from pyalgomate.telegram import TelegramBot
-from views.trades import TradesView
-from views.strategies import StrategiesView
+from pyalgomate.ui.flet.views.trades import TradesView
+from pyalgomate.ui.flet.views.strategies import StrategiesView
 import pyalgotrade
 import yaml
 import logging
