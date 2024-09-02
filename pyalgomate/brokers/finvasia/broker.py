@@ -317,9 +317,9 @@ class OrderUpdateThread(threading.Thread):
 
 
 class TradeMonitor(threading.Thread):
-    POLL_FREQUENCY = 0.1
-    RETRY_COUNT = 3
-    RETRY_INTERVAL = 5
+    POLL_FREQUENCY = 0.01
+    RETRY_COUNT = 2
+    RETRY_INTERVAL = 0.5
 
     ON_USER_TRADE = 1
 
@@ -818,7 +818,7 @@ class LiveBroker(broker.Broker):
     #     api.cancel_order(orderno=orderno)
 
     async def modifyFinvasiaOrder(
-        self, order: Order, newprice_type=None, newprice=0.0, newOrder: Order = None
+        self, order: Order, newprice_type=None, newprice=0.0, newtrigger_price=None, newOrder: Order = None
     ):
         try:
             splitStrings = order.getInstrument().split("|")
@@ -833,7 +833,7 @@ class LiveBroker(broker.Broker):
                 newquantity=quantity,
                 newprice_type=newprice_type,
                 newprice=newprice,
-                newtrigger_price=None,
+                newtrigger_price=newtrigger_price,
                 bookloss_price=0.0,
                 bookprofit_price=0.0,
                 trail_price=0.0,
@@ -953,10 +953,12 @@ class LiveBroker(broker.Broker):
             newOrder.setAllOrNone(False)
             newOrder.setGoodTillCanceled(True)
 
+            newTriggerPrice = newOrder.getStopPrice() if newOrder.getType() in [broker.Order.Type.STOP_LIMIT] else None
             await self.modifyFinvasiaOrder(
                 order=oldOrder,
                 newprice_type=getPriceType(newOrder.getType()),
                 newprice=newOrder.getLimitPrice(),
+                newtrigger_price=newTriggerPrice,
                 newOrder=newOrder,
             )
 

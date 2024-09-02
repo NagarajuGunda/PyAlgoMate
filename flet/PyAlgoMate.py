@@ -25,7 +25,8 @@ import sys
 import sentry_sdk
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+loggingLevel = logging.WARN
+logger.setLevel(loggingLevel)
 
 formatter = logging.Formatter(
     "[%(levelname)-5s]|[%(asctime)s]|[PID:%(process)d::TID:%(thread)d]|[%(name)s::%(module)s::%(funcName)s::%("
@@ -33,11 +34,11 @@ formatter = logging.Formatter(
 )
 
 fileHandler = logging.FileHandler('PyAlgoMate.log', 'a', 'utf-8')
-fileHandler.setLevel(logging.INFO)
+fileHandler.setLevel(loggingLevel)
 fileHandler.setFormatter(formatter)
 
 consoleHandler = logging.StreamHandler()
-consoleHandler.setLevel(logging.INFO)
+consoleHandler.setLevel(loggingLevel)
 consoleHandler.setFormatter(formatter)
 
 logger.addHandler(fileHandler)
