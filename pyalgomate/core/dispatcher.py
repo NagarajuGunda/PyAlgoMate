@@ -1,4 +1,7 @@
+import asyncio
+import threading
 import time
+from datetime import timedelta
 
 from pyalgotrade import dispatchprio, observer, utils
 
@@ -105,3 +108,68 @@ class Dispatcher(object):
                 subject.stop()
             for subject in self.__subjects:
                 subject.join()
+
+
+class AsyncDispatcher:
+    def __init__(self, strategy):
+        self.strategy = strategy
+        self.loop = asyncio.new_event_loop()
+        self.thread = threading.Thread(target=self._run_event_loop, daemon=True)
+        self.scheduled_tasks = {}
+        self.thread.start()
+
+    def _run_event_loop(self):
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
+    def run(self, coroutine, callback=None):
+        def done_callback(future):
+            if callback:
+                result = future.result()
+                callback(result)
+
+        future = asyncio.run_coroutine_threadsafe(coroutine, self.loop)
+        if callback:
+            future.add_done_callback(done_callback)
+        return future
+
+    def schedule(self, coroutine, when, task_id=None):
+        if task_id in self.scheduled_tasks:
+            self.cancel_task(task_id)
+
+        self.scheduled_tasks[task_id] = (coroutine, when)
+        return task_id
+
+    def check_scheduled_tasks(self, current_time):
+        tasks_to_run = []
+        for task_id, (coroutine, scheduled_time) in list(self.scheduled_tasks.items()):
+            if current_time >= scheduled_time:
+                tasks_to_run.append((task_id, coroutine))
+
+        for task_id, coroutine in tasks_to_run:
+            del self.scheduled_tasks[task_id]
+            self.run(coroutine)
+
+    def cancel_task(self, task_id):
+        if task_id in self.scheduled_tasks:
+            del self.scheduled_tasks[task_id]
+
+    def stop(self):
+        self.scheduled_tasks.clear()
+        self.loop.call_soon_threadsafe(self.loop.stop)
+        self.thread.join()
+
+
+class LiveAsyncDispatcher(AsyncDispatcher):
+    pass
+
+
+class BacktestingAsyncDispatcher(AsyncDispatcher):
+    def __init__(self, strategy):
+        super().__init__(strategy)
+        self.strategy.getFeed().getNewValuesEvent().subscribe(self.on_bars)
+
+    def on_bars(self, dateTime, bars):
+        self.check_scheduled_tasks(
+            dateTime + timedelta(seconds=self.strategy.getFeed().getFrequency())
+        )
