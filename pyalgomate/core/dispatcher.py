@@ -1,7 +1,7 @@
 import asyncio
 import threading
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from pyalgotrade import dispatchprio, observer, utils
 
@@ -161,7 +161,24 @@ class AsyncDispatcher:
 
 
 class LiveAsyncDispatcher(AsyncDispatcher):
-    pass
+
+    def __init__(self, strategy):
+        super().__init__(strategy)
+        self.check_interval = 0.01
+        self.is_running = True
+        self.check_task = self.run(self.continuous_check())
+
+    async def continuous_check(self):
+        while self.is_running:
+            current_time = datetime.now()
+            self.check_scheduled_tasks(current_time)
+            await asyncio.sleep(self.check_interval)
+
+    def stop(self):
+        self.is_running = False
+        if self.check_task:
+            self.check_task.cancel()
+        super().stop()
 
 
 class BacktestingAsyncDispatcher(AsyncDispatcher):
