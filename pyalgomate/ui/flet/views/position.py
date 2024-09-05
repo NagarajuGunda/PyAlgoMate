@@ -294,8 +294,7 @@ class PositionView(ft.View):
                                                 color=ft.colors.BLUE,
                                                 size=16,
                                             ),
-                                            ft.Text("Nagaraj"),
-                                            ft.Text("0"),
+                                            ft.Text("NA"),
                                         ],
                                         spacing=2,
                                     ),
@@ -305,26 +304,8 @@ class PositionView(ft.View):
                             ),
                             ft.Column(
                                 [
-                                    ft.Text(
-                                        "Include Brokerage", weight=ft.FontWeight.BOLD
-                                    ),
-                                    ft.Switch(
-                                        value=True,
-                                        active_color=ft.colors.BLUE,
-                                        inactive_thumb_color=ft.colors.BLUE_GREY,
-                                        thumb_color=ft.colors.WHITE,
-                                        track_color=ft.colors.BLUE_100,
-                                        inactive_track_color=ft.colors.GREY_300,
-                                        scale=0.8,
-                                    ),
-                                ],
-                                spacing=2,
-                                alignment=ft.MainAxisAlignment.CENTER,
-                            ),
-                            ft.Column(
-                                [
                                     ft.Text("MTM", weight=ft.FontWeight.BOLD),
-                                    ft.Text("₹ 8.06", color=ft.colors.GREEN),
+                                    ft.Text("₹ 0.00", color=ft.colors.GREEN),
                                 ],
                                 spacing=2,
                                 alignment=ft.MainAxisAlignment.CENTER,
@@ -332,10 +313,10 @@ class PositionView(ft.View):
                             ft.Column(
                                 [
                                     ft.Text(
-                                        "Margin Blocked (approx)",
+                                        "Margin Blocked",
                                         weight=ft.FontWeight.BOLD,
                                     ),
-                                    ft.Text("₹ 69,081.1"),
+                                    ft.Text("NA"),
                                 ],
                                 spacing=2,
                                 alignment=ft.MainAxisAlignment.CENTER,
@@ -559,7 +540,7 @@ class PositionView(ft.View):
             total_mtm += float(row.data[-1])
 
         # Update overall MTM in status row
-        mtm_column = self.status_section.content.controls[0].controls[5]
+        mtm_column = self.status_section.content.controls[0].controls[3]
         mtm_column.controls[1].value = f"₹ {total_mtm:.2f}"
         mtm_column.controls[1].color = (
             ft.colors.GREEN if total_mtm >= 0 else ft.colors.RED
