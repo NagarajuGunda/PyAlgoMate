@@ -42,7 +42,8 @@ class ExpandableLegRow(ft.UserControl):
                     self.create_detail_row("ENTRY:"),
                     (
                         self.create_detail_row("EXIT:")
-                        if self.position.getExitOrder().isFilled()
+                        if self.position.getExitOrder() is not None
+                        and self.position.getExitOrder().isFilled()
                         else ft.Container()
                     ),
                 ],
@@ -420,8 +421,12 @@ class PositionView(ft.View):
         running_legs_rows = []
         for position in self.positions:
             if (
-                position.getEntryOrder().isFilled()
-                and not position.getExitOrder().isFilled()
+                position.getEntryOrder() is not None
+                and position.getEntryOrder().isFilled()
+                and (
+                    position.getExitOrder() is None
+                    or not position.getExitOrder().isFilled()
+                )
             ):
                 instrument = position.getInstrument()
                 qty = position.getEntryOrder().getQuantity()
@@ -456,7 +461,9 @@ class PositionView(ft.View):
         closed_legs_rows = []
         for position in self.positions:
             if (
-                position.getEntryOrder().isFilled()
+                position.getEntryOrder() is not None
+                and position.getEntryOrder().isFilled()
+                and position.getExitOrder() is not None
                 and position.getExitOrder().isFilled()
             ):
                 instrument = position.getInstrument()
@@ -498,7 +505,10 @@ class PositionView(ft.View):
     def create_status_container(self):
         is_running = any(
             position.getEntryOrder().isFilled()
-            and not position.getExitOrder().isFilled()
+            and (
+                position.getExitOrder() is None
+                or not position.getExitOrder().isFilled()
+            )
             for position in self.positions
         )
         status_text = "RUNNING" if is_running else "IDLE"
@@ -517,7 +527,10 @@ class PositionView(ft.View):
                 1
                 for position in self.positions
                 if position.getEntryOrder().isFilled()
-                and not position.getExitOrder().isFilled()
+                and (
+                    position.getExitOrder() is None
+                    or not position.getExitOrder().isFilled()
+                )
             )
         )
 
