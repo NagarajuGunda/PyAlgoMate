@@ -105,26 +105,33 @@ class PayoffView(ft.View):
             )
             if not option_contract:
                 continue
-            quantity = position.getEntryOrder().getQuantity()
-            entry_price = position.getEntryOrder().getAvgFillPrice()
-            is_sell = position.getEntryOrder().isSell()
-            sign = -1 if is_sell else 1
 
-            if option_contract.type == "c":
-                position_payoff = (
-                    np.maximum(spot_range - option_contract.strike, 0) * quantity
-                    - entry_price * quantity
-                )
-            elif option_contract.type == "p":
-                position_payoff = (
-                    np.maximum(option_contract.strike - spot_range, 0) * quantity
-                    - entry_price * quantity
-                )
+            # Check if the position is closed
+            if position.exitFilled():
+                # For closed positions, just add the realized PnL
+                payoff += position.getPnL()
             else:
-                # For futures or other instruments
-                position_payoff = (spot_range - entry_price) * quantity
+                # For open positions, calculate the payoff as before
+                quantity = position.getEntryOrder().getQuantity()
+                entry_price = position.getEntryOrder().getAvgFillPrice()
+                is_sell = position.getEntryOrder().isSell()
+                sign = -1 if is_sell else 1
 
-            payoff += sign * position_payoff
+                if option_contract.type == "c":
+                    position_payoff = (
+                        np.maximum(spot_range - option_contract.strike, 0) * quantity
+                        - entry_price * quantity
+                    )
+                elif option_contract.type == "p":
+                    position_payoff = (
+                        np.maximum(option_contract.strike - spot_range, 0) * quantity
+                        - entry_price * quantity
+                    )
+                else:
+                    # For futures or other instruments
+                    position_payoff = (spot_range - entry_price) * quantity
+
+                payoff += sign * position_payoff
 
         return payoff
 
