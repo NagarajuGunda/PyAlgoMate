@@ -670,6 +670,13 @@ class LiveBroker(broker.Broker):
         self.__stop = False  # No errors. Keep running.
 
     def _onTrade(self, order: Order, trade: OrderEvent):
+        # Switch order from SUBMITTED to ACCEPTED
+        if order.isSubmitted():
+            order.switchState(broker.Order.State.ACCEPTED)
+            self.notifyOrderEvent(
+                broker.OrderEvent(order, broker.OrderEvent.Type.ACCEPTED, None)
+            )
+
         if trade.getStatus() == "REJECTED":
             self._unregisterOrder(order)
             order.switchState(broker.Order.State.CANCELED)
@@ -751,15 +758,6 @@ class LiveBroker(broker.Broker):
 
     def dispatch(self):
         try:
-            # Switch orders from SUBMITTED to ACCEPTED.
-            ordersToProcess = list(self.__activeOrders)
-            for order in ordersToProcess:
-                if order.isSubmitted():
-                    order.switchState(broker.Order.State.ACCEPTED)
-                    self.notifyOrderEvent(
-                        broker.OrderEvent(order, broker.OrderEvent.Type.ACCEPTED, None)
-                    )
-
             eventType, eventData = self.__tradeMonitor.getQueue().get(
                 True, LiveBroker.QUEUE_TIMEOUT
             )
@@ -956,14 +954,12 @@ class LiveBroker(broker.Broker):
             order.setAllOrNone(False)
             order.setGoodTillCanceled(True)
 
+            await self.placeOrder(order)
+
             # Switch from INITIAL -> SUBMITTED
             # IMPORTANT: Do not emit an event for this switch because when using the position interface
             # the order is not yet mapped to the position and Position.onOrderUpdated will get called.
             order.switchState(broker.Order.State.SUBMITTED)
-
-            await self.placeOrder(order)
-
-            order.switchState(broker.Order.State.ACCEPTED)
         else:
             raise Exception("The order was already processed")
 
@@ -974,11 +970,6 @@ class LiveBroker(broker.Broker):
 
             newTriggerPrice = newOrder.getStopPrice() if newOrder.getType() in [broker.Order.Type.STOP_LIMIT] else None
 
-            # Switch from INITIAL -> SUBMITTED
-            # IMPORTANT: Do not emit an event for this switch because when using the position interface
-            # the order is not yet mapped to the position and Position.onOrderUpdated will get called.
-            newOrder.switchState(broker.Order.State.SUBMITTED)
-
             await self.modifyFinvasiaOrder(
                 order=oldOrder,
                 newprice_type=getPriceType(newOrder.getType()),
@@ -987,7 +978,10 @@ class LiveBroker(broker.Broker):
                 newOrder=newOrder,
             )
 
-            newOrder.switchState(broker.Order.State.ACCEPTED)
+            # Switch from INITIAL -> SUBMITTED
+            # IMPORTANT: Do not emit an event for this switch because when using the position interface
+            # the order is not yet mapped to the position and Position.onOrderUpdated will get called.
+            newOrder.switchState(broker.Order.State.SUBMITTED)
         else:
             raise Exception("The order was already processed")
 
