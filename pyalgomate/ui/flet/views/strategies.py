@@ -306,7 +306,6 @@ class StrategyCard(ft.Card):
 
     def squareOff(self, e):
         self.closeDialogModel.open = False
-        self.strategy.state = State.PLACING_ORDERS
         self.strategy.closeAllPositions()
         self.page.snack_bar = ft.SnackBar(
             ft.Row([ft.Text("Closing all positions !!!", size=20)], alignment="center"),
