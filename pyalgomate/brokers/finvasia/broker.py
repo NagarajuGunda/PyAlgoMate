@@ -670,11 +670,35 @@ class LiveBroker(broker.Broker):
         self.__stop = False  # No errors. Keep running.
 
     def _onTrade(self, order: Order, trade: OrderEvent):
-        if trade.getStatus() == "REJECTED" or trade.getStatus() == "CANCELED":
+        # Switch order from SUBMITTED to ACCEPTED
+        if order.isSubmitted():
+            order.switchState(broker.Order.State.ACCEPTED)
+            self.notifyOrderEvent(
+                broker.OrderEvent(order, broker.OrderEvent.Type.ACCEPTED, None)
+            )
+
+        if trade.getStatus() == "REJECTED":
             self._unregisterOrder(order)
             order.switchState(broker.Order.State.CANCELED)
+            errorMsg = trade.getRejectedReason()
+            orderExecutionInfo = broker.OrderExecutionInfo(
+                None, 0, 0, trade.getDateTime(), error=errorMsg
+            )
             self.notifyOrderEvent(
-                broker.OrderEvent(order, broker.OrderEvent.Type.CANCELED, None)
+                broker.OrderEvent(
+                    order, broker.OrderEvent.Type.CANCELED, orderExecutionInfo
+                )
+            )
+        elif trade.getStatus() == "CANCELED":
+            self._unregisterOrder(order)
+            order.switchState(broker.Order.State.CANCELED)
+            orderExecutionInfo = broker.OrderExecutionInfo(
+                None, 0, 0, trade.getDateTime()
+            )
+            self.notifyOrderEvent(
+                broker.OrderEvent(
+                    order, broker.OrderEvent.Type.CANCELED, orderExecutionInfo
+                )
             )
         elif trade.getStatus() == "COMPLETE":
             fee = 0
@@ -734,15 +758,6 @@ class LiveBroker(broker.Broker):
 
     def dispatch(self):
         try:
-            # Switch orders from SUBMITTED to ACCEPTED.
-            ordersToProcess = list(self.__activeOrders)
-            for order in ordersToProcess:
-                if order.isSubmitted():
-                    order.switchState(broker.Order.State.ACCEPTED)
-                    self.notifyOrderEvent(
-                        broker.OrderEvent(order, broker.OrderEvent.Type.ACCEPTED, None)
-                    )
-
             eventType, eventData = self.__tradeMonitor.getQueue().get(
                 True, LiveBroker.QUEUE_TIMEOUT
             )
@@ -954,6 +969,7 @@ class LiveBroker(broker.Broker):
             newOrder.setGoodTillCanceled(True)
 
             newTriggerPrice = newOrder.getStopPrice() if newOrder.getType() in [broker.Order.Type.STOP_LIMIT] else None
+
             await self.modifyFinvasiaOrder(
                 order=oldOrder,
                 newprice_type=getPriceType(newOrder.getType()),

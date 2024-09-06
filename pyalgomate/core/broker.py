@@ -19,11 +19,10 @@
 """
 
 import abc
+from typing import Optional
 
 import six
-
-from pyalgotrade import observer
-from pyalgotrade import dispatchprio
+from pyalgotrade import dispatchprio, observer
 
 
 # This class is used to prevent bugs like the one triggered in testcases.bitstamp_test:TestCase.testRoundingBug.
@@ -359,7 +358,7 @@ class Order(object):
     def setState(self, newState):
         self.__state = newState
 
-    def getExecutionInfo(self):
+    def getExecutionInfo(self) -> Optional["OrderExecutionInfo"]:
         """Returns the last execution information for this order, or None if nothing has been filled so far.
         This will be different every time an order, or part of it, gets filled.
 
@@ -462,13 +461,16 @@ class StopLimitOrder(Order):
 class OrderExecutionInfo(object):
     """Execution information for an order."""
 
-    def __init__(self, price, quantity, commission, dateTime):
+    def __init__(self, price, quantity, commission, dateTime, error=None):
         self.__price = price
         self.__quantity = quantity
         self.__commission = commission
         self.__dateTime = dateTime
+        self.__error = error
 
     def __str__(self):
+        if self.__error:
+            return f"{self.__dateTime} - Error: {self.__error}"
         return "%s - Price: %s - Amount: %s - Fee: %s" % (
             self.__dateTime,
             self.__price,
@@ -491,6 +493,14 @@ class OrderExecutionInfo(object):
     def getDateTime(self):
         """Returns the :class:`datatime.datetime` when the order was executed."""
         return self.__dateTime
+
+    def getError(self):
+        """Returns any error message associated with the order execution."""
+        return self.__error
+
+    def hasError(self):
+        """Returns True if there was an error during order execution."""
+        return self.__error is not None
 
 
 class OrderEvent(object):

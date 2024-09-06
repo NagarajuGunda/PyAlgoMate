@@ -3,15 +3,16 @@ Description=PyAlgoMate Flet Server
 After=network.target
 
 [Service]
-User=root
-Group=root
-WorkingDirectory=/root/PyAlgoMate
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/PyAlgoMate
 Environment="TZ=Asia/Kolkata"
-Environment="PYTHONPATH=/root/PyAlgoMate"
+Environment="PYTHONPATH=/home/ubuntu/PyAlgoMate"
 Environment="FLET_PATH="
 Environment="FLET_PORT=8502"
 Environment="FLET_VIEW=None"
-ExecStart=/root/PyAlgoMate/.venv/bin/python /root/PyAlgoMate/flet/PyAlgoMate.py
+ExecStart=/home/ubuntu/PyAlgoMate/.venv/bin/python /home/ubuntu/PyAlgoMate/flet/PyAlgoMate.py
+Restart=no
 
 [Install]
 WantedBy=multi-user.target
