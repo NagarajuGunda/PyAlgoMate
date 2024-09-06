@@ -247,7 +247,7 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         )
 
         # Calculate MAE and MFE
-        for position in self.getActivePositions():
+        for position in list(self.getActivePositions()):
             pnl = position.getPnL()
             orderId = position.getEntryOrder().getId()
 

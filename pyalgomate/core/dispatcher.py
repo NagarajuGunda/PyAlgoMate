@@ -1,4 +1,8 @@
+import asyncio
+import threading
 import time
+from datetime import datetime, timedelta
+from typing import Any, Callable, Coroutine, Dict, Optional, Tuple
 
 from pyalgotrade import dispatchprio, observer, utils
 
@@ -105,3 +109,104 @@ class Dispatcher(object):
                 subject.stop()
             for subject in self.__subjects:
                 subject.join()
+
+
+class AsyncDispatcher:
+
+    def __init__(self, strategy: Any):
+        self.strategy: Any = strategy
+        self.loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
+        self.thread: threading.Thread = threading.Thread(
+            target=self._run_event_loop, daemon=True
+        )
+        self.scheduled_coroutines: Dict[Any, Tuple[datetime, Coroutine]] = {}
+        self.thread.start()
+
+    def _run_event_loop(self) -> None:
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
+    def run(
+        self, coroutine: Coroutine, callback: Optional[Callable] = None
+    ) -> asyncio.Future:
+        def done_callback(future: asyncio.Future) -> None:
+            if callback:
+                result = future.result()
+                callback(result)
+
+        future: asyncio.Future = asyncio.run_coroutine_threadsafe(coroutine, self.loop)
+        if callback:
+            future.add_done_callback(done_callback)
+        return future
+
+    def schedule(
+        self, coroutine: Coroutine, when: datetime, task_id: Any = None
+    ) -> None:
+        if task_id in self.scheduled_coroutines:
+            del self.scheduled_coroutines[task_id]
+
+        self.scheduled_coroutines[task_id] = (when, coroutine)
+
+    def check_scheduled_tasks(self, current_time: datetime) -> None:
+        coroutines_to_run = []
+        for task_id, (scheduled_time, coroutine) in list(
+            self.scheduled_coroutines.items()
+        ):
+            if current_time >= scheduled_time:
+                coroutines_to_run.append((task_id, coroutine))
+
+        for task_id, coroutine in coroutines_to_run:
+            del self.scheduled_coroutines[task_id]
+            self.loop.call_soon_threadsafe(lambda c=coroutine: self.loop.create_task(c))
+
+    def cancel_task(self, task_id: Any) -> None:
+        if task_id in self.scheduled_coroutines:
+            when, coroutine = self.scheduled_coroutines[task_id]
+            if asyncio.iscoroutine(coroutine):
+                self.loop.call_soon_threadsafe(self._cancel_coroutine, coroutine)
+            del self.scheduled_coroutines[task_id]
+
+    def _cancel_coroutine(self, coroutine: Coroutine) -> None:
+        task = self.loop.create_task(coroutine)
+        task.cancel()
+
+    def stop(self) -> None:
+        for _, coroutine in self.scheduled_coroutines.values():
+            if asyncio.iscoroutine(coroutine):
+                self.loop.call_soon_threadsafe(self._cancel_coroutine, coroutine)
+        self.scheduled_coroutines.clear()
+        self.loop.call_soon_threadsafe(self.loop.stop)
+        self.thread.join()
+
+
+class LiveAsyncDispatcher(AsyncDispatcher):
+
+    def __init__(self, strategy: Any):
+        super().__init__(strategy)
+        self.check_interval: float = 0.01
+        self.is_running: bool = True
+        self.check_task: asyncio.Future = self.run(self.continuous_check())
+
+    async def continuous_check(self) -> None:
+        while self.is_running:
+            current_time = datetime.now()
+            self.check_scheduled_tasks(current_time)
+            await asyncio.sleep(self.check_interval)
+
+    def stop(self) -> None:
+        self.is_running = False
+        if self.check_task:
+            self.check_task.cancel()
+        super().stop()
+
+
+class BacktestingAsyncDispatcher(AsyncDispatcher):
+
+    def __init__(self, strategy: Any):
+        super().__init__(strategy)
+        self.strategy.getFeed().getNewValuesEvent().subscribe(self.on_bars)
+
+    def on_bars(self, dateTime: datetime, bars: Any) -> None:
+        self.check_scheduled_tasks(
+            dateTime + timedelta(seconds=self.strategy.getFeed().getFrequency())
+        )

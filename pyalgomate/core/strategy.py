@@ -12,47 +12,7 @@ from pyalgotrade.broker import backtesting
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.core import dispatcher, resampled
 from pyalgomate.strategy import position
-
-
-class AsyncDispatcher:
-    def __init__(self):
-        self.loop = asyncio.new_event_loop()
-        self.thread = threading.Thread(target=self._run_event_loop, daemon=True)
-        self.thread.start()
-
-    def _run_event_loop(self):
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_forever()
-
-    def run(self, coroutine, callback=None):
-        """
-        Runs an asynchronous coroutine, optionally executing a callback with the result.
-
-        :param coroutine: The asynchronous coroutine to be executed.
-        :param callback: An optional callback function that takes the result of the coroutine.
-        """
-
-        def done_callback(future):
-            if callback:
-                result = future.result()  # Get the result of the coroutine
-                callback(result)  # Execute the callback with the result
-
-        async def wrapper():
-            try:
-                result = await coroutine
-                return result
-            except Exception as e:
-                raise e
-
-        asyncio.run_coroutine_threadsafe(wrapper(), self.loop).add_done_callback(
-            done_callback
-        )
-
-    def stop(self):
-        """Stops the event loop and joins the thread."""
-        self.loop.call_soon_threadsafe(self.loop.stop)
-        self.thread.join()
-
+from pyalgomate.core.dispatcher import LiveAsyncDispatcher, BacktestingAsyncDispatcher
 
 @six.add_metaclass(abc.ABCMeta)
 class BaseStrategy(object):
@@ -80,7 +40,11 @@ class BaseStrategy(object):
         self.__namedAnalyzers = {}
         self.__resampledBarFeeds = []
         self.__dispatcher = dispatcher.Dispatcher()
-        self.dispatcher = AsyncDispatcher()
+        self.dispatcher = (
+            BacktestingAsyncDispatcher(self)
+            if self.isBacktest()
+            else LiveAsyncDispatcher(self)
+        )
         self.__broker.getOrderUpdatedEvent().subscribe(self.__onOrderEvent)
         self.__barFeed.getNewValuesEvent().subscribe(self.__onBars)
 

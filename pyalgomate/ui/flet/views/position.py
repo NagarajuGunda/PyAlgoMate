@@ -42,7 +42,8 @@ class ExpandableLegRow(ft.UserControl):
                     self.create_detail_row("ENTRY:"),
                     (
                         self.create_detail_row("EXIT:")
-                        if self.position.getExitOrder().isFilled()
+                        if self.position.getExitOrder() is not None
+                        and self.position.getExitOrder().isFilled()
                         else ft.Container()
                     ),
                 ],
@@ -293,8 +294,7 @@ class PositionView(ft.View):
                                                 color=ft.colors.BLUE,
                                                 size=16,
                                             ),
-                                            ft.Text("Nagaraj"),
-                                            ft.Text("0"),
+                                            ft.Text("NA"),
                                         ],
                                         spacing=2,
                                     ),
@@ -304,26 +304,8 @@ class PositionView(ft.View):
                             ),
                             ft.Column(
                                 [
-                                    ft.Text(
-                                        "Include Brokerage", weight=ft.FontWeight.BOLD
-                                    ),
-                                    ft.Switch(
-                                        value=True,
-                                        active_color=ft.colors.BLUE,
-                                        inactive_thumb_color=ft.colors.BLUE_GREY,
-                                        thumb_color=ft.colors.WHITE,
-                                        track_color=ft.colors.BLUE_100,
-                                        inactive_track_color=ft.colors.GREY_300,
-                                        scale=0.8,
-                                    ),
-                                ],
-                                spacing=2,
-                                alignment=ft.MainAxisAlignment.CENTER,
-                            ),
-                            ft.Column(
-                                [
                                     ft.Text("MTM", weight=ft.FontWeight.BOLD),
-                                    ft.Text("₹ 8.06", color=ft.colors.GREEN),
+                                    ft.Text("₹ 0.00", color=ft.colors.GREEN),
                                 ],
                                 spacing=2,
                                 alignment=ft.MainAxisAlignment.CENTER,
@@ -331,10 +313,10 @@ class PositionView(ft.View):
                             ft.Column(
                                 [
                                     ft.Text(
-                                        "Margin Blocked (approx)",
+                                        "Margin Blocked",
                                         weight=ft.FontWeight.BOLD,
                                     ),
-                                    ft.Text("₹ 69,081.1"),
+                                    ft.Text("NA"),
                                 ],
                                 spacing=2,
                                 alignment=ft.MainAxisAlignment.CENTER,
@@ -420,8 +402,12 @@ class PositionView(ft.View):
         running_legs_rows = []
         for position in self.positions:
             if (
-                position.getEntryOrder().isFilled()
-                and not position.getExitOrder().isFilled()
+                position.getEntryOrder() is not None
+                and position.getEntryOrder().isFilled()
+                and (
+                    position.getExitOrder() is None
+                    or not position.getExitOrder().isFilled()
+                )
             ):
                 instrument = position.getInstrument()
                 qty = position.getEntryOrder().getQuantity()
@@ -456,7 +442,9 @@ class PositionView(ft.View):
         closed_legs_rows = []
         for position in self.positions:
             if (
-                position.getEntryOrder().isFilled()
+                position.getEntryOrder() is not None
+                and position.getEntryOrder().isFilled()
+                and position.getExitOrder() is not None
                 and position.getExitOrder().isFilled()
             ):
                 instrument = position.getInstrument()
@@ -498,7 +486,10 @@ class PositionView(ft.View):
     def create_status_container(self):
         is_running = any(
             position.getEntryOrder().isFilled()
-            and not position.getExitOrder().isFilled()
+            and (
+                position.getExitOrder() is None
+                or not position.getExitOrder().isFilled()
+            )
             for position in self.positions
         )
         status_text = "RUNNING" if is_running else "IDLE"
@@ -517,7 +508,10 @@ class PositionView(ft.View):
                 1
                 for position in self.positions
                 if position.getEntryOrder().isFilled()
-                and not position.getExitOrder().isFilled()
+                and (
+                    position.getExitOrder() is None
+                    or not position.getExitOrder().isFilled()
+                )
             )
         )
 
@@ -546,7 +540,7 @@ class PositionView(ft.View):
             total_mtm += float(row.data[-1])
 
         # Update overall MTM in status row
-        mtm_column = self.status_section.content.controls[0].controls[5]
+        mtm_column = self.status_section.content.controls[0].controls[3]
         mtm_column.controls[1].value = f"₹ {total_mtm:.2f}"
         mtm_column.controls[1].color = (
             ft.colors.GREEN if total_mtm >= 0 else ft.colors.RED

@@ -1,14 +1,17 @@
 import base64
 import json
-import pandas as pd
+from typing import List
+
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+
 import flet as ft
-from typing import List
-from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
 from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.core import State
+from pyalgomate.strategies.BaseOptionsGreeksStrategy import BaseOptionsGreeksStrategy
+from pyalgomate.ui.flet.views.position import PositionView
 from pyalgomate.ui.flet.views.trades import TradesView
 
 
@@ -56,18 +59,18 @@ class StrategyCard(ft.Card):
                             self.closedPositions,
                             self.balanceAvailable,
                         ],
-                        col={"sm": 12, "md": 3},
+                        col={"sm": 12, "md": 2.5},
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
                     ft.Column(
                         [self.stateDropdown],
-                        col={"sm": 12, "md": 1.5},
+                        col={"sm": 6, "md": 1.5},
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
                     ft.Column(
                         [self.pnlText],
-                        col={"sm": 12, "md": 1.5},
+                        col={"sm": 6, "md": 1.5},
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
@@ -75,12 +78,12 @@ class StrategyCard(ft.Card):
                         [
                             ft.IconButton(
                                 icon=ft.icons.REFRESH,
-                                icon_size=40,
+                                icon_size=30,
                                 icon_color="#263F6A",
                                 on_click=self.resetStrategy,
                             )
                         ],
-                        col={"sm": 3, "md": 1},
+                        col={"sm": 2, "md": 0.75},
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
@@ -88,13 +91,27 @@ class StrategyCard(ft.Card):
                         [
                             ft.IconButton(
                                 icon=ft.icons.SHOW_CHART,
-                                icon_size=40,
+                                icon_size=30,
                                 icon_color="#263F6A",
                                 tooltip="Trades",
                                 on_click=self.showTradesView,
                             )
                         ],
-                        col={"sm": 6, "md": 1},
+                        col={"sm": 2, "md": 0.75},
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
+                    ft.Column(
+                        [
+                            ft.IconButton(
+                                icon=ft.icons.LIST_ALT,
+                                icon_size=30,
+                                icon_color="#263F6A",
+                                tooltip="All Positions",
+                                on_click=self.showPositionsView,
+                            )
+                        ],
+                        col={"sm": 2, "md": 0.75},
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
@@ -102,13 +119,13 @@ class StrategyCard(ft.Card):
                         [
                             ft.IconButton(
                                 icon=ft.icons.DASHBOARD,
-                                icon_size=40,
+                                icon_size=30,
                                 icon_color="#263F6A",
                                 tooltip="Custom View",
                                 on_click=self.showCustomView,
                             )
                         ],
-                        col={"sm": 3, "md": 1},
+                        col={"sm": 2, "md": 0.75},
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
@@ -116,12 +133,12 @@ class StrategyCard(ft.Card):
                         [
                             ft.IconButton(
                                 icon=ft.icons.INSERT_CHART_ROUNDED,
-                                icon_size=40,
+                                icon_size=30,
                                 icon_color="#263F6A",
                                 on_click=self.onChartButtonClicked,
                             )
                         ],
-                        col={"sm": 3, "md": 1},
+                        col={"sm": 2, "md": 0.75},
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
@@ -129,12 +146,12 @@ class StrategyCard(ft.Card):
                         [
                             ft.IconButton(
                                 icon=ft.icons.INFO_ROUNDED,
-                                icon_size=40,
+                                icon_size=30,
                                 icon_color="#263F6A",
                                 on_click=self.onInfoButtonClicked,
                             )
                         ],
-                        col={"sm": 3, "md": 1},
+                        col={"sm": 2, "md": 0.75},
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
@@ -148,7 +165,7 @@ class StrategyCard(ft.Card):
                                 on_click=self.openDialog,
                             )
                         ],
-                        col={"sm": 3, "md": 1},
+                        col={"sm": 2, "md": 0.75},
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
@@ -292,9 +309,7 @@ class StrategyCard(ft.Card):
         self.strategy.state = State.PLACING_ORDERS
         self.strategy.closeAllPositions()
         self.page.snack_bar = ft.SnackBar(
-            ft.Row(
-                [ft.Text(f"Closing all positions !!!", size=20)], alignment="center"
-            ),
+            ft.Row([ft.Text("Closing all positions !!!", size=20)], alignment="center"),
             bgcolor="#263F6A",
         )
         self.page.snack_bar.open = True
@@ -307,6 +322,15 @@ class StrategyCard(ft.Card):
     def openDialog(self, e):
         self.page.dialog = self.closeDialogModel
         self.closeDialogModel.open = True
+        self.page.update()
+
+    def showPositionsView(self, e):
+        all_positions = (
+            self.strategy.getActivePositions()
+            .union(self.strategy.getClosedPositions())
+            .copy()
+        )
+        self.page.views.append(PositionView(list(all_positions), width=self.page.width))
         self.page.update()
 
 
