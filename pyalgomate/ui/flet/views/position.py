@@ -1,7 +1,4 @@
-from typing import List
-
 import flet as ft
-from pyalgomate.strategy.position import Position
 
 
 class ExpandableLegRow(ft.UserControl):
@@ -245,9 +242,10 @@ class LegTable(ft.UserControl):
 
 
 class PositionView(ft.View):
-    def __init__(self, positions: List[Position], width: float = 1000):
+
+    def __init__(self, get_positions_callback, width: float = 1000):
         super().__init__(route="/positions")
-        self.positions = positions
+        self.get_positions_callback = get_positions_callback
         self.width = width
         self.expand = True
         self.__did_mount = False
@@ -400,7 +398,7 @@ class PositionView(ft.View):
 
     def prepare_running_legs_data(self):
         running_legs_rows = []
-        for position in self.positions:
+        for position in self.get_positions_callback():
             if (
                 position.getEntryOrder() is not None
                 and position.getEntryOrder().isFilled()
@@ -440,7 +438,7 @@ class PositionView(ft.View):
 
     def prepare_closed_legs_data(self):
         closed_legs_rows = []
-        for position in self.positions:
+        for position in self.get_positions_callback():
             if (
                 position.getEntryOrder() is not None
                 and position.getEntryOrder().isFilled()
@@ -490,7 +488,7 @@ class PositionView(ft.View):
                 position.getExitOrder() is None
                 or not position.getExitOrder().isFilled()
             )
-            for position in self.positions
+            for position in self.get_positions_callback()
         )
         status_text = "RUNNING" if is_running else "IDLE"
         status_color = ft.colors.GREEN if is_running else ft.colors.ORANGE
@@ -506,7 +504,7 @@ class PositionView(ft.View):
         return str(
             sum(
                 1
-                for position in self.positions
+                for position in self.get_positions_callback()
                 if position.getEntryOrder().isFilled()
                 and (
                     position.getExitOrder() is None
@@ -514,6 +512,37 @@ class PositionView(ft.View):
                 )
             )
         )
+
+    def reload(self):
+        if not self.__did_mount:
+            return
+
+        self.positions = self.get_positions_callback()
+
+        # Recreate tables with new data
+        self.running_legs_table = self.create_running_legs_table()
+        self.closed_legs_table = self.create_closed_legs_table()
+
+        # Update the content
+        self.content.controls[2] = self.running_legs_table
+        self.content.controls[3] = self.closed_legs_table
+
+        # Update status section
+        self.status_section.content.controls[0].controls[0].controls[
+            1
+        ] = self.create_status_container()
+        self.status_section.content.controls[0].controls[1].controls[
+            1
+        ].value = self.get_open_position_count()
+
+        total_mtm = sum(position.getPnL() for position in self.positions)
+        mtm_column = self.status_section.content.controls[0].controls[3]
+        mtm_column.controls[1].value = f"₹ {total_mtm:.2f}"
+        mtm_column.controls[1].color = (
+            ft.colors.GREEN if total_mtm >= 0 else ft.colors.RED
+        )
+
+        self.update()
 
     def updateData(self):
         if not self.__did_mount:

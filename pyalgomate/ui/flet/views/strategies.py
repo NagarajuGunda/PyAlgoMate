@@ -325,12 +325,15 @@ class StrategyCard(ft.Card):
         self.page.update()
 
     def showPositionsView(self, e):
-        all_positions = (
-            self.strategy.getActivePositions()
-            .union(self.strategy.getClosedPositions())
-            .copy()
-        )
-        self.page.views.append(PositionView(list(all_positions), width=self.page.width))
+
+        def get_positions():
+            return list(
+                self.strategy.getActivePositions().union(
+                    self.strategy.getClosedPositions()
+                )
+            )
+
+        self.page.views.append(PositionView(get_positions, width=self.page.width))
         self.page.update()
 
 
