@@ -1,4 +1,5 @@
 import flet as ft
+from pyalgomate.ui.flet.views.payoff import PayoffView
 
 
 class ExpandableLegRow(ft.UserControl):
@@ -243,12 +244,16 @@ class LegTable(ft.UserControl):
 
 class PositionView(ft.View):
 
-    def __init__(self, get_positions_callback, width: float = 1000):
+    def __init__(
+        self, strategy, get_positions_callback, width: float = 1000, page=None
+    ):
         super().__init__(route="/positions")
+        self.strategy = strategy
         self.get_positions_callback = get_positions_callback
         self.width = width
         self.expand = True
         self.__did_mount = False
+        self.page = page
 
         self.appbar = ft.AppBar(
             title=ft.Text("Positions", size=20, weight="bold"),
@@ -258,6 +263,11 @@ class PositionView(ft.View):
                 ft.IconButton(icon=ft.icons.CAMERA_ALT, tooltip="Screenshot"),
                 ft.IconButton(icon=ft.icons.BAR_CHART, tooltip="Analyse"),
                 ft.TextButton("MTM Graph", style=ft.ButtonStyle(color=ft.colors.BLUE)),
+                ft.TextButton(
+                    "Payoff",
+                    on_click=self.show_payoff_view,
+                    style=ft.ButtonStyle(color=ft.colors.BLUE),
+                ),
             ],
         )
 
@@ -583,3 +593,11 @@ class PositionView(ft.View):
         open_position_column.controls[1].value = self.get_open_position_count()
 
         self.content.update()
+
+    def show_payoff_view(self, _):
+        if self.page:
+            payoff_view = PayoffView(
+                self.strategy, self.get_positions_callback, width=self.width
+            )
+            self.page.views.append(payoff_view)
+            self.page.update()

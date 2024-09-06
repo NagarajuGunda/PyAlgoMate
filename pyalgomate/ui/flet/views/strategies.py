@@ -332,7 +332,11 @@ class StrategyCard(ft.Card):
                 )
             )
 
-        self.page.views.append(PositionView(get_positions, width=self.page.width))
+        self.page.views.append(
+            PositionView(
+                self.strategy, get_positions, width=self.page.width, page=self.page
+            )
+        )
         self.page.update()
 
 
