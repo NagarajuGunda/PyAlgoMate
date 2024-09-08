@@ -1,5 +1,6 @@
 import flet as ft
 from pyalgomate.ui.flet.views.payoff import PayoffView
+from pyalgomate.ui.flet.views.take_trade import TakeTradeView
 
 
 class ExpandableLegRow(ft.UserControl):
@@ -345,6 +346,7 @@ class PositionView(ft.View):
                 ft.ElevatedButton(
                     "+ Add Leg",
                     style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE),
+                    on_click=self.show_take_trade_view,
                 ),
                 ft.OutlinedButton("Switch to manual"),
                 ft.OutlinedButton("Square Off"),
@@ -601,3 +603,14 @@ class PositionView(ft.View):
             )
             self.page.views.append(payoff_view)
             self.page.update()
+
+    def show_take_trade_view(self, _):
+        if self.page:
+            take_trade_view = TakeTradeView(
+                self.strategy,
+                self.get_positions_callback,
+                width=self.width,
+                page=self.page,
+            )
+            self.page.views.append(take_trade_view)
+            self.page.go("/take_trade")
