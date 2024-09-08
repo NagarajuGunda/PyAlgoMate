@@ -254,59 +254,152 @@ class OrderDialog(ft.AlertDialog):
         self.instrument = instrument
         self.strategy = strategy
 
-        self.order_type = ft.RadioGroup(
-            content=ft.Column(
-                [
-                    ft.Radio(value="market", label="Market"),
-                    ft.Radio(value="limit", label="Limit"),
-                    ft.Radio(value="stop", label="Stop"),
-                    ft.Radio(value="stoplimit", label="Stop Limit"),
-                ]
-            ),
-            on_change=self.on_order_type_change,
+        self.buy_sell_switch = ft.Switch(
+            value=action == "Buy",
+            active_color=ft.colors.GREEN,
+            active_track_color=ft.colors.GREEN_200,
+            inactive_thumb_color=ft.colors.RED,
+            inactive_track_color=ft.colors.RED_200,
+            on_change=self.toggle_buy_sell,
+            label="Buy" if action == "Buy" else "Sell",
         )
 
         self.quantity_input = ft.TextField(
-            label="Quantity",
+            label="Qty",
             value="1",
+            width=100,
+            height=40,
+            text_align=ft.TextAlign.RIGHT,
             keyboard_type=ft.KeyboardType.NUMBER,
         )
 
-        self.limit_price_input = ft.TextField(
-            label="Limit Price",
+        self.price_input = ft.TextField(
+            label="Price",
             value=str(self.strategy.getLastPrice(self.instrument)),
+            width=100,
+            height=40,
+            text_align=ft.TextAlign.RIGHT,
+            keyboard_type=ft.KeyboardType.NUMBER,
+        )
+
+        self.trigger_price_input = ft.TextField(
+            label="Trigger",
+            value=str(self.strategy.getLastPrice(self.instrument)),
+            width=100,
+            height=40,
+            text_align=ft.TextAlign.RIGHT,
             keyboard_type=ft.KeyboardType.NUMBER,
             visible=False,
         )
 
-        self.stop_price_input = ft.TextField(
-            label="Stop Price",
-            value=str(self.strategy.getLastPrice(self.instrument)),
-            keyboard_type=ft.KeyboardType.NUMBER,
-            visible=False,
+        self.order_type = ft.RadioGroup(
+            content=ft.Row(
+                [
+                    ft.Radio(value="LIMIT", label="LIMIT"),
+                    ft.Radio(value="MARKET", label="MARKET"),
+                    ft.Radio(value="SL", label="SL"),
+                    ft.Radio(value="SLM", label="SLM"),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
+            value="LIMIT",
+            on_change=self.on_order_type_change,
+        )
+
+        self.place_order_button = ft.ElevatedButton(
+            text=action.upper(),
+            style=ft.ButtonStyle(
+                bgcolor=ft.colors.GREEN if action == "Buy" else ft.colors.RED,
+                color=ft.colors.WHITE,
+                shape=ft.RoundedRectangleBorder(radius=5),
+            ),
+            width=100,
+            height=40,
+            on_click=self.place_order,
+        )
+
+        self.cancel_button = ft.TextButton(
+            text="Cancel",
+            style=ft.ButtonStyle(
+                color=ft.colors.BLUE,
+            ),
+            on_click=self.close_dialog,
         )
 
         super().__init__(
-            title=ft.Text("Place Order"),
-            content=ft.Column(
-                [
-                    ft.Text(f"Action: {action}"),
-                    ft.Text(f"Option Type: {option_type.capitalize()}"),
-                    ft.Text(f"Instrument: {instrument}"),
-                    ft.Text("Order Type:"),
-                    self.order_type,
-                    self.quantity_input,
-                    self.limit_price_input,
-                    self.stop_price_input,
-                    ft.ElevatedButton("Place Order", on_click=self.place_order),
-                ]
+            modal=True,
+            title=None,
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Container(
+                            content=ft.Row(
+                                [
+                                    ft.Text(
+                                        self.instrument,
+                                        color=ft.colors.WHITE,
+                                        size=16,
+                                        weight=ft.FontWeight.BOLD,
+                                    ),
+                                    self.buy_sell_switch,
+                                ],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            ),
+                            bgcolor=(
+                                ft.colors.GREEN if action == "Buy" else ft.colors.RED
+                            ),
+                            padding=10,
+                            margin=ft.margin.only(bottom=10),
+                        ),
+                        ft.Row(
+                            [
+                                self.quantity_input,
+                                self.price_input,
+                                self.trigger_price_input,
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_AROUND,
+                        ),
+                        self.order_type,
+                        ft.Row(
+                            [
+                                self.place_order_button,
+                                self.cancel_button,
+                            ],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                        ),
+                    ],
+                    spacing=10,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                padding=0,
+                width=400,
+                height=300,
             ),
+            actions=[],
+            actions_alignment=ft.MainAxisAlignment.END,
+            shape=ft.RoundedRectangleBorder(radius=0),
         )
+
+    def toggle_buy_sell(self, e):
+        self.action = "Buy" if e.control.value else "Sell"
+        self.buy_sell_switch.label = "Buy" if self.action == "Buy" else "Sell"
+        self.update_dialog_appearance()
+
+    def update_dialog_appearance(self):
+        is_buy = self.action == "Buy"
+        self.content.content.controls[0].bgcolor = (
+            ft.colors.GREEN if is_buy else ft.colors.RED
+        )
+        self.place_order_button.text = self.action.upper()
+        self.place_order_button.style.bgcolor = (
+            ft.colors.GREEN if is_buy else ft.colors.RED
+        )
+        self.page.update()
 
     def on_order_type_change(self, _):
         order_type = self.order_type.value
-        self.limit_price_input.visible = order_type in ["limit", "stoplimit"]
-        self.stop_price_input.visible = order_type in ["stop", "stoplimit"]
+        self.price_input.visible = order_type in ["LIMIT", "SL"]
+        self.trigger_price_input.visible = order_type in ["SL", "SLM"]
         self.page.update()
 
     def show_snackbar(self, message):
@@ -314,17 +407,17 @@ class OrderDialog(ft.AlertDialog):
         self.page.snack_bar.open = True
         self.page.update()
 
+    def close_dialog(self, _):
+        self.page.dialog.open = False
+        self.page.update()
+
     def place_order(self, _):
         order_type = self.order_type.value
         quantity = int(self.quantity_input.value)
-        limit_price = (
-            float(self.limit_price_input.value)
-            if self.limit_price_input.visible
-            else None
-        )
-        stop_price = (
-            float(self.stop_price_input.value)
-            if self.stop_price_input.visible
+        price = float(self.price_input.value) if self.price_input.visible else None
+        trigger_price = (
+            float(self.trigger_price_input.value)
+            if self.trigger_price_input.visible
             else None
         )
 
@@ -332,68 +425,63 @@ class OrderDialog(ft.AlertDialog):
         order_details = f"{self.action} {quantity} {self.instrument}"
 
         if self.action == "Buy":
-            if order_type == "market":
+            if order_type == "MARKET":
                 self.strategy.runAsync(
                     self.strategy.enterLongAsync(self.instrument, quantity)
                 )
                 order_placed = True
-            elif order_type == "limit":
+            elif order_type == "LIMIT":
                 self.strategy.runAsync(
-                    self.strategy.enterLongLimitAsync(
-                        self.instrument, limit_price, quantity
-                    )
+                    self.strategy.enterLongLimitAsync(self.instrument, price, quantity)
                 )
                 order_placed = True
-                order_details += f" at limit {limit_price}"
-            elif order_type == "stop":
-                self.strategy.runAsync(
-                    self.strategy.enterLongStopAsync(
-                        self.instrument, stop_price, quantity
-                    )
-                )
-                order_placed = True
-                order_details += f" at stop {stop_price}"
-            elif order_type == "stoplimit":
+                order_details += f" at limit {price}"
+            elif order_type == "SL":
                 self.strategy.runAsync(
                     self.strategy.enterLongStopLimitAsync(
-                        self.instrument, stop_price, limit_price, quantity
+                        self.instrument, trigger_price, price, quantity
                     )
                 )
                 order_placed = True
-                order_details += f" at stop {stop_price} limit {limit_price}"
+                order_details += f" at stop {trigger_price} limit {price}"
+            elif order_type == "SLM":
+                self.strategy.runAsync(
+                    self.strategy.enterLongStopAsync(
+                        self.instrument, trigger_price, quantity
+                    )
+                )
+                order_placed = True
+                order_details += f" at stop {trigger_price}"
         else:  # Sell
-            if order_type == "market":
+            if order_type == "MARKET":
                 self.strategy.runAsync(
                     self.strategy.enterShortAsync(self.instrument, quantity)
                 )
                 order_placed = True
-            elif order_type == "limit":
+            elif order_type == "LIMIT":
                 self.strategy.runAsync(
-                    self.strategy.enterShortLimitAsync(
-                        self.instrument, limit_price, quantity
-                    )
+                    self.strategy.enterShortLimitAsync(self.instrument, price, quantity)
                 )
                 order_placed = True
-                order_details += f" at limit {limit_price}"
-            elif order_type == "stop":
-                self.strategy.runAsync(
-                    self.strategy.enterShortStopAsync(
-                        self.instrument, stop_price, quantity
-                    )
-                )
-                order_placed = True
-                order_details += f" at stop {stop_price}"
-            elif order_type == "stoplimit":
+                order_details += f" at limit {price}"
+            elif order_type == "SL":
                 self.strategy.runAsync(
                     self.strategy.enterShortStopLimitAsync(
-                        self.instrument, stop_price, limit_price, quantity
+                        self.instrument, trigger_price, price, quantity
                     )
                 )
                 order_placed = True
-                order_details += f" at stop {stop_price} limit {limit_price}"
+                order_details += f" at stop {trigger_price} limit {price}"
+            elif order_type == "SLM":
+                self.strategy.runAsync(
+                    self.strategy.enterShortStopAsync(
+                        self.instrument, trigger_price, quantity
+                    )
+                )
+                order_placed = True
+                order_details += f" at stop {trigger_price}"
 
-        self.page.dialog.open = False
-        self.page.update()
+        self.close_dialog(_)
 
         if order_placed:
             self.show_snackbar(f"Order placed: {order_details}")
