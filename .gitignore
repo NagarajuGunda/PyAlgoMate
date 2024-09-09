@@ -6,7 +6,7 @@ trades*.csv
 trades*.xlsx
 pyalgomate/backtesting/data/test.parquet
 results/*
-strategies
+strategies/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

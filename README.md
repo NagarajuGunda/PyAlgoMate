@@ -1,6 +1,10 @@
 # PyAlgoMate
 [![Python package](https://github.com/NagarajuGunda/PyAlgoMate/actions/workflows/python-package.yml/badge.svg)](https://github.com/NagarajuGunda/PyAlgoMate/actions/workflows/python-package.yml)
 
+> **Important Note**: The strategies located in the pyalgomate/strategies directory may not be fully up-to-date with recent framework changes, such as asynchronous operations and broker modifications. We recommend using these strategies as reference examples to develop your own custom trading strategies that align with the latest framework updates.
+
+> **Note on Finvasia Websocket**: The websocket subscription for Finvasia has been disassociated from the strategy and now uses a local feed via ZMQ. For paper or live trading modes, you need to run `python pyalgomate/brokers/finvasia/wsclient.py` in a separate process or terminal to receive both market feed and order updates.
+
 PyAlgoMate is a Python library for event-driven algorithmic trading, developed as an extension of PyAlgoTrade (https://github.com/gbeced/pyalgotrade).
 
 With PyAlgoMate, you can seamlessly perform backtesting, paper trading, and live trading with popular brokers such as Finvasia and Zerodha. It offers a comprehensive set of tools and functionalities to support various stages of the trading process.
@@ -57,7 +61,9 @@ Congratulations! You have successfully set up PyAlgoMate and installed all the n
 
 ## PyAlgoMate Usage
 
-### Running a Backtest
+PyAlgoMate offers two flexible methods for running trading strategies: Command-Line Interface (CLI) and User Interface (UI). Both methods support various trading modes, including backtesting, paper trading, and live trading. Choose the method that best suits your workflow and preferences.
+
+### 1. Running a Strategy using Command-Line Interface (CLI)
 
 To perform a backtest using PyAlgoMate, it is recommended to use the command-line interface (CLI) method. Prior to executing the command, users need to set an environment variable called `PYTHONPATH` to ensure Python can locate the PyAlgoMate module. Follow the instructions below based on the operating system:
 
@@ -88,6 +94,23 @@ python pyalgomate/strategies/strategy.py backtest --help
 ```
 
 These commands will provide information on the available options and their usage.
+
+### 2. Running a Strategy using User Interface (UI)
+
+For users who prefer a graphical interface, PyAlgoMate provides a user-friendly UI option. Follow these steps to utilize the UI:
+
+1. Locate the file named `strategies.yaml.sample` in the PyAlgoMate directory.
+2. Create a copy of this file and rename it to `strategies.yaml`.
+3. Open `strategies.yaml` in a text editor and update its contents with your specific configuration:
+   - Specify the broker (e.g., Backtest, Finvasia)
+   - Define the underlying assets (e.g., BANKNIFTY, NSE|NIFTY BANK)
+   - List the strategies you want to use, along with their required arguments
+
+4. Once you've configured the `strategies.yaml` file, launch the UI by running the following command in your terminal:
+
+```shell
+python flet/PyAlgoMate.py
+```
 
 Please note that the README will be updated as the project progresses, including additional instructions and improvements. We apologize for any inconvenience caused and appreciate your understanding as we enhance the usability of the library.
 

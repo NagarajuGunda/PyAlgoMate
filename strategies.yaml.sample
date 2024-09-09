@@ -8,16 +8,9 @@ Underlyings:
   - BSE|BANKEX
 
 Strategies:
-  SuperTrend1:
-    Class: SuperTrendV1
-    Path: pyalgomate/strategies/SuperTrendV1.py
-    Mode: live
-    Args:
-      - underlying: NSE|NIFTY BANK
-
-  SuperTrendV2:
-    Class: SuperTrendV1
-    Path: pyalgomate/strategies/SuperTrendV1.py
+  920Straddle:
+    Class: NineTwentyStraddle
+    Path: pyalgomate/strategies/920Straddle.py
     Mode: paper
     Args:
-      - underlying: BSE|BANKEX
+      - underlying: NSE|NIFTY BANK
