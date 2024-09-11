@@ -860,7 +860,7 @@ class LiveBroker(broker.Broker):
             ret = OrderResponse(modifyOrderResponse)
 
             if ret.getStat() != "Ok":
-                raise Exception(ret.getErrorMessage())
+                raise Exception(modifyOrderResponse)
 
             oldOrderId = order.getId()
             if oldOrderId is not None:
@@ -879,7 +879,7 @@ class LiveBroker(broker.Broker):
                 f'Modified {newprice_type} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} with New order {order.getId()} at {order.getSubmitDateTime()}'
             )
         except Exception as e:
-            logger.critical(f"Could not place order for {symbol}. Reason: {e}")
+            logger.critical(f"Could not modify order for {symbol}. Reason: {e}")
 
     async def placeOrder(self, order: Order):
         try:
