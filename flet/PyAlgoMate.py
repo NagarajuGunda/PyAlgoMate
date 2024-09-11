@@ -264,7 +264,7 @@ def main(page: ft.Page):
     update_thread.start()
 
     def on_disconnect(e):
-        logger.warning(f"Page disconnected. Details {e}")
+        logger.debug(f"Page disconnected. Details {e}")
 
     page.on_disconnect = on_disconnect
 
