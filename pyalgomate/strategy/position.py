@@ -82,6 +82,8 @@ class OpenState(PositionState):
         elif position.getEntryOrder().getId() == orderEvent.getOrder().getId():
             # Nothing to do since the entry order may be completely filled or canceled after a partial fill.
             assert position.getShares() != 0
+        elif orderEvent.getEventType() == broker.OrderEvent.Type.ACCEPTED:
+            pass
         else:
             raise Exception(
                 "Invalid order event '%s' in OpenState" % (orderEvent.getEventType())

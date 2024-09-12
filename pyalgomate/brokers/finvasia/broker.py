@@ -10,10 +10,9 @@ import logging
 import queue
 import threading
 import time
-from typing import ForwardRef, List, Set
+from typing import ForwardRef, Set
 
 import pandas as pd
-import six
 import zmq
 from NorenRestApiAsync.NorenApiAsync import NorenApiAsync
 from NorenRestApiPy.NorenApi import NorenApi
@@ -321,21 +320,87 @@ class TradeMonitor(threading.Thread):
     RETRY_COUNT = 2
     RETRY_INTERVAL = 0.5
 
-    ON_USER_TRADE = 1
-
     def __init__(self, liveBroker: LiveBroker):
         super(TradeMonitor, self).__init__()
         self.__broker: LiveBroker = liveBroker
-        self.__queue = six.moves.queue.Queue()
         self.__stop = False
         self.__retryData = dict()
         self.__pendingUpdates = set()
 
-        self.__zmq_update_thread = OrderUpdateThread()
-        self.__zmq_update_thread.start()
-        self.__stop = False
+    async def run_async(self):
+        while not self.__stop:
+            try:
+                order_update = (
+                    self.__broker._LiveBroker__orderUpdateThread.getQueue().get(
+                        block=False
+                    )
+                )
+                logger.info(
+                    "Pulled order %s with status %s from zmq queue",
+                    order_update.get("norenordno"),
+                    order_update.get("status"),
+                )
+                await self.processOrderUpdate(order_update)
+            except queue.Empty:
+                pass
+            except Exception as e:
+                logger.exception("Error processing order update", exc_info=e)
 
-    async def processOrderEvent(self, orderEvent: OrderEvent, ret: List[OrderEvent]):
+            try:
+                # Process pending updates and open orders in parallel
+                pending_tasks = [
+                    self.safe_process_order_update(orderUpdate)
+                    for orderUpdate in list(self.__pendingUpdates)
+                ]
+                open_order_tasks = [
+                    self.safe_process_open_order(order)
+                    for order in self.__broker.getActiveOrders().copy()
+                ]
+
+                all_tasks = pending_tasks + open_order_tasks
+                await asyncio.gather(*all_tasks, return_exceptions=True)
+
+            except Exception as e:
+                logger.exception(
+                    "Error processing pending updates or open orders", exc_info=e
+                )
+
+            await asyncio.sleep(self.POLL_FREQUENCY)
+
+    async def safe_process_order_update(self, orderUpdate):
+        try:
+            await self.processOrderUpdate(dict(orderUpdate))
+        except Exception as e:
+            logger.exception(
+                f"Error processing order update: {orderUpdate}", exc_info=e
+            )
+
+    async def safe_process_open_order(self, order):
+        try:
+            await self.processOpenOrder(order)
+        except Exception as e:
+            logger.exception(
+                f"Error processing open order: {order.getId()}", exc_info=e
+            )
+
+    async def processOrderUpdate(self, order_update):
+        order = next(
+            (
+                o
+                for o in self.__broker.getActiveOrders()
+                if o.getRemarks() == order_update.get("remarks")
+            ),
+            None,
+        )
+        if order:
+            orderEvent = OrderEvent(order_update, order)
+            await self.processOrderEvent(orderEvent)
+            self.__pendingUpdates.discard(frozenset(order_update.items()))
+        else:
+            # If the order is not found, add it to pending updates
+            self.__pendingUpdates.add(frozenset(order_update.items()))
+
+    async def processOrderEvent(self, orderEvent: OrderEvent):
         logger.info(
             f"Processing order {orderEvent.getId()} with status {orderEvent.getStatus()}"
         )
@@ -358,7 +423,7 @@ class TradeMonitor(threading.Thread):
                 orderEvent.getRejectedReason() is None
                 or orderEvent.getRejectedReason() == "Order Cancelled"
             ):
-                ret.append(orderEvent)
+                await self.__broker._onUserTrades([orderEvent])
                 self.__retryData.pop(order, None)
                 return
             else:
@@ -368,7 +433,7 @@ class TradeMonitor(threading.Thread):
 
             retryCount = self.__retryData[order]["retryCount"]
 
-            if retryCount < TradeMonitor.RETRY_COUNT:
+            if retryCount < self.RETRY_COUNT:
                 logger.warning(
                     f'Order {order.getId()} {orderEvent.getStatus()} with reason {orderEvent.getRejectedReason()}. Retrying attempt {self.__retryData[order]["retryCount"] + 1}'
                 )
@@ -377,11 +442,11 @@ class TradeMonitor(threading.Thread):
                 self.__retryData[order]["lastRetryTime"] = time.time()
             else:
                 logger.warning(f"Exhausted retry attempts for Order {order.getId()}")
-                ret.append(orderEvent)
+                await self.__broker._onUserTrades([orderEvent])
                 self.__retryData.pop(order, None)
                 return
         elif orderEvent.getStatus() in ["COMPLETE"]:
-            ret.append(orderEvent)
+            await self.__broker._onUserTrades([orderEvent])
             self.__retryData.pop(order, None)
             return
         else:
@@ -394,7 +459,7 @@ class TradeMonitor(threading.Thread):
         retryCount = self.__retryData[order]["retryCount"]
         lastRetryTime = self.__retryData[order]["lastRetryTime"]
 
-        if time.time() < (lastRetryTime + TradeMonitor.RETRY_INTERVAL):
+        if time.time() < (lastRetryTime + self.RETRY_INTERVAL):
             return
 
         logger.info(f"Processing open order {order.getId()}")
@@ -403,7 +468,7 @@ class TradeMonitor(threading.Thread):
         if retryCount == 0:
             ltp = self.__broker.getLastPrice(order.getInstrument())
             logger.warning(
-                f"Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}."
+                f"Order {order.getId()} crossed retry interval {self.RETRY_INTERVAL}."
                 f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with current LTP {ltp}'
             )
             await self.__broker.modifyFinvasiaOrder(
@@ -413,7 +478,7 @@ class TradeMonitor(threading.Thread):
             )
         else:
             logger.warning(
-                f"Order {order.getId()} crossed retry interval {TradeMonitor.RETRY_INTERVAL}."
+                f"Order {order.getId()} crossed retry interval {self.RETRY_INTERVAL}."
                 f'Retrying attempt {self.__retryData[order]["retryCount"] + 1} with market order'
             )
             await self.__broker.modifyFinvasiaOrder(
@@ -424,9 +489,6 @@ class TradeMonitor(threading.Thread):
         self.__retryData[order]["retryCount"] += 1
         self.__retryData[order]["lastRetryTime"] = time.time()
 
-    def getQueue(self):
-        return self.__queue
-
     def start(self):
         super(TradeMonitor, self).start()
 
@@ -435,73 +497,8 @@ class TradeMonitor(threading.Thread):
         asyncio.set_event_loop(loop)
         loop.run_until_complete(self.run_async())
 
-    async def processOrderUpdate(self, order, orderUpdate, trades):
-        orderEvent = OrderEvent(orderUpdate, order)
-        ret: List[OrderEvent] = []
-        await self.processOrderEvent(orderEvent, ret)
-
-        if len(ret):
-            self.__queue.put((TradeMonitor.ON_USER_TRADE, ret))
-            trades.extend(ret)
-
-    async def run_async(self):
-        while not self.__stop:
-            trades: List[OrderEvent] = []
-            while True:
-                try:
-                    orderUpdate = self.__zmq_update_thread.getQueue().get(block=False)
-                    logger.info(
-                        "Pulled order %s with status %s from zmq queue",
-                        orderUpdate.get("norenordno"),
-                        orderUpdate.get("status"),
-                    )
-                    order = next(
-                        (
-                            o
-                            for o in self.__broker.getActiveOrders().copy()
-                            if o.getRemarks() == orderUpdate.get("remarks")
-                        ),
-                        None,
-                    )
-                    if order:
-                        await self.processOrderUpdate(order, orderUpdate, trades)
-                    else:
-                        # Convert the orderUpdate dict to a frozenset of its items
-                        self.__pendingUpdates.add(frozenset(orderUpdate.items()))
-                except queue.Empty:
-                    break
-                except Exception as e:
-                    logger.exception(e)
-
-            try:
-                for orderUpdate in list(self.__pendingUpdates):
-                    # Convert the frozenset back to a dict
-                    update_dict = dict(orderUpdate)
-                    order = next(
-                        (
-                            o
-                            for o in self.__broker.getActiveOrders().copy()
-                            if o.getRemarks() == update_dict.get("remarks")
-                        ),
-                        None,
-                    )
-                    if order:
-                        await self.processOrderUpdate(order, update_dict, trades)
-                        self.__pendingUpdates.remove(orderUpdate)
-
-                # Process retry logic for orders not updated via ZMQ
-                for order in self.__broker.getActiveOrders().copy():
-                    if order.getId() not in [event.getId() for event in trades]:
-                        await self.processOpenOrder(order)  # Await the async method
-            except Exception as e:
-                logger.exception(e)
-
-            await asyncio.sleep(TradeMonitor.POLL_FREQUENCY)
-
     def stop(self):
         self.__stop = True
-        self.__zmq_update_thread.stop()
-        self.__zmq_update_thread.join()
 
 
 class OrderResponse(object):
@@ -606,10 +603,12 @@ class LiveBroker(broker.Broker):
             )
         )
         self.__barFeed: BaseBarFeed = barFeed
-        self.__tradeMonitor = TradeMonitor(self)
         self.__cash = 0
         self.__shares = {}
         self.__activeOrders: Set[Order] = set()
+
+        self.__orderUpdateThread = OrderUpdateThread()
+        self.__tradeMonitor = TradeMonitor(self)
 
     def getApi(self):
         return self.__api
@@ -684,6 +683,7 @@ class LiveBroker(broker.Broker):
             orderExecutionInfo = broker.OrderExecutionInfo(
                 None, 0, 0, trade.getDateTime(), error=errorMsg
             )
+            order.addExecutionInfo(orderExecutionInfo)
             self.notifyOrderEvent(
                 broker.OrderEvent(
                     order, broker.OrderEvent.Type.CANCELED, orderExecutionInfo
@@ -695,6 +695,7 @@ class LiveBroker(broker.Broker):
             orderExecutionInfo = broker.OrderExecutionInfo(
                 None, 0, 0, trade.getDateTime()
             )
+            order.addExecutionInfo(orderExecutionInfo)
             self.notifyOrderEvent(
                 broker.OrderEvent(
                     order, broker.OrderEvent.Type.CANCELED, orderExecutionInfo
@@ -727,7 +728,7 @@ class LiveBroker(broker.Broker):
 
         self.refreshAccountBalance()
 
-    def _onUserTrades(self, trades):
+    async def _onUserTrades(self, trades):
         for trade in trades:
             order = trade.getOrder()
             if order in self.__activeOrders:
@@ -743,11 +744,15 @@ class LiveBroker(broker.Broker):
         self.refreshAccountBalance()
         self.refreshOpenOrders()
         self._startTradeMonitor()
+        self.__orderUpdateThread.start()
 
     def stop(self):
         self.__stop = True
         logger.info("Shutting down trade monitor.")
+        self.__orderUpdateThread.stop()
         self.__tradeMonitor.stop()
+        self.__orderUpdateThread.join()
+        self.__tradeMonitor.join()
 
     def join(self):
         self.__tradeMonitor.stop()
@@ -757,22 +762,8 @@ class LiveBroker(broker.Broker):
         return self.__stop
 
     def dispatch(self):
-        try:
-            eventType, eventData = self.__tradeMonitor.getQueue().get(
-                True, LiveBroker.QUEUE_TIMEOUT
-            )
-
-            if eventType == TradeMonitor.ON_USER_TRADE:
-                self._onUserTrades(eventData)
-            else:
-                logger.error(
-                    "Invalid event received to dispatch: %s - %s"
-                    % (eventType, eventData)
-                )
-        except six.moves.queue.Empty:
-            pass
-        except Exception as e:
-            logger.exception(e)
+        # Do nothing in the dispatch method
+        pass
 
     def peekDateTime(self):
         # Return None since this is a realtime subject.
@@ -833,7 +824,12 @@ class LiveBroker(broker.Broker):
     #     api.cancel_order(orderno=orderno)
 
     async def modifyFinvasiaOrder(
-        self, order: Order, newprice_type=None, newprice=0.0, newtrigger_price=None, newOrder: Order = None
+        self,
+        order: Order,
+        newprice_type=None,
+        newprice=0.0,
+        newtrigger_price=None,
+        newOrder: Order = None,
     ):
         try:
             splitStrings = order.getInstrument().split("|")
@@ -860,7 +856,10 @@ class LiveBroker(broker.Broker):
             ret = OrderResponse(modifyOrderResponse)
 
             if ret.getStat() != "Ok":
-                raise Exception(modifyOrderResponse)
+                logger.error(
+                    f"modify order failed. Full API response: {modifyOrderResponse}"
+                )
+                raise Exception(ret.getErrorMessage())
 
             oldOrderId = order.getId()
             if oldOrderId is not None:
@@ -930,6 +929,7 @@ class LiveBroker(broker.Broker):
             orderResponse = OrderResponse(placedOrderResponse)
 
             if orderResponse.getStat() != "Ok":
+                logger.error(f"place order failed. Full API response: {orderResponse}")
                 raise Exception(orderResponse.getErrorMessage())
 
             oldOrderId = order.getId()
@@ -968,7 +968,11 @@ class LiveBroker(broker.Broker):
             newOrder.setAllOrNone(False)
             newOrder.setGoodTillCanceled(True)
 
-            newTriggerPrice = newOrder.getStopPrice() if newOrder.getType() in [broker.Order.Type.STOP_LIMIT] else None
+            newTriggerPrice = (
+                newOrder.getStopPrice()
+                if newOrder.getType() in [broker.Order.Type.STOP_LIMIT]
+                else None
+            )
 
             # Switch from INITIAL -> SUBMITTED
             # IMPORTANT: Do not emit an event for this switch because when using the position interface
@@ -1067,6 +1071,7 @@ class LiveBroker(broker.Broker):
             orderResponse = OrderResponse(cancelOrderResponse)
 
             if orderResponse.getStat() != "Ok":
+                logger.error(f"Cancel order failed. Full API response: {orderResponse}")
                 raise Exception(orderResponse.getErrorMessage())
 
             logger.debug(

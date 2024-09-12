@@ -159,6 +159,7 @@ class LiveTradeFeed(BaseBarFeed):
         self.__queue = Queue()
 
         self.__latestQuotes = {}
+        self.__latestOIs = {}
 
         # Thread to run the asyncio event loop
         self.__loopThread = threading.Thread(target=self.__run_event_loop)
@@ -195,6 +196,8 @@ class LiveTradeFeed(BaseBarFeed):
                 if float(message.get("lp", 0)) <= 0:
                     continue
                 self.__latestQuotes[key] = message
+                if message.get("oi", None) is not None:
+                    self.__latestOIs[key] = float(message["oi"])
                 self.__queue.put_nowait(message)
                 self.__lastQuoteDateTime = message["ft"]
                 self.__lastReceivedDateTime = datetime.datetime.now()
@@ -203,6 +206,10 @@ class LiveTradeFeed(BaseBarFeed):
 
     def getNextBars(self):
         def getBar(message, lastQuoteDateTime):
+            if not message.get("oi", None):
+                message["oi"] = self.__latestOIs.get(
+                    message["e"] + "|" + message["tk"], 0
+                )
             bar = QuoteMessage(message, self.__tokenIdToInstrumentMappings).getBar(
                 lastQuoteDateTime
             )

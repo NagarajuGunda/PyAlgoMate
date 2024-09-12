@@ -325,6 +325,10 @@ class Order(object):
                 % (self.getRemaining(), orderExecutionInfo.getQuantity())
             )
 
+        self.__executionInfo = orderExecutionInfo
+        if orderExecutionInfo.hasError():
+            return
+
         if self.__avgFillPrice is None:
             self.__avgFillPrice = orderExecutionInfo.getPrice()
         else:
@@ -332,8 +336,6 @@ class Order(object):
                 self.__avgFillPrice * self.__filled
                 + orderExecutionInfo.getPrice() * orderExecutionInfo.getQuantity()
             ) / float(self.__filled + orderExecutionInfo.getQuantity())
-
-        self.__executionInfo = orderExecutionInfo
         self.__filled = self.getInstrumentTraits().roundQuantity(
             self.__filled + orderExecutionInfo.getQuantity()
         )
