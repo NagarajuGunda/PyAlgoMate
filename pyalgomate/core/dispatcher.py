@@ -120,6 +120,7 @@ class AsyncDispatcher:
             target=self._run_event_loop, daemon=True
         )
         self.scheduled_coroutines: Dict[Any, Tuple[datetime, Coroutine]] = {}
+        self.recurring_tasks: Dict[Any, asyncio.Task] = {}
         self.thread.start()
 
     def _run_event_loop(self) -> None:
@@ -165,6 +166,14 @@ class AsyncDispatcher:
             if asyncio.iscoroutine(coroutine):
                 self.loop.call_soon_threadsafe(self._cancel_coroutine, coroutine)
             del self.scheduled_coroutines[task_id]
+            self.strategy.log(f"Cancelled scheduled task with id {task_id}")
+        elif task_id in self.recurring_tasks:
+            task = self.recurring_tasks[task_id]
+            self.loop.call_soon_threadsafe(task.cancel)
+            del self.recurring_tasks[task_id]
+            self.strategy.log(f"Cancelled recurring task with id {task_id}")
+        else:
+            self.strategy.log(f"No task found with id {task_id}")
 
     def _cancel_coroutine(self, coroutine: Coroutine) -> None:
         task = self.loop.create_task(coroutine)
@@ -175,8 +184,30 @@ class AsyncDispatcher:
             if asyncio.iscoroutine(coroutine):
                 self.loop.call_soon_threadsafe(self._cancel_coroutine, coroutine)
         self.scheduled_coroutines.clear()
+
+        for task in self.recurring_tasks.values():
+            self.loop.call_soon_threadsafe(task.cancel)
+        self.recurring_tasks.clear()
+
         self.loop.call_soon_threadsafe(self.loop.stop)
         self.thread.join()
+
+    def schedule_recurring(
+        self, coroutine: Callable[[], Coroutine], interval: float, task_id: Any = None
+    ):
+        if task_id in self.recurring_tasks:
+            self.strategy.log(
+                f"Recurring task with id {task_id} already exists. Skipping scheduling."
+            )
+            return
+
+        async def recurring_task():
+            while True:
+                await coroutine()
+                await asyncio.sleep(interval)
+
+        task = self.loop.create_task(recurring_task())
+        self.recurring_tasks[task_id] = task
 
 
 class LiveAsyncDispatcher(AsyncDispatcher):
