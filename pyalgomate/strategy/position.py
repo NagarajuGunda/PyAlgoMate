@@ -390,8 +390,9 @@ class Position(object):
 
         exitOrder.setAllOrNone(self.__allOrNone)
 
-        await self.__modifyAndRegisterOrder(self.__exitOrder, exitOrder)
+        currentOrder = self.__exitOrder
         self.__exitOrder = exitOrder
+        await self.__modifyAndRegisterOrder(currentOrder, self.__exitOrder)
 
     async def modifyExitStopLimit(self, stopPrice, limitPrice, goodTillCanceled=None):
         """Modifies the exit order to a limit order."""
@@ -406,8 +407,9 @@ class Position(object):
 
         exitOrder.setAllOrNone(self.__allOrNone)
 
-        await self.__modifyAndRegisterOrder(self.__exitOrder, exitOrder)
+        currentOrder = self.__exitOrder
         self.__exitOrder = exitOrder
+        await self.__modifyAndRegisterOrder(currentOrder, self.__exitOrder)
 
     async def _submitExitOrder(self, stopPrice, limitPrice, goodTillCanceled):
         assert not self.exitActive()

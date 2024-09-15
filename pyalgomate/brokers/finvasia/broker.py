@@ -10,6 +10,7 @@ import logging
 import queue
 import threading
 import time
+import traceback
 from typing import ForwardRef, Set
 
 import pandas as pd
@@ -23,6 +24,7 @@ from pyalgomate.barfeed import BaseBarFeed
 from pyalgomate.brokers import BacktestingBroker, QuantityTraits
 from pyalgomate.core import broker
 from pyalgomate.core.broker import Order
+from pyalgomate.core.dispatcher import LiveAsyncDispatcher
 from pyalgomate.strategies import OptionContract
 from pyalgomate.utils import UnderlyingIndex
 
@@ -185,16 +187,18 @@ class PaperTradingBroker(BacktestingBroker):
         super().__init__(cash, barFeed, fee)
 
         self.__api = barFeed.getApi()
+        self.loop = LiveAsyncDispatcher().loop
         self.__apiAsync: NorenApiAsync = NorenApiAsync(
             host="https://api.shoonya.com/NorenWClientTP/",
             websocket="wss://api.shoonya.com/NorenWSTP/",
         )
-        asyncio.run(
+        asyncio.run_coroutine_threadsafe(
             self.__apiAsync.set_session(
                 self.__api._NorenApi__username,
                 self.__api._NorenApi__password,
                 self.__api._NorenApi__susertoken,
-            )
+            ),
+            self.loop,
         )
 
     def getType(self):
@@ -469,9 +473,7 @@ class TradeMonitor(threading.Thread):
         super(TradeMonitor, self).start()
 
     def run(self):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(self.run_async())
+        asyncio.run_coroutine_threadsafe(self.run_async(), self.__broker.loop)
 
     def stop(self):
         self.__stop = True
@@ -567,16 +569,18 @@ class LiveBroker(broker.Broker):
         super(LiveBroker, self).__init__()
         self.__stop = False
         self.__api = api
+        self.loop = LiveAsyncDispatcher().loop
         self.__apiAsync: NorenApiAsync = NorenApiAsync(
             host="https://api.shoonya.com/NorenWClientTP/",
             websocket="wss://api.shoonya.com/NorenWSTP/",
         )
-        asyncio.run(
+        asyncio.run_coroutine_threadsafe(
             self.__apiAsync.set_session(
                 self.__api._NorenApi__username,
                 self.__api._NorenApi__password,
                 self.__api._NorenApi__susertoken,
-            )
+            ),
+            self.loop,
         )
         self.__barFeed: BaseBarFeed = barFeed
         self.__cash = 0
@@ -923,6 +927,7 @@ class LiveBroker(broker.Broker):
             )
         except Exception as e:
             logger.critical(f"Could not place order for {symbol}. Reason: {e}")
+            logger.error(traceback.print_exc())
 
     async def submitOrder(self, order: Order):
         if order.isInitial():
