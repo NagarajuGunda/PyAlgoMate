@@ -2,8 +2,9 @@
 .. moduleauthor:: Nagaraju Gunda
 """
 
-import sys
 import os
+import sys
+import tempfile
 
 sys.path.append(
     os.path.join(
@@ -12,24 +13,25 @@ sys.path.append(
     )
 )
 
-import json
-import pickle
-from pyalgotrade import bar
-from NorenRestApiPy.NorenApi import NorenApi
-import yaml
-import zmq
 import datetime
+import json
 import logging
+import pickle
 import threading
 import time
-from pyalgomate.barfeed.BasicBarEx import BasicBarEx
+
+import yaml
+import zmq
+from NorenRestApiPy.NorenApi import NorenApi
+
 import pyalgomate.brokers.finvasia as finvasia
 
 logger = logging.getLogger(__name__)
 
 
 class WebSocketClient:
-    def __init__(self, api, tokenMappings, zmq_port="5555"):
+
+    def __init__(self, api, tokenMappings, ipc_path=None):
         assert len(tokenMappings), "Missing subscriptions"
         self.__quotes = dict()
         self.__lastQuoteDateTime = None
@@ -40,10 +42,24 @@ class WebSocketClient:
         self.__connected = False
         self.__connectionOpened = threading.Event()
 
-        # Set up ZeroMQ publisher
+        # Set up ZeroMQ publisher using IPC
         self.__context = zmq.Context()
         self.__socket = self.__context.socket(zmq.PUB)
-        self.__socket.bind(f"tcp://*:{zmq_port}")
+
+        if ipc_path is None:
+            # Create a platform-independent IPC path
+            ipc_dir = tempfile.gettempdir()
+            ipc_file = "pyalgomate_ipc"
+            self.__ipc_path = os.path.join(ipc_dir, ipc_file)
+        else:
+            self.__ipc_path = ipc_path
+
+        # On Windows, we need to use tcp instead of ipc
+        if os.name == "nt":
+            self.__socket.bind("tcp://127.0.0.1:*")
+            self.__ipc_path = self.__socket.getsockopt(zmq.LAST_ENDPOINT).decode()
+        else:
+            self.__socket.bind(f"ipc://{self.__ipc_path}")
 
         self.periodicThread = threading.Thread(target=self.periodicPrint)
         self.periodicThread.daemon = True
@@ -143,6 +159,9 @@ class WebSocketClient:
             )
             time.sleep(60)
 
+    def get_ipc_path(self):
+        return self.__ipc_path
+
 
 if __name__ == "__main__":
     import pyalgomate.brokers.finvasia as finvasia
@@ -185,6 +204,7 @@ if __name__ == "__main__":
         exit(1)
 
     wsClient = WebSocketClient(api, tokenMappings)
+    logger.info(f"IPC path: {wsClient.get_ipc_path()}")
     wsClient.startClient()
     if not wsClient.waitInitialized():
         exit(1)

@@ -7,7 +7,8 @@ import calendar
 import datetime
 import json
 import logging
-import queue
+import os
+import tempfile
 import threading
 import time
 import traceback
@@ -287,50 +288,39 @@ class OrderEvent(object):
 LiveBroker = ForwardRef("LiveBroker")
 
 
-class OrderUpdateThread(threading.Thread):
-    def __init__(self, zmq_port="5555"):
-        super(OrderUpdateThread, self).__init__()
-        self.__context = zmq.Context()
-        self.__socket = self.__context.socket(zmq.SUB)
-        self.__socket.connect(f"tcp://localhost:{zmq_port}")
-        self.__socket.setsockopt_string(zmq.SUBSCRIBE, "ORDER_UPDATE")
-        self.__queue = queue.Queue()
-        self.__stop = False
-
-    def getQueue(self):
-        return self.__queue
-
-    def run(self):
-        while not self.__stop:
-            try:
-                topic, message = self.__socket.recv_multipart(flags=zmq.NOBLOCK)
-                if topic == b"ORDER_UPDATE":
-                    order_update = json.loads(message)
-                    logger.info("Received order update: %s", order_update)
-                    self.__queue.put(order_update)
-            except zmq.Again:
-                time.sleep(0.01)
-            except Exception as e:
-                logger.critical("Error retrieving ZMQ updates", exc_info=e)
-
-    def stop(self):
-        self.__stop = True
-        self.__socket.close()
-        self.__context.term()
-
-
 class TradeMonitor(threading.Thread):
     POLL_FREQUENCY = 0.01
     RETRY_COUNT = 2
     RETRY_INTERVAL = 0.5
 
-    def __init__(self, liveBroker: LiveBroker):
+    def __init__(self, liveBroker: LiveBroker, ipc_path=None, max_concurrent_tasks=60):
         super(TradeMonitor, self).__init__()
         self.__broker: LiveBroker = liveBroker
         self.__stop = False
         self.__retryData = dict()
         self.__pendingUpdates = set()
         self.__openOrders = set()
+        self.__semaphore = asyncio.Semaphore(max_concurrent_tasks)
+        self.__zmq_context = zmq.asyncio.Context()
+        self.__zmq_socket = self.__zmq_context.socket(zmq.SUB)
+
+        if ipc_path is None:
+            # Create a platform-independent IPC path
+            ipc_dir = tempfile.gettempdir()
+            ipc_file = "pyalgomate_ipc"
+            self.__ipc_path = os.path.join(ipc_dir, ipc_file)
+        else:
+            self.__ipc_path = ipc_path
+
+        # On Windows, we need to use tcp instead of ipc
+        if os.name == "nt":
+            self.__zmq_socket.connect(
+                f"tcp://127.0.0.1:{self.__ipc_path.split(':')[-1]}"
+            )
+        else:
+            self.__zmq_socket.connect(f"ipc://{self.__ipc_path}")
+
+        self.__zmq_socket.setsockopt_string(zmq.SUBSCRIBE, "ORDER_UPDATE")
 
     async def run_async(self):
         while not self.__stop:
@@ -345,15 +335,23 @@ class TradeMonitor(threading.Thread):
     async def process_zmq_updates(self):
         try:
             while True:
-                order_update = (
-                    self.__broker._LiveBroker__orderUpdateThread.getQueue().get_nowait()
+                [topic, message] = await self.__zmq_socket.recv_multipart(
+                    flags=zmq.NOBLOCK
                 )
-                logger.info(
-                    f"Pulled order {order_update.get('norenordno')} with status {order_update.get('status')} from zmq queue"
-                )
-                await self.handle_order_update(order_update)
-        except queue.Empty:
+                if topic == b"ORDER_UPDATE":
+                    order_update = json.loads(message)
+                    logger.info(f"Received order update: {order_update}")
+                    asyncio.create_task(
+                        self.__handle_order_update_with_semaphore(order_update)
+                    )
+        except zmq.Again:
             pass
+        except Exception as e:
+            logger.critical("Error retrieving ZMQ updates", exc_info=e)
+
+    async def __handle_order_update_with_semaphore(self, order_update):
+        async with self.__semaphore:
+            await self.handle_order_update(order_update)
 
     async def handle_order_update(self, order_update):
         status = order_update.get("status")
@@ -477,6 +475,8 @@ class TradeMonitor(threading.Thread):
 
     def stop(self):
         self.__stop = True
+        self.__zmq_socket.close()
+        self.__zmq_context.term()
 
 
 class OrderResponse(object):
@@ -587,7 +587,6 @@ class LiveBroker(broker.Broker):
         self.__shares = {}
         self.__activeOrders: Set[Order] = set()
 
-        self.__orderUpdateThread = OrderUpdateThread()
         self.__tradeMonitor = TradeMonitor(self)
 
     def getApi(self):
@@ -724,14 +723,11 @@ class LiveBroker(broker.Broker):
         self.refreshAccountBalance()
         self.refreshOpenOrders()
         self._startTradeMonitor()
-        self.__orderUpdateThread.start()
 
     def stop(self):
         self.__stop = True
         logger.info("Shutting down trade monitor.")
-        self.__orderUpdateThread.stop()
         self.__tradeMonitor.stop()
-        self.__orderUpdateThread.join()
         self.__tradeMonitor.join()
 
     def join(self):

@@ -5,7 +5,9 @@
 import asyncio
 import datetime
 import logging
+import os
 import pickle
+import tempfile
 import threading
 import traceback
 from queue import Queue
@@ -113,12 +115,13 @@ class QuoteMessage(object):
 
 
 class LiveTradeFeed(BaseBarFeed):
+
     def __init__(
         self,
         api: NorenApi,
         tokenMappings: dict,
         instruments: list,
-        zmq_port="5555",
+        ipc_path=None,
         timeout=10,
         maxLen=None,
     ):
@@ -152,7 +155,21 @@ class LiveTradeFeed(BaseBarFeed):
         # ZeroMQ setup
         self.__context = zmq.asyncio.Context()
         self.__socket = self.__context.socket(zmq.SUB)
-        self.__socket.connect(f"tcp://localhost:{zmq_port}")
+
+        if ipc_path is None:
+            # Create a platform-independent IPC path
+            ipc_dir = tempfile.gettempdir()
+            ipc_file = "pyalgomate_ipc"
+            self.__ipc_path = os.path.join(ipc_dir, ipc_file)
+        else:
+            self.__ipc_path = ipc_path
+
+        # On Windows, we need to use tcp instead of ipc
+        if os.name == "nt":
+            self.__socket.connect(f"tcp://127.0.0.1:{self.__ipc_path.split(':')[-1]}")
+        else:
+            self.__socket.connect(f"ipc://{self.__ipc_path}")
+
         self.__socket.setsockopt_string(zmq.SUBSCRIBE, "FEED_UPDATE")
 
         # Queue to communicate between threads
