@@ -41,9 +41,9 @@ class BaseStrategy(object):
         self.__resampledBarFeeds = []
         self.__dispatcher = dispatcher.Dispatcher()
         self.dispatcher = (
-            BacktestingAsyncDispatcher(self)
+            BacktestingAsyncDispatcher(barFeed)
             if self.isBacktest()
-            else LiveAsyncDispatcher(self)
+            else LiveAsyncDispatcher()
         )
         self.__broker.getOrderUpdatedEvent().subscribe(self.__onOrderEvent)
         self.__barFeed.getNewValuesEvent().subscribe(self.__onBars)
