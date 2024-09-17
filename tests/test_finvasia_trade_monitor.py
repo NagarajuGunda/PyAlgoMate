@@ -44,7 +44,7 @@ async def test_handle_order_update_open(trade_monitor):
     }
 
     mock_order = Mock(spec=Order)
-    trade_monitor._TradeMonitor__broker.getActiveOrders.return_value = [mock_order]
+    trade_monitor._TradeMonitor__broker.getActiveOrder.return_value = mock_order
     mock_order.getRemarks.return_value = "PyAlgoMate order 140513410642320"
 
     await trade_monitor.handle_order_update(order_update)
@@ -84,7 +84,7 @@ async def test_handle_order_update_rejected(trade_monitor):
     }
 
     mock_order = Mock(spec=Order)
-    trade_monitor._TradeMonitor__broker.getActiveOrders.return_value = [mock_order]
+    trade_monitor._TradeMonitor__broker.getActiveOrder.return_value = mock_order
     mock_order.getRemarks.return_value = "PyAlgoMate order 140513410642320"
     trade_monitor._TradeMonitor__broker._onUserTrades = AsyncMock()
     trade_monitor._TradeMonitor__broker.placeOrder = AsyncMock()
