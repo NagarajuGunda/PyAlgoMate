@@ -341,11 +341,12 @@ class Order(object):
         )
         self.__commissions += orderExecutionInfo.getCommission()
 
-        if self.getRemaining() == 0:
-            self.switchState(Order.State.FILLED)
-        else:
-            assert not self.__allOrNone
-            self.switchState(Order.State.PARTIALLY_FILLED)
+        if self.__filled:
+            if self.getRemaining() == 0:
+                self.switchState(Order.State.FILLED)
+            else:
+                assert not self.__allOrNone
+                self.switchState(Order.State.PARTIALLY_FILLED)
 
     def switchState(self, newState):
         validTransitions = Order.VALID_TRANSITIONS.get(self.__state, [])

@@ -293,7 +293,7 @@ class TradeMonitor(threading.Thread):
     RETRY_COUNT = 2
     RETRY_INTERVAL = 0.5
 
-    def __init__(self, liveBroker: LiveBroker, ipc_path=None, max_concurrent_tasks=60):
+    def __init__(self, liveBroker: LiveBroker, ipc_path=None, max_concurrent_tasks=100):
         super(TradeMonitor, self).__init__()
         self.__broker: LiveBroker = liveBroker
         self.__stop = False
@@ -321,11 +321,15 @@ class TradeMonitor(threading.Thread):
             self.__zmq_socket.connect(f"ipc://{self.__ipc_path}")
 
         self.__zmq_socket.setsockopt_string(zmq.SUBSCRIBE, "ORDER_UPDATE")
+        self.__zmq_socket.setsockopt(zmq.RCVHWM, 1000)
+        self.__zmq_socket.setsockopt(zmq.RCVBUF, 1024 * 1024)
+        self.__order_queue = asyncio.Queue()
 
     async def run_async(self):
+        asyncio.create_task(self.process_zmq_updates())
+        asyncio.create_task(self.process_order_queue())
         while not self.__stop:
             try:
-                await self.process_zmq_updates()
                 await self.process_pending_updates()
                 await self.process_open_orders()
             except Exception as e:
@@ -333,28 +337,19 @@ class TradeMonitor(threading.Thread):
             await asyncio.sleep(self.POLL_FREQUENCY)
 
     async def process_zmq_updates(self):
-        try:
-            while True:
-                [topic, message] = await self.__zmq_socket.recv_multipart(
-                    flags=zmq.NOBLOCK
-                )
+        while not self.__stop:
+            try:
+                [topic, message] = await self.__zmq_socket.recv_multipart()
                 if topic == b"ORDER_UPDATE":
                     order_update = json.loads(message)
-                    logger.info(f"Received order update: {order_update}")
-                    task = asyncio.create_task(
-                        self.__handle_order_update_with_semaphore(order_update)
-                    )
-                    task.add_done_callback(self.__handle_task_result)
-        except zmq.Again:
-            pass
-        except Exception as e:
-            logger.critical("Error retrieving ZMQ updates", exc_info=e)
+                    await self.__order_queue.put(order_update)
+            except Exception as e:
+                logger.exception("Error retrieving ZMQ updates", exc_info=e)
 
-    def __handle_task_result(self, task):
-        try:
-            task.result()
-        except Exception as e:
-            logger.exception("Error in order update task", exc_info=e)
+    async def process_order_queue(self):
+        while not self.__stop:
+            order_update = await self.__order_queue.get()
+            asyncio.create_task(self.__handle_order_update_with_semaphore(order_update))
 
     async def __handle_order_update_with_semaphore(self, order_update):
         try:
