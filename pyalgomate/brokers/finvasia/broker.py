@@ -341,17 +341,27 @@ class TradeMonitor(threading.Thread):
                 if topic == b"ORDER_UPDATE":
                     order_update = json.loads(message)
                     logger.info(f"Received order update: {order_update}")
-                    asyncio.create_task(
+                    task = asyncio.create_task(
                         self.__handle_order_update_with_semaphore(order_update)
                     )
+                    task.add_done_callback(self.__handle_task_result)
         except zmq.Again:
             pass
         except Exception as e:
             logger.critical("Error retrieving ZMQ updates", exc_info=e)
 
+    def __handle_task_result(self, task):
+        try:
+            task.result()
+        except Exception as e:
+            logger.exception("Error in order update task", exc_info=e)
+
     async def __handle_order_update_with_semaphore(self, order_update):
-        async with self.__semaphore:
-            await self.handle_order_update(order_update)
+        try:
+            async with self.__semaphore:
+                await self.handle_order_update(order_update)
+        except Exception as e:
+            logger.exception("Error handling order update", exc_info=e)
 
     async def handle_order_update(self, order_update):
         status = order_update.get("status")
@@ -586,6 +596,7 @@ class LiveBroker(broker.Broker):
         self.__cash = 0
         self.__shares = {}
         self.__activeOrders: Set[Order] = set()
+        self.__inProgressOrderIds = set()
 
         self.__tradeMonitor = TradeMonitor(self)
 
@@ -759,12 +770,26 @@ class LiveBroker(broker.Broker):
         return self.__shares
 
     def getActiveOrder(self, orderId):
-        return next((o for o in self.__activeOrders if o.getId() == orderId), None)
+        return next(
+            (
+                o
+                for o in self.__activeOrders
+                if orderId not in self.__inProgressOrderIds and o.getId() == orderId
+            ),
+            None,
+        )
 
     def getActiveOrders(self, instrument=None):
         if instrument:
-            return [o for o in self.__activeOrders if o.getInstrument() == instrument]
-        return list(self.__activeOrders)
+            return [
+                o
+                for o in self.__activeOrders
+                if o.getId() not in self.__inProgressOrderIds
+                and o.getInstrument() == instrument
+            ]
+        return [
+            o for o in self.__activeOrders if o.getId() not in self.__inProgressOrderIds
+        ]
 
     # Place a Limit order as follows
     #     api.place_order(buy_or_sell='B', product_type='C',
@@ -808,6 +833,11 @@ class LiveBroker(broker.Broker):
         newOrder: Order = None,
     ):
         try:
+            oldOrderId = order.getId()
+
+            if oldOrderId is not None:
+                self.__inProgressOrderIds.add(oldOrderId)
+
             splitStrings = order.getInstrument().split("|")
             exchange = splitStrings[0] if len(splitStrings) > 1 else "NSE"
             symbol = splitStrings[1] if len(splitStrings) > 1 else order.getInstrument()
@@ -829,22 +859,29 @@ class LiveBroker(broker.Broker):
             if modifyOrderResponse is None:
                 raise Exception("modify_order returned None")
 
-            ret = OrderResponse(modifyOrderResponse)
+            orderResponse = OrderResponse(modifyOrderResponse)
 
-            if ret.getStat() != "Ok":
+            if orderResponse.getStat() != "Ok":
                 logger.error(
                     f"modify order failed. Full API response: {modifyOrderResponse}"
                 )
-                raise Exception(ret.getErrorMessage())
+                raise Exception(orderResponse.getErrorMessage())
 
-            oldOrderId = order.getId()
+            remarks = order.getRemarks()
             if oldOrderId is not None:
                 self._unregisterOrder(order)
+                order.setSubmitted(
+                    orderResponse.getId(), orderResponse.getDateTime(), remarks
+                )
+                self.__inProgressOrderIds.discard(oldOrderId)
+            else:
+                order.setSubmitted(
+                    orderResponse.getId(), orderResponse.getDateTime(), remarks
+                )
 
-            order.setSubmitted(ret.getId(), ret.getDateTime(), order.getRemarks())
             if newOrder:
                 newOrder.setSubmitted(
-                    ret.getId(), ret.getDateTime(), order.getRemarks()
+                    orderResponse.getId(), orderResponse.getDateTime(), remarks
                 )
                 self._registerOrder(newOrder)
             else:
@@ -858,6 +895,11 @@ class LiveBroker(broker.Broker):
 
     async def placeOrder(self, order: Order):
         try:
+            oldOrderId = order.getId()
+
+            if oldOrderId is not None:
+                self.__inProgressOrderIds.add(oldOrderId)
+
             buyOrSell = "B" if order.isBuy() else "S"
             splitStrings = order.getInstrument().split("|")
             exchange = splitStrings[0] if len(splitStrings) > 1 else "NSE"
@@ -908,13 +950,16 @@ class LiveBroker(broker.Broker):
                 logger.error(f"place order failed. Full API response: {orderResponse}")
                 raise Exception(orderResponse.getErrorMessage())
 
-            oldOrderId = order.getId()
             if oldOrderId is not None:
                 self._unregisterOrder(order)
-
-            order.setSubmitted(
-                orderResponse.getId(), orderResponse.getDateTime(), remarks
-            )
+                order.setSubmitted(
+                    orderResponse.getId(), orderResponse.getDateTime(), remarks
+                )
+                self.__inProgressOrderIds.discard(oldOrderId)
+            else:
+                order.setSubmitted(
+                    orderResponse.getId(), orderResponse.getDateTime(), remarks
+                )
 
             self._registerOrder(order)
 

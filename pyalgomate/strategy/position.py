@@ -86,7 +86,11 @@ class OpenState(PositionState):
             pass
         else:
             raise Exception(
-                "Invalid order event '%s' in OpenState" % (orderEvent.getEventType())
+                f"Invalid order event '{orderEvent.getEventType()}' in OpenState. "
+                f"Entry Order ID: {position.getEntryOrder().getId()}, "
+                f"Exit Order ID: {position.getExitOrder().getId() if position.getExitOrder() else 'None'}, "
+                f"Event Order ID: {orderEvent.getOrder().getId()}, "
+                f"Position Shares: {position.getShares()}"
             )
 
     def isOpen(self, position):
