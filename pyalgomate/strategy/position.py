@@ -85,12 +85,14 @@ class OpenState(PositionState):
         elif orderEvent.getEventType() == broker.OrderEvent.Type.ACCEPTED:
             pass
         else:
-            raise Exception(
-                f"Invalid order event '{orderEvent.getEventType()}' in OpenState. "
+            # Log the unexpected event but don't raise an exception
+            position.getStrategy().log(
+                f"Unexpected order event in OpenState. "
                 f"Entry Order ID: {position.getEntryOrder().getId()}, "
                 f"Exit Order ID: {position.getExitOrder().getId() if position.getExitOrder() else 'None'}, "
                 f"Event Order ID: {orderEvent.getOrder().getId()}, "
-                f"Position Shares: {position.getShares()}"
+                f"Position Shares: {position.getShares()}, "
+                f"Event Type: {orderEvent.getEventType()}",
             )
 
     def isOpen(self, position):

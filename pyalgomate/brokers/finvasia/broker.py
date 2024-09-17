@@ -807,7 +807,7 @@ class LiveBroker(broker.Broker):
         order: Order,
         newprice_type=None,
         newprice=0.0,
-        newtrigger_price=None,
+        newtrigger_price=0.0,
         newOrder: Order = None,
     ):
         try:
