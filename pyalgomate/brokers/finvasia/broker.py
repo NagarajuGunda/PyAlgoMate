@@ -855,6 +855,7 @@ class LiveBroker(broker.Broker):
             logger.critical(f"Could not modify order for {symbol}. Reason: {e}")
 
     async def placeOrder(self, order: Order):
+        infoMsg = ""
         try:
             buyOrSell = "B" if order.isBuy() else "S"
             splitStrings = order.getInstrument().split("|")
@@ -878,11 +879,10 @@ class LiveBroker(broker.Broker):
             retention = "DAY"  # DAY / EOS / IOC
             remarks = f"PyAlgoMate order {id(order)}"
 
-            logger.info(
-                f"Placing order with buyOrSell={buyOrSell}, product_type={productType}, exchange={exchange}, "
-                f"tradingsymbol={symbol}, quantity={quantity}, discloseqty=0, price_type={priceType}, "
-                f"price={price}, trigger_price={stopPrice}, retention={retention}, remarks={remarks}"
-            )
+            infoMsg = f"buyOrSell={buyOrSell}, product_type={productType}, exchange={exchange}, "
+            f"tradingsymbol={symbol}, quantity={quantity}, discloseqty=0, price_type={priceType}, "
+            f"price={price}, trigger_price={stopPrice}, retention={retention}, remarks={remarks}"
+            logger.info(f"Placing order with {infoMsg}")
             placedOrderResponse = await self.__apiAsync.place_order(
                 buy_or_sell=buyOrSell,
                 product_type=productType,
@@ -920,7 +920,9 @@ class LiveBroker(broker.Broker):
                 f'Placed {priceType} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} New order {order.getId()} at {order.getSubmitDateTime()}'
             )
         except Exception as e:
-            logger.critical(f"Could not place order for {symbol}. Reason: {e}")
+            logger.critical(
+                f"Could not place order for {symbol}. Reason: {e}\nOrder Info: {infoMsg}"
+            )
             logger.error(traceback.print_exc())
 
     async def submitOrder(self, order: Order):
