@@ -325,6 +325,10 @@ class Order(object):
                 % (self.getRemaining(), orderExecutionInfo.getQuantity())
             )
 
+        self.__executionInfo = orderExecutionInfo
+        if orderExecutionInfo.hasError():
+            return
+
         if self.__avgFillPrice is None:
             self.__avgFillPrice = orderExecutionInfo.getPrice()
         else:
@@ -332,18 +336,17 @@ class Order(object):
                 self.__avgFillPrice * self.__filled
                 + orderExecutionInfo.getPrice() * orderExecutionInfo.getQuantity()
             ) / float(self.__filled + orderExecutionInfo.getQuantity())
-
-        self.__executionInfo = orderExecutionInfo
         self.__filled = self.getInstrumentTraits().roundQuantity(
             self.__filled + orderExecutionInfo.getQuantity()
         )
         self.__commissions += orderExecutionInfo.getCommission()
 
-        if self.getRemaining() == 0:
-            self.switchState(Order.State.FILLED)
-        else:
-            assert not self.__allOrNone
-            self.switchState(Order.State.PARTIALLY_FILLED)
+        if self.__filled:
+            if self.getRemaining() == 0:
+                self.switchState(Order.State.FILLED)
+            else:
+                assert not self.__allOrNone
+                self.switchState(Order.State.PARTIALLY_FILLED)
 
     def switchState(self, newState):
         validTransitions = Order.VALID_TRANSITIONS.get(self.__state, [])

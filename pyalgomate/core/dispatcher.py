@@ -1,11 +1,49 @@
 import asyncio
-import threading
+import contextlib
+import logging
+import os
+import platform
+import signal
+import sys
 import time
 from datetime import datetime, timedelta
-from typing import Any, Callable, Coroutine, Dict, Optional, Tuple
+from threading import Thread
+from typing import (
+    Any,
+    Callable,
+    Coroutine,
+    Dict,
+    NoReturn,
+    Optional,
+    Tuple,
+)
 
 from pyalgotrade import dispatchprio, observer, utils
 
+try:
+    # unix / macos only
+    from signal import SIGABRT, SIGHUP, SIGINT, SIGTERM
+
+    SIGNALS = (SIGABRT, SIGINT, SIGTERM, SIGHUP)
+except (ImportError, ModuleNotFoundError):
+    from signal import SIGABRT, SIGINT, SIGTERM
+
+    SIGNALS = (SIGABRT, SIGINT, SIGTERM)
+
+if not platform.system().lower().startswith("win") and sys.version_info >= (
+    3,
+    8,
+):  # noqa E501
+    try:
+        import uvloop
+    except (ImportError, ModuleNotFoundError):
+        os.system(f"{sys.executable} -m pip install uvloop")
+        import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+else:
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+logger = logging.getLogger(__name__)
 
 # This class is responsible for dispatching events from multiple subjects, synchronizing them if necessary.
 class Dispatcher(object):
@@ -111,20 +149,82 @@ class Dispatcher(object):
                 subject.join()
 
 
+class ProgramKilled(Exception):
+    """ProgramKilled Checks the ProgramKilled exception"""
+
+    pass  # type: ignore
+
+
+def singleton(cls):
+    _instance = None
+    def get_instance(*args, **kwargs):
+        nonlocal _instance
+        if _instance is None:
+            _instance = cls(*args, **kwargs)
+        return _instance
+    return get_instance
+
+
 class AsyncDispatcher:
 
-    def __init__(self, strategy: Any):
-        self.strategy: Any = strategy
-        self.loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
-        self.thread: threading.Thread = threading.Thread(
-            target=self._run_event_loop, daemon=True
-        )
+    def __init__(self):
         self.scheduled_coroutines: Dict[Any, Tuple[datetime, Coroutine]] = {}
-        self.thread.start()
+        self.recurring_tasks: Dict[Any, asyncio.Task] = {}
+        self.__initialize_loop()
 
-    def _run_event_loop(self) -> None:
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_forever()
+    @staticmethod
+    def start_background_loop(
+        loop: asyncio.AbstractEventLoop,
+    ) -> Optional[NoReturn]:
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_forever()
+        except (KeyboardInterrupt, SystemExit, ProgramKilled):
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            if loop.is_running():
+                loop.stop()
+            if not loop.is_closed():
+                loop.close()
+
+    def __initialize_loop(self) -> None:
+        if platform.system().lower().find("win") == -1:
+            self.loop = uvloop.new_event_loop()
+        else:
+            self.loop = asyncio.new_event_loop()
+        if platform.system().lower().startswith("win"):
+            with contextlib.suppress(ValueError):
+                for sig in (SIGABRT, SIGINT, SIGTERM):
+                    signal.signal(sig, self.handle_stop_signals)
+        else:
+            with contextlib.suppress(ValueError):
+                for sig in (SIGABRT, SIGINT, SIGTERM, SIGHUP):
+                    self.loop.add_signal_handler(
+                        sig, self.handle_stop_signals
+                    )  # noqa E501
+        self.event_thread = Thread(
+            target=self.start_background_loop,
+            args=(self.loop,),
+            name=f"{self.__class__.__name__}_event_thread",
+            daemon=True,
+        )
+        self.event_thread.start()
+        logger.debug("Asyncio Event Loop has been initialized.")
+
+    def handle_stop_signals(self, *args, **kwargs):
+        try:
+            self.graceful_exit()
+        except Exception as err:
+            logger.error(str(err))
+        else:
+            raise SystemExit
+
+    def graceful_exit(self) -> None:
+        with contextlib.suppress(RuntimeError, RuntimeWarning):
+            asyncio.run_coroutine_threadsafe(self.loop.shutdown_asyncgens(), self.loop)
+            if self.loop.is_running():
+                self.loop.stop()
+            if not self.loop.is_closed():
+                self.loop.close()
 
     def run(
         self, coroutine: Coroutine, callback: Optional[Callable] = None
@@ -165,6 +265,14 @@ class AsyncDispatcher:
             if asyncio.iscoroutine(coroutine):
                 self.loop.call_soon_threadsafe(self._cancel_coroutine, coroutine)
             del self.scheduled_coroutines[task_id]
+            logger.info(f"Cancelled scheduled task with id {task_id}")
+        elif task_id in self.recurring_tasks:
+            task = self.recurring_tasks[task_id]
+            self.loop.call_soon_threadsafe(task.cancel)
+            del self.recurring_tasks[task_id]
+            logger.info(f"Cancelled recurring task with id {task_id}")
+        else:
+            logger.info(f"No task found with id {task_id}")
 
     def _cancel_coroutine(self, coroutine: Coroutine) -> None:
         task = self.loop.create_task(coroutine)
@@ -175,14 +283,37 @@ class AsyncDispatcher:
             if asyncio.iscoroutine(coroutine):
                 self.loop.call_soon_threadsafe(self._cancel_coroutine, coroutine)
         self.scheduled_coroutines.clear()
+
+        for task in self.recurring_tasks.values():
+            self.loop.call_soon_threadsafe(task.cancel)
+        self.recurring_tasks.clear()
+
         self.loop.call_soon_threadsafe(self.loop.stop)
         self.thread.join()
 
+    def schedule_recurring(
+        self, coroutine: Callable[[], Coroutine], interval: float, task_id: Any = None
+    ):
+        if task_id in self.recurring_tasks:
+            logger.info(
+                f"Recurring task with id {task_id} already exists. Skipping scheduling."
+            )
+            return
 
+        async def recurring_task():
+            while True:
+                await coroutine()
+                await asyncio.sleep(interval)
+
+        task = self.loop.create_task(recurring_task())
+        self.recurring_tasks[task_id] = task
+
+
+@singleton
 class LiveAsyncDispatcher(AsyncDispatcher):
 
-    def __init__(self, strategy: Any):
-        super().__init__(strategy)
+    def __init__(self):
+        super().__init__()
         self.check_interval: float = 0.01
         self.is_running: bool = True
         self.check_task: asyncio.Future = self.run(self.continuous_check())
@@ -200,13 +331,15 @@ class LiveAsyncDispatcher(AsyncDispatcher):
         super().stop()
 
 
+@singleton
 class BacktestingAsyncDispatcher(AsyncDispatcher):
 
-    def __init__(self, strategy: Any):
-        super().__init__(strategy)
-        self.strategy.getFeed().getNewValuesEvent().subscribe(self.on_bars)
+    def __init__(self, feed):
+        super().__init__()
+        self.feed = feed
+        feed.getNewValuesEvent().subscribe(self.on_bars)
 
     def on_bars(self, dateTime: datetime, bars: Any) -> None:
         self.check_scheduled_tasks(
-            dateTime + timedelta(seconds=self.strategy.getFeed().getFrequency())
+            dateTime + timedelta(seconds=self.feed.getFrequency())
         )

@@ -82,9 +82,17 @@ class OpenState(PositionState):
         elif position.getEntryOrder().getId() == orderEvent.getOrder().getId():
             # Nothing to do since the entry order may be completely filled or canceled after a partial fill.
             assert position.getShares() != 0
+        elif orderEvent.getEventType() == broker.OrderEvent.Type.ACCEPTED:
+            pass
         else:
-            raise Exception(
-                "Invalid order event '%s' in OpenState" % (orderEvent.getEventType())
+            # Log the unexpected event but don't raise an exception
+            position.getStrategy().log(
+                f"Unexpected order event in OpenState. "
+                f"Entry Order ID: {position.getEntryOrder().getId()}, "
+                f"Exit Order ID: {position.getExitOrder().getId() if position.getExitOrder() else 'None'}, "
+                f"Event Order ID: {orderEvent.getOrder().getId()}, "
+                f"Position Shares: {position.getShares()}, "
+                f"Event Type: {orderEvent.getEventType()}",
             )
 
     def isOpen(self, position):
@@ -388,8 +396,9 @@ class Position(object):
 
         exitOrder.setAllOrNone(self.__allOrNone)
 
-        await self.__modifyAndRegisterOrder(self.__exitOrder, exitOrder)
+        currentOrder = self.__exitOrder
         self.__exitOrder = exitOrder
+        await self.__modifyAndRegisterOrder(currentOrder, self.__exitOrder)
 
     async def modifyExitStopLimit(self, stopPrice, limitPrice, goodTillCanceled=None):
         """Modifies the exit order to a limit order."""
@@ -404,8 +413,9 @@ class Position(object):
 
         exitOrder.setAllOrNone(self.__allOrNone)
 
-        await self.__modifyAndRegisterOrder(self.__exitOrder, exitOrder)
+        currentOrder = self.__exitOrder
         self.__exitOrder = exitOrder
+        await self.__modifyAndRegisterOrder(currentOrder, self.__exitOrder)
 
     async def _submitExitOrder(self, stopPrice, limitPrice, goodTillCanceled):
         assert not self.exitActive()
