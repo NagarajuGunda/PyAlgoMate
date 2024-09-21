@@ -91,8 +91,22 @@ def transform_trading_symbol(expiry, optionPrefix, tradingSymbol):
     return tradingSymbol
 
 
-def process_options_data(api, index, fromTime, expiry, filteredScripMasterDf):
+def process_options_data(
+    api, index, fromTime, expiry, filteredScripMasterDf, futureRow
+):
     data = process_historical_data(api, index, fromTime, False)
+
+    historicalData = broker.getHistoricalData(
+        api,
+        futureRow["Exchange"] + "|" + futureRow["TradingSymbol"],
+        fromTime - datetime.timedelta(days=40),
+        "1",
+    )
+    historicalData["Ticker"] = (
+        f"{str(indexName)}{monthlyExpiry.strftime('%d%b%y').upper()}F"
+    )
+    data = pd.concat([data, historicalData])
+    del historicalData
 
     for idx, row in filteredScripMasterDf.iterrows():
         historicalData = broker.getHistoricalData(
@@ -178,8 +192,20 @@ if __name__ == "__main__":
             filteredScripMasterDf = scripMasterDf[(scripMasterDf['Expiry'].dt.date == expiry) &
                                                   (scripMasterDf['Instrument'] == 'OPTIDX') &
                                                   scripMasterDf['TradingSymbol'].str.startswith(str(indexName))]
+            monthlyExpiry = utils.expiry.getNearestMonthlyExpiryDate(today, indexName)
+            futureRow = scripMasterDf[
+                (scripMasterDf["Expiry"].dt.date == monthlyExpiry)
+                & (scripMasterDf["Instrument"] == "FUTIDX")
+                & scripMasterDf["TradingSymbol"].str.startswith(str(indexName))
+            ].iloc[0]
             process_options_data(
-                api, index, fromTime - datetime.timedelta(days=40), expiry, filteredScripMasterDf)
+                api,
+                index,
+                fromTime - datetime.timedelta(days=40),
+                expiry,
+                filteredScripMasterDf,
+                futureRow,
+            )
 
     # Free up memory
     del scripMasterDf
