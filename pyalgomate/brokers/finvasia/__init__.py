@@ -2,20 +2,22 @@
 .. moduleauthor:: Nagaraju Gunda
 """
 
-import os
 import datetime
-import requests
 import logging
+import os
 import re
+from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 from io import BytesIO, StringIO
 from zipfile import ZipFile
+
 import pandas as pd
-from functools import lru_cache
-from concurrent.futures import ThreadPoolExecutor
 import pyotp
+import requests
 from NorenRestApiPy.NorenApi import NorenApi as ShoonyaApi
-from pyalgomate.brokers import getDefaultUnderlyings, getExpiryDates
+
 import pyalgomate.utils as utils
+from pyalgomate.brokers import getDefaultUnderlyings, getExpiryDates
 from pyalgomate.utils import UnderlyingIndex
 
 logger = logging.getLogger()
@@ -83,11 +85,13 @@ def getScriptMaster(scripMasterFile='finvasia_symbols.csv') -> pd.DataFrame:
     if os.path.exists(scripMasterFile) and \
             (datetime.datetime.fromtimestamp(os.path.getmtime(scripMasterFile)).date() == datetime.datetime.today().date()):
         logger.info(
-            f'Scrip master that has been created today already exists. Using the same!')
+            "Scrip master that has been created today already exists. Using the same!"
+        )
         return pd.read_csv(scripMasterFile)
     else:
         logger.info(
-            f'Scrip master either doesn\'t exist or is not of today. Downloading!')
+            "Scrip master either doesn't exist or is not of today. Downloading!"
+        )
         with ThreadPoolExecutor() as executor:
             futures = [executor.submit(downloadAndExtract, url)
                        for url in urls]
@@ -119,7 +123,7 @@ def getApi(cred):
     userToken = None
     tokenFile = 'shoonyakey.txt'
     if os.path.exists(tokenFile) and (datetime.datetime.fromtimestamp(os.path.getmtime(tokenFile)).date() == datetime.datetime.today().date()):
-        logger.info(f"Token has been created today already. Re-using it")
+        logger.info("Token has been created today already. Re-using it")
         with open(tokenFile, 'r') as f:
             userToken = f.read()
         logger.info(
@@ -127,7 +131,7 @@ def getApi(cred):
         loginStatus = api.set_session(
             userid=cred['user'], password=cred['pwd'], usertoken=userToken)
     else:
-        logger.info(f"Logging in and persisting user token")
+        logger.info("Logging in and persisting user token")
         loginStatus = api.login(userid=cred['user'], password=cred['pwd'], twoFA=pyotp.TOTP(cred['factor2']).now(),
                                 vendor_code=cred['vc'], api_secret=cred['apikey'], imei=cred['imei'])
 
@@ -138,7 +142,7 @@ def getApi(cred):
             logger.info(
                 f"{loginStatus.get('uname')}={loginStatus.get('stat')} token={loginStatus.get('susertoken')}")
         else:
-            logger.info(f'Login failed!')
+            logger.info("Login failed!")
 
     if loginStatus != None:
         return api
@@ -147,7 +151,7 @@ def getApi(cred):
 
 def getApiAndTokenMappings(cred, registerOptions, underlyings):
     from .broker import getOptionSymbols, getUnderlyingDetails  # Lazy import
-    
+
     api = getApi(cred)
     if api != None:
         if len(underlyings) == 0:
@@ -155,6 +159,7 @@ def getApiAndTokenMappings(cred, registerOptions, underlyings):
                 ":", "|") for underlying in getDefaultUnderlyings()]
 
         optionSymbols = []
+        futureSymbols = []
         tokenMappings = getTokenMappings()
         for underlying in underlyings:
             exchange = underlying.split('|')[0]
@@ -176,7 +181,8 @@ def getApiAndTokenMappings(cred, registerOptions, underlyings):
 
                 (currentWeeklyExpiry, nextWeekExpiry,
                  monthlyExpiry) = getExpiryDates(index)
-
+                futureSymbol = getFutureSymbol(index, monthlyExpiry)
+                futureSymbols.append(futureSymbol)
                 if "Weekly" in registerOptions:
                     optionSymbols += getOptionSymbols(
                         underlying, currentWeeklyExpiry, ltp, 20, strikeDifference)
@@ -191,7 +197,7 @@ def getApiAndTokenMappings(cred, registerOptions, underlyings):
 
         optionSymbols = list(dict.fromkeys(optionSymbols))
 
-        instruments = underlyings + optionSymbols
+        instruments = underlyings + futureSymbols + optionSymbols
 
         filteredTokenMappings = {
             tokenMappings[instrument]: instrument for instrument in instruments if instrument in tokenMappings}
@@ -262,6 +268,18 @@ def getOptionContract(symbol):
     for underlying, underlyingDetails in underlyingMapping.items():
         if underlyingDetails['optionPrefix'] == optionPrefix:
             return OptionContract(symbol, int(m.group(6)), expiry, "c" if m.group(5) == "C" else "p", underlying)
+
+
+def getFutureSymbol(underlyingIndex: UnderlyingIndex, expiry: datetime.date):
+    scripMasterDf: pd.DataFrame = getScriptMaster()
+    scripMasterDf["Expiry"] = pd.to_datetime(scripMasterDf["Expiry"], format="%d-%b-%Y")
+    futureRow = scripMasterDf[
+        (scripMasterDf["Expiry"].dt.date == expiry)
+        & (scripMasterDf["Instrument"] == "FUTIDX")
+        & scripMasterDf["TradingSymbol"].str.startswith(str(underlyingIndex))
+    ].iloc[0]
+    return futureRow["Exchange"] + "|" + futureRow["TradingSymbol"]
+
 
 if __name__ == '__main__':
     print(getScriptMaster())

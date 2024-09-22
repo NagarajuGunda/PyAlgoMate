@@ -28,11 +28,10 @@ from pyalgomate.core.broker import Order
 from pyalgomate.core.dispatcher import LiveAsyncDispatcher
 from pyalgomate.strategies import OptionContract
 from pyalgomate.utils import UnderlyingIndex
-
+from pyalgomate.brokers.finvasia import getFutureSymbol
 from . import getOptionContract, underlyingMapping
 
 logger = logging.getLogger(__name__)
-scripMasterDf: pd.DataFrame = finvasia.getScriptMaster()
 
 def getUnderlyingMappings():
     return underlyingMapping
@@ -179,15 +178,6 @@ def getPriceType(orderType):
         broker.Order.Type.STOP_LIMIT: "SL-LMT",
         broker.Order.Type.STOP: "SL-MKT",
     }.get(orderType)
-
-
-def getFutureSymbol(underlyingIndex: UnderlyingIndex, expiry: datetime.date):
-    futureRow = scripMasterDf[
-        (scripMasterDf["Expiry"].dt.date == expiry)
-        & (scripMasterDf["Instrument"] == "FUTIDX")
-        & scripMasterDf["TradingSymbol"].str.startswith(str(underlyingIndex))
-    ].iloc[0]
-    return futureRow["Exchange"] + "|" + futureRow["TradingSymbol"]
 
 
 class PaperTradingBroker(BacktestingBroker):
