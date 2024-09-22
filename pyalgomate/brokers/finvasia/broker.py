@@ -32,7 +32,7 @@ from pyalgomate.utils import UnderlyingIndex
 from . import getOptionContract, underlyingMapping
 
 logger = logging.getLogger(__name__)
-
+scripMasterDf: pd.DataFrame = finvasia.getScriptMaster()
 
 def getUnderlyingMappings():
     return underlyingMapping
@@ -181,6 +181,15 @@ def getPriceType(orderType):
     }.get(orderType)
 
 
+def getFutureSymbol(underlyingIndex: UnderlyingIndex, expiry: datetime.date):
+    futureRow = scripMasterDf[
+        (scripMasterDf["Expiry"].dt.date == expiry)
+        & (scripMasterDf["Instrument"] == "FUTIDX")
+        & scripMasterDf["TradingSymbol"].str.startswith(str(underlyingIndex))
+    ].iloc[0]
+    return futureRow["Exchange"] + "|" + futureRow["TradingSymbol"]
+
+
 class PaperTradingBroker(BacktestingBroker):
     """A Finvasia paper trading broker."""
 
@@ -240,6 +249,9 @@ class PaperTradingBroker(BacktestingBroker):
 
     def getOptionContract(self, symbol) -> OptionContract:
         return getOptionContract(symbol)
+
+    def getFutureSymbol(self, underlyingIndex: UnderlyingIndex, expiry: datetime.date):
+        return getFutureSymbol(underlyingIndex, expiry)
 
 
 class OrderEvent(object):
@@ -1056,5 +1068,8 @@ class LiveBroker(broker.Broker):
             )
         except Exception as e:
             logger.critical(f"Could not cancel order for {order.getId()}. Reason: {e}")
+
+    def getFutureSymbol(self, underlyingIndex: UnderlyingIndex, expiry: datetime.date):
+        return getFutureSymbol(underlyingIndex, expiry)
 
     # END broker.Broker interface

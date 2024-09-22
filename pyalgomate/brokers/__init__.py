@@ -226,6 +226,9 @@ class BacktestingBroker(backtesting.Broker):
             action, instrument, limitPrice, quantity
         )
 
+    def getFutureSymbol(self, underlyingIndex: UnderlyingIndex, expiry: datetime.date):
+        return f"{str(underlyingIndex)}{expiry.strftime('%d%b%y').upper()}F"
+
 
 def getFeed(
     creds,
@@ -241,11 +244,16 @@ def getFeed(
         filteredData = data.query(
             f"'{config['FromDate']}' <= `Date/Time` <= '{config['ToDate']}'"
         )
+        filteredData["Volume"] = (
+            filteredData.groupby(filteredData["Date/Time"].dt.date)["Volume"]
+            .diff()
+            .fillna(filteredData["Volume"])
+        )
         return (
             DataFrameFeed(
                 data,
                 filteredData,
-                underlyings=["BANKNIFTY"],
+                underlyings=["BANKNIFTY"] if not underlyings else underlyings,
                 feedDelay=config["FeedDelay"] if "FeedDelay" in config else None,
                 loadAll=config["LoadAll"] if "LoadAll" in config else False,
             ),

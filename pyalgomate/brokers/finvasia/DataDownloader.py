@@ -124,8 +124,13 @@ def process_options_data(
     data['Ticker'] = data['Ticker'].apply(
         lambda x: transform_trading_symbol(expiry, underlyingMapping[index]['optionPrefix'], x))
 
-    sendToTelegram(botToken, chatId, topicId, data,
-                   f"{str(underlyingMapping[index]['index'])}-{datetime.datetime.now().strftime('%Y-%m-%d')}.parquet")
+    sendToTelegram(
+        botToken,
+        chatId,
+        topicId,
+        data,
+        f"{str(underlyingMapping[index]['index'])}-{expiry.strftime('%Y-%m-%d')}.parquet",
+    )
 
     # Free up memory
     del data

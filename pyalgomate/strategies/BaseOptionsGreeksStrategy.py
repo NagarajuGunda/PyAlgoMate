@@ -760,15 +760,9 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
                 self.__optionContracts[instrument] = optionContract
 
     def getOptionSymbol(self, underlying, expiry, strike, type):
-        options = [
-            opt
-            for opt in self.__optionContracts.values()
-            if opt.type == type
-            and opt.expiry == expiry
-            and opt.underlying == underlying
-            and opt.strike == strike
-        ]
-        return options[0].symbol if len(options) > 0 else None
+        return self.getBroker().getOptionSymbol(
+            underlying, expiry, strike, type.upper()
+        )
 
     def getOptionContracts(self):
         return self.__optionContracts

@@ -701,3 +701,7 @@ class Broker(observer.Subject):
         :type order: :class:`Order`.
         """
         raise NotImplementedError()
+
+    @abc.abstractmethod
+    def getFutureSymbol(self, underlyingIndex, expiry):
+        raise NotImplementedError()
