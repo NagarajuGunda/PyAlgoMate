@@ -75,7 +75,7 @@ def getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut):
             elif expiry.month == 12:
                 monthlySymbol = "D"
             else:
-                monthlySymbol = f"{expiry.month}"
+                monthlySymbol = f"{expiry.month:01d}"
             return (
                 optionPrefix
                 + str(expiry.year % 100)
@@ -216,19 +216,7 @@ class PaperTradingBroker(BacktestingBroker):
         return getHistoricalData(self.__api, exchangeSymbol, startTime, interval)
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
-        symbol = getUnderlyingDetails(underlyingInstrument)["optionPrefix"]
-
-        dayMonthYear = (
-            f"{expiry.day:02d}"
-            + calendar.month_abbr[expiry.month].upper()
-            + str(expiry.year % 100)
-        )
-        return (
-            symbol
-            + dayMonthYear
-            + ("C" if (callOrPut == "C" or callOrPut == "Call") else "P")
-            + str(strikePrice)
-        )
+        return getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut)
 
     def getOptionSymbols(
         self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice
@@ -536,19 +524,7 @@ class LiveBroker(broker.Broker):
         return underlyingMapping[underlying]
 
     def getOptionSymbol(self, underlyingInstrument, expiry, strikePrice, callOrPut):
-        symbol = getUnderlyingDetails(underlyingInstrument)["optionPrefix"]
-
-        dayMonthYear = (
-            f"{expiry.day:02d}"
-            + calendar.month_abbr[expiry.month].upper()
-            + str(expiry.year % 100)
-        )
-        return (
-            symbol
-            + dayMonthYear
-            + ("C" if (callOrPut == "C" or callOrPut == "Call") else "P")
-            + str(strikePrice)
-        )
+        return getOptionSymbol(underlyingInstrument, expiry, strikePrice, callOrPut)
 
     def getOptionSymbols(
         self, underlyingInstrument, expiry, ceStrikePrice, peStrikePrice
