@@ -1,32 +1,55 @@
 import flet as ft
+from pyalgomate.core.broker import Order
 from pyalgomate.ui.flet.views.payoff import PayoffView
 from pyalgomate.ui.flet.views.take_trade import TakeTradeView
 
 
 class ExpandableLegRow(ft.UserControl):
-    def __init__(self, position, data, colors, width):
+
+    def __init__(self, position, data, colors, width, on_exit=None):
         super().__init__()
         self.position = position
         self.data = data
         self.colors = colors
         self.width = width
         self.expanded = False
-        self.row = self.create_row()
+        self.on_exit = on_exit
+        self.row = None
+        self.exit_button = None
+        self.create_row()
 
     def create_row(self):
-        return ft.Row(
-            [
-                ft.Text(
-                    cell[0] if isinstance(cell, tuple) else cell,
-                    color=color,
-                    size=12,
-                    width=200 if i == 0 else 70,
-                    text_align="left" if i == 0 else "right",
-                )
-                for i, (cell, color) in enumerate(zip(self.data, self.colors))
-            ],
+        row_content = [
+            ft.Text(
+                cell[0] if isinstance(cell, tuple) else cell,
+                color=color,
+                size=12,
+                width=200 if i == 0 else 70,
+                text_align="left" if i == 0 else "right",
+            )
+            for i, (cell, color) in enumerate(zip(self.data, self.colors))
+        ]
+
+        if self.on_exit:
+            self.exit_button = ft.ElevatedButton(
+                "Exit",
+                on_click=self.handle_exit_click,
+                style=ft.ButtonStyle(
+                    shape=ft.RoundedRectangleBorder(radius=5),
+                    padding=ft.padding.all(5),
+                ),
+                height=25,
+            )
+            row_content.append(self.exit_button)
+
+        self.row = ft.Row(
+            row_content,
             alignment=ft.MainAxisAlignment.START,
         )
+
+    def handle_exit_click(self, _):
+        if self.on_exit:
+            self.on_exit(self.position)
 
     def build(self):
         self.expand_icon = ft.IconButton(
@@ -86,21 +109,24 @@ class ExpandableLegRow(ft.UserControl):
         )
         order_type = order.getType()
 
+        # Convert order type to text
+        order_type_text = self.get_order_type_text(order_type)
+
         details = [
-            ("Type", str(order_type)),
-            (
-                "Limit",
-                (
-                    f"{order.getLimitPrice():.2f}"
-                    if hasattr(order, "getLimitPrice") and order.getLimitPrice()
-                    else "NA"
-                ),
-            ),
+            ("Type", order_type_text),
             (
                 "Stop",
                 (
                     f"{order.getStopPrice():.2f}"
                     if hasattr(order, "getStopPrice") and order.getStopPrice()
+                    else "NA"
+                ),
+            ),
+            (
+                "Limit",
+                (
+                    f"{order.getLimitPrice():.2f}"
+                    if hasattr(order, "getLimitPrice") and order.getLimitPrice()
                     else "NA"
                 ),
             ),
@@ -152,6 +178,15 @@ class ExpandableLegRow(ft.UserControl):
             width=self.width - 40,  # Adjust width to occupy full row
         )
 
+    def get_order_type_text(self, order_type):
+        order_type_map = {
+            Order.Type.MARKET: "Market",
+            Order.Type.LIMIT: "Limit",
+            Order.Type.STOP: "Stop",
+            Order.Type.STOP_LIMIT: "Stop Limit",
+        }
+        return order_type_map.get(order_type, "Unknown")
+
     def update_data(self):
         if not self.data:
             return
@@ -164,11 +199,15 @@ class ExpandableLegRow(ft.UserControl):
         self.data[-2] = f"{ltp:.2f}"
         self.colors[-1] = ft.colors.GREEN if mtm >= 0 else ft.colors.RED
 
-        # Recreate the row with updated data
-        self.row = self.create_row()
+        # Update the text controls in the row
+        for i, (cell, color) in enumerate(zip(self.data, self.colors)):
+            self.row.controls[i].value = cell[0] if isinstance(cell, tuple) else cell
+            self.row.controls[i].color = color
 
-        # Update the container's content
-        self.controls[0].controls[0].content.controls[0] = self.row
+        # Update the exit button if it exists
+        if self.exit_button:
+            self.exit_button.disabled = self.position.exitFilled()
+
         self.update()
 
 
@@ -344,18 +383,18 @@ class PositionView(ft.View):
         self.action_buttons = ft.Row(
             [
                 ft.ElevatedButton(
-                    "+ Add Leg",
+                    "+ Manual Trade",
                     style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE),
                     on_click=self.show_take_trade_view,
                 ),
-                ft.OutlinedButton("Switch to manual"),
-                ft.OutlinedButton("Square Off"),
+                ft.OutlinedButton("Square Off", on_click=self.square_off_all_positions),
             ],
             alignment=ft.MainAxisAlignment.END,
         )
 
         self.running_legs_table = self.create_running_legs_table()
         self.closed_legs_table = self.create_closed_legs_table()
+        self.inactive_legs_table = self.create_inactive_legs_table()
 
         self.deployment_time = ft.Text(
             "Deployment Time Aug 29, 2024, 08:39:25 AM", size=12, color=ft.colors.GREY
@@ -367,6 +406,7 @@ class PositionView(ft.View):
                 self.action_buttons,
                 self.running_legs_table,
                 self.closed_legs_table,
+                self.inactive_legs_table,
                 self.deployment_time,
             ],
             spacing=15,
@@ -390,9 +430,23 @@ class PositionView(ft.View):
             "Initial SL",
             "LTP",
             "MTM",
+            "",  # For the Exit button
         ]
         running_legs_rows = self.prepare_running_legs_data()
         return LegTable("Running Legs", running_legs_headers, running_legs_rows)
+
+    def create_inactive_legs_table(self):
+        inactive_legs_headers = [
+            "Instrument",
+            "Qty",
+            "Entry Price",
+            "Entry Time",
+            "Initial SL",
+            "LTP",
+            "MTM",
+        ]
+        inactive_legs_rows = self.prepare_inactive_legs_data()
+        return LegTable("Inactive Legs", inactive_legs_headers, inactive_legs_rows)
 
     def create_closed_legs_table(self):
         closed_legs_headers = [
@@ -444,9 +498,63 @@ class PositionView(ft.View):
                 row_colors[-1] = ft.colors.GREEN if mtm >= 0 else ft.colors.RED
 
                 running_legs_rows.append(
-                    ExpandableLegRow(position, row_data, row_colors, width=self.width)
+                    ExpandableLegRow(
+                        position,
+                        row_data,
+                        row_colors,
+                        width=self.width,
+                        on_exit=self.exit_position,
+                    )
                 )
         return running_legs_rows
+
+    def prepare_inactive_legs_data(self):
+        inactive_legs_rows = []
+        for position in self.get_positions_callback():
+            if (
+                position not in self.strategy.getClosedPositions()
+                and not position.entryActive()
+                and not position.exitActive()
+            ):
+                instrument = position.getInstrument()
+                qty = (
+                    position.getEntryOrder().getQuantity()
+                    if position.getEntryOrder()
+                    else 0
+                )
+                entry_price = (
+                    position.getEntryOrder().getAvgFillPrice()
+                    if position.getEntryOrder()
+                    else 0
+                )
+                entry_time = (
+                    position.getEntryOrder()
+                    .getExecutionInfo()
+                    .getDateTime()
+                    .strftime("%H:%M:%S")
+                    if position.getEntryOrder()
+                    and position.getEntryOrder().getExecutionInfo()
+                    else "N/A"
+                )
+                ltp = position.getLastPrice()
+                mtm = position.getPnL()
+
+                row_data = [
+                    instrument,
+                    str(qty),
+                    f"{entry_price:.2f}",
+                    entry_time,
+                    "N/A",  # Initial SL
+                    f"{ltp:.2f}",
+                    f"{mtm:.2f}",
+                ]
+                row_colors = [None] * 7
+                row_colors[-1] = ft.colors.GREEN if mtm >= 0 else ft.colors.RED
+
+                inactive_legs_rows.append(
+                    ExpandableLegRow(position, row_data, row_colors, width=self.width)
+                )
+        return inactive_legs_rows
 
     def prepare_closed_legs_data(self):
         closed_legs_rows = []
@@ -525,6 +633,32 @@ class PositionView(ft.View):
             )
         )
 
+    def exit_position(self, position):
+        if self.strategy and position.exitActive():
+            self.strategy.exitPosition(position, 10, 0.05)
+
+            # Prepare position information for the snack bar
+            instrument = position.getInstrument()
+            quantity = position.getEntryOrder().getQuantity()
+            entry_price = position.getEntryOrder().getAvgFillPrice()
+            current_pnl = position.getPnL()
+
+            # Create and show the snack bar
+            snack_bar_message = (
+                f"Exiting position:\n"
+                f"Instrument: {instrument}\n"
+                f"Quantity: {quantity}\n"
+                f"Entry Price: {entry_price:.2f}\n"
+                f"Current PnL: {current_pnl:.2f}"
+            )
+
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text(snack_bar_message),
+                action="Dismiss",
+            )
+            self.page.snack_bar.open = True
+            self.page.update()
+
     def reload(self):
         if not self.__did_mount:
             return
@@ -534,10 +668,12 @@ class PositionView(ft.View):
         # Recreate tables with new data
         self.running_legs_table = self.create_running_legs_table()
         self.closed_legs_table = self.create_closed_legs_table()
+        self.inactive_legs_table = self.create_inactive_legs_table()
 
         # Update the content
         self.content.controls[2] = self.running_legs_table
         self.content.controls[3] = self.closed_legs_table
+        self.content.controls[4] = self.inactive_legs_table
 
         # Update status section
         self.status_section.content.controls[0].controls[0].controls[
@@ -570,6 +706,20 @@ class PositionView(ft.View):
 
             row.data[-1] = f"{mtm:.2f}"
             row.data[-2] = f"{ltp:.2f}"
+            row.colors[-1] = ft.colors.GREEN if mtm >= 0 else ft.colors.RED
+
+            total_mtm += mtm
+
+            row.update_data()
+
+        # Update inactive legs
+        for row in self.inactive_legs_table.rows:
+            position = row.position
+            mtm = position.getPnL()
+            ltp = position.getLastPrice()
+
+            row.data[-2] = f"{ltp:.2f}"
+            row.data[-1] = f"{mtm:.2f}"
             row.colors[-1] = ft.colors.GREEN if mtm >= 0 else ft.colors.RED
 
             total_mtm += mtm
@@ -614,3 +764,15 @@ class PositionView(ft.View):
             )
             self.page.views.append(take_trade_view)
             self.page.go("/take_trade")
+
+    def square_off_all_positions(self, _):
+        if self.strategy:
+            self.strategy.closeAllPositions()
+
+            message = "Squaring off all positions..."
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text(message),
+                action="Dismiss",
+            )
+            self.page.snack_bar.open = True
+            self.page.update()

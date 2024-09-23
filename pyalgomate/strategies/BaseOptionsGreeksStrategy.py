@@ -1,24 +1,25 @@
-import logging
-import numpy as np
 import datetime
-import pandas as pd
+import logging
 import os
 import time
-import plotly.express as px
 
+import numpy as np
+import pandas as pd
+import plotly.express as px
 import pyalgotrade.bar
-from pyalgotrade.strategy import position
-from pyalgotrade.broker import Order
+from py_vollib_vectorized import get_all_greeks, vectorized_implied_volatility
 from pyalgotrade import broker
-from pyalgomate.brokers import QuantityTraits
+from pyalgotrade.broker import Order
+
 import pyalgomate.utils as utils
-from pyalgomate.strategies import OptionGreeks
-from py_vollib_vectorized import vectorized_implied_volatility, get_all_greeks
-from pyalgomate.telegram import TelegramBot
+from pyalgomate.brokers import QuantityTraits
 from pyalgomate.core import State
 from pyalgomate.core.position import LongOpenPosition, ShortOpenPosition
-from pyalgomate.core.strategy import BaseStrategy
 from pyalgomate.core.slippage_tracker import SlippageTracker
+from pyalgomate.core.strategy import BaseStrategy
+from pyalgomate.strategies import OptionGreeks
+from pyalgomate.strategy import position
+from pyalgomate.telegram import TelegramBot
 
 
 class BaseOptionsGreeksStrategy(BaseStrategy):
@@ -49,8 +50,6 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
         self.__optionContracts = dict()
         self.mae = dict()
         self.mfe = dict()
-        self.__pendingPositionsToCancel = set()
-        self.__pendingPositionsToExit = set()
 
         self.__optionData = dict()
         self.overallPnL = 0
@@ -472,13 +471,9 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             ):
                 return False
 
-        if len(self.__pendingPositionsToCancel) or len(self.__pendingPositionsToExit):
-            return False
-
         return True
 
     def onExitOk(self, position: position.Position):
-        self.__pendingPositionsToExit.discard(position)
         execInfo = position.getExitOrder().getExecutionInfo()
         message = f"\n🔔 Position Exit\n\n🔑 Order ID: {position.getExitOrder().getId()}\n⏰ Date & Time: {execInfo.getDateTime()}\n💼 Instrument: {position.getInstrument()}\n💰 Exit Price: {execInfo.getPrice()}\n📊 Quantity: {execInfo.getQuantity()}"
         self.log(f"{message}")
@@ -546,9 +541,6 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
             logging.DEBUG,
             sendToTelegram=False,
         )
-        self.__pendingPositionsToCancel.discard(position)
-        if position in self.__pendingPositionsToExit:
-            self._exitWithMarketProtection(position)
 
     def haveLTP(self, instrument):
         return self.getFeed().getLastBar(instrument) is not None
@@ -789,33 +781,39 @@ class BaseOptionsGreeksStrategy(BaseStrategy):
                 instrument, datetime.datetime.now() - timeDelta, interval
             )
 
-    def _exitWithMarketProtection(
+    async def _exitWithMarketProtection(
         self, position: position.Position, marketProtectionPercentage=15, tickSize=0.05
     ):
-        lastPrice = self.getLastPrice(position.getInstrument())
-        if lastPrice is None:
+        lastBar = self.getFeed().getLastBar(position.getInstrument())
+        if lastBar is None:
             self.log(
-                f"LTP of <{position.getInstrument()}> is None while exiting with market protection."
+                f"LTP of <{position.getInstrument()}> is None while exiting with market position."
             )
             return
+        else:
+            self.log(
+                f"Last bar of {position.getInstrument()} at {self.getCurrentDateTime()} - Date/Time {lastBar.getDateTime()} Close {lastBar.getClose()}",
+                logging.DEBUG,
+                False,
+            )
 
         if position.getEntryOrder().isBuy():
-            limitPrice = lastPrice * (1 - (marketProtectionPercentage / 100.0))
+            limitPrice = lastBar.getClose() * (1 - (marketProtectionPercentage / 100.0))
         else:
-            limitPrice = lastPrice * (1 + (marketProtectionPercentage / 100.0))
+            limitPrice = lastBar.getClose() * (1 + (marketProtectionPercentage / 100.0))
 
         limitPrice = limitPrice - (limitPrice % tickSize)
 
-        position.exitLimit(limitPrice)
+        if position.exitActive():
+            await position.modifyExitToLimit(limitPrice)
+        else:
+            await position.exitLimit(limitPrice)
 
     def exitPosition(
         self, position: position.Position, marketProtectionPercentage, tickSize
     ):
-        if position.exitActive():
-            self.__pendingPositionsToCancel.add(position)
-            position.cancelExit()
-        else:
-            self.__pendingPositionsToExit.add(position)
+        self.runAsync(
             self._exitWithMarketProtection(
                 position, marketProtectionPercentage, tickSize
             )
+        )
