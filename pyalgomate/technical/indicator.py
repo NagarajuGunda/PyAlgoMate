@@ -154,7 +154,7 @@ class IndicatorManager:
 
         candles = self.candles[timeframe][instrument]
         if end_index is None:
-            end_index = len(candles)
+            return candles[start_index:]
         return candles[start_index:end_index]
 
     def _update_indicators(self, timeframe: int, instrument: str, ohlcv: OHLCV):
