@@ -36,13 +36,13 @@ class OptionRow(ft.UserControl):
             f"{self.call_ltp:.2f}" if self.call_ltp else "",
             expand=1,
             text_align="center",
-            size=16,  # Increase text size
+            size=18,  # Increase text size
         )
         self.put_ltp_text = ft.Text(
             f"{self.put_ltp:.2f}" if self.put_ltp else "",
             expand=1,
             text_align="center",
-            size=16,  # Increase text size
+            size=18,  # Increase text size
         )
 
         atm_strike = round(self.underlying_price / self.strike_step) * self.strike_step
@@ -70,7 +70,7 @@ class OptionRow(ft.UserControl):
             ),
             expand=1,
             bgcolor=call_bg_color,
-            padding=10,  # Add padding to increase size
+            padding=15,  # Add padding to increase size
             on_hover=self.on_call_hover,
         )
 
@@ -87,7 +87,7 @@ class OptionRow(ft.UserControl):
             ),
             expand=1,
             bgcolor=put_bg_color,
-            padding=10,  # Add padding to increase size
+            padding=15,  # Add padding to increase size
             on_hover=self.on_put_hover,
         )
 
@@ -101,12 +101,12 @@ class OptionRow(ft.UserControl):
                             expand=1,
                             text_align="center",
                             weight="bold",
-                            size=16,  # Increase text size
+                            size=18,
                         ),
                         expand=1,
                         bgcolor=row_bg_color,
                         alignment=ft.alignment.center,
-                        padding=10,  # Add padding to increase size
+                        padding=15,
                     ),
                     self.put_container,
                 ],
@@ -115,6 +115,7 @@ class OptionRow(ft.UserControl):
             ),
             expand=True,
             padding=0,
+            border=ft.border.only(bottom=ft.border.BorderSide(1, ft.colors.BLUE_100)),
         )
 
         return self._main_container
@@ -506,9 +507,11 @@ class TakeTradeView(ft.View):
         self.strike_step = 100  # Assuming strike difference is 100
 
         self.appbar = ft.AppBar(
-            title=ft.Text("Adding a Leg", size=20, weight="bold"),
-            bgcolor=ft.colors.BLUE,
+            title=ft.Text("Add a Leg", size=24, weight="bold"),
+            bgcolor=ft.colors.BLUE_700,
             color=ft.colors.WHITE,
+            elevation=4,
+            center_title=True,
         )
 
         self.content = self.create_content()
@@ -590,7 +593,7 @@ class TakeTradeView(ft.View):
                     put_instrument,
                     underlying_price,
                     self.strike_step,
-                    self.strategy,  # Pass strategy object here
+                    self.strategy,
                 )
                 self.option_rows[strike] = row
                 chain_updated = True
@@ -614,34 +617,55 @@ class TakeTradeView(ft.View):
         }
 
     def create_content(self):
-        return ft.Row(
-            [
-                ft.Column(
-                    [
-                        self.create_contract_selector(),
-                        self.create_option_chain(),
-                    ],
-                    expand=5,
-                ),
-                ft.VerticalDivider(width=1),
-                ft.Column(
-                    [
-                        ft.Text("Positions to be taken", size=16),
-                        # Add your positions UI here
-                    ],
-                    expand=5,
-                ),
-            ],
+        return ft.Container(
+            content=ft.Column(
+                [
+                    self.create_contract_selector(),
+                    ft.Divider(height=1, color=ft.colors.BLUE_200),
+                    ft.Container(
+                        content=ft.Row(
+                            [
+                                ft.Card(
+                                    content=self.create_option_chain(),
+                                    expand=5,
+                                ),
+                                ft.VerticalDivider(width=1, color=ft.colors.BLUE_200),
+                                ft.Card(
+                                    content=ft.Column(
+                                        [
+                                            ft.Text(
+                                                "Positions to be taken",
+                                                size=20,
+                                                weight="bold",
+                                            ),
+                                            # Add your positions UI here
+                                        ],
+                                        expand=True,
+                                        spacing=20,
+                                    ),
+                                    expand=5,
+                                ),
+                            ],
+                            expand=True,
+                            spacing=20,
+                        ),
+                        expand=True,
+                    ),
+                ],
+                expand=True,
+                spacing=10,
+            ),
+            padding=20,
             expand=True,
-            spacing=20,
         )
 
     def create_contract_selector(self):
         self.contract_selector = ft.Container(
             content=self._get_contract_selector_content(),
-            bgcolor=ft.colors.GREY_200,
+            bgcolor=ft.colors.BLUE_50,
             padding=10,
-            border_radius=5,
+            border_radius=10,
+            border=ft.border.all(2, ft.colors.BLUE_200),
         )
         return self.contract_selector
 
@@ -658,13 +682,22 @@ class TakeTradeView(ft.View):
         return ft.Row(
             [
                 ft.Text(
-                    f"{self.underlying}: {underlying_price:.2f}",
-                    color=ft.colors.BLUE,
+                    self.underlying,
+                    color=ft.colors.BLUE_700,
                     weight="bold",
+                    size=24,
+                ),
+                ft.Text(
+                    f"{underlying_price:.2f}",
+                    color=ft.colors.BLUE_900,
+                    weight="bold",
+                    size=24,
                 ),
                 ft.Text(
                     f"{change:.2f} ({change_percent:.2f}%)",
                     color=ft.colors.RED if change < 0 else ft.colors.GREEN,
+                    size=18,
+                    weight="bold",
                 ),
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -683,24 +716,29 @@ class TakeTradeView(ft.View):
         header_row = ft.Container(
             content=ft.Row(
                 [
-                    ft.Text(h, weight="bold", expand=1, text_align="center", size=16)
+                    ft.Text(h, weight="bold", expand=1, text_align="center", size=18)
                     for h in headers
                 ],
                 expand=1,
                 spacing=0,
             ),
-            bgcolor=ft.colors.GREY_200,
-            padding=10,  # Add padding to match OptionRow
-            border=ft.border.only(bottom=ft.border.BorderSide(1, ft.colors.GREY_400)),
+            bgcolor=ft.colors.BLUE_100,
+            padding=15,
+            border=ft.border.only(bottom=ft.border.BorderSide(2, ft.colors.BLUE_400)),
         )
 
-        self.option_chain = ft.Column(
+        self.option_chain = ft.ListView(
             [header_row],
             spacing=0,
-            scroll=ft.ScrollMode.ALWAYS,
             expand=True,
         )
-        return self.option_chain
+        return ft.Container(
+            content=self.option_chain,
+            border_radius=10,
+            border=ft.border.all(2, ft.colors.BLUE_200),
+            padding=10,
+            expand=True,
+        )
 
     def create_stop_loss_target(self):
         return ft.Container(
