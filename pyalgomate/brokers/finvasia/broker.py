@@ -33,6 +33,7 @@ from . import getOptionContract, underlyingMapping
 
 logger = logging.getLogger(__name__)
 
+
 def getUnderlyingMappings():
     return underlyingMapping
 
@@ -857,9 +858,7 @@ class LiveBroker(broker.Broker):
             retention = "DAY"  # DAY / EOS / IOC
             remarks = f"PyAlgoMate order {id(order)}"
 
-            infoMsg = f"buyOrSell={buyOrSell}, product_type={productType}, exchange={exchange}, "
-            f"tradingsymbol={symbol}, quantity={quantity}, discloseqty=0, price_type={priceType}, "
-            f"price={price}, trigger_price={stopPrice}, retention={retention}, remarks={remarks}"
+            infoMsg = f"buyOrSell={buyOrSell}, exchange={exchange}, tradingsymbol={symbol}, quantity={quantity}, price_type={priceType}, price={price}, trigger_price={stopPrice}, retention={retention}, remarks={remarks}"
             logger.info(f"Placing order with {infoMsg}")
             placedOrderResponse = await self.__apiAsync.place_order(
                 buy_or_sell=buyOrSell,
