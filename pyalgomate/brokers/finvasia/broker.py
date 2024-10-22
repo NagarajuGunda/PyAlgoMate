@@ -784,12 +784,24 @@ class LiveBroker(broker.Broker):
         newtrigger_price=0.0,
         newOrder: Order = None,
     ):
+        infoMsg = ""
         try:
             splitStrings = order.getInstrument().split("|")
             exchange = splitStrings[0] if len(splitStrings) > 1 else "NSE"
             symbol = splitStrings[1] if len(splitStrings) > 1 else order.getInstrument()
             quantity = order.getQuantity()
 
+            if newOrder:
+                newOrder.setSubmitted(
+                    order.getId(), order.getSubmitDateTime(), order.getRemarks()
+                )
+
+            oldOrderId = order.getId()
+            if oldOrderId is not None:
+                self._unregisterOrder(order)
+
+            infoMsg = f"exchange={exchange}, tradingsymbol={symbol}, newquantity={quantity}, newprice_type={newprice_type}, newprice={newprice}, newtrigger_price={newtrigger_price}"
+            logger.info(f"Modifying order with {infoMsg}")
             modifyOrderResponse = await self.__apiAsync.modify_order(
                 orderno=order.getId(),
                 exchange=exchange,
@@ -814,10 +826,6 @@ class LiveBroker(broker.Broker):
                 )
                 raise Exception(ret.getErrorMessage())
 
-            oldOrderId = order.getId()
-            if oldOrderId is not None:
-                self._unregisterOrder(order)
-
             order.setSubmitted(ret.getId(), ret.getDateTime(), order.getRemarks())
             if newOrder:
                 newOrder.setSubmitted(
@@ -831,7 +839,10 @@ class LiveBroker(broker.Broker):
                 f'Modified {newprice_type} {"Buy" if order.isBuy() else "Sell"} Order {oldOrderId} with New order {order.getId()} at {order.getSubmitDateTime()}'
             )
         except Exception as e:
-            logger.critical(f"Could not modify order for {symbol}. Reason: {e}")
+            logger.critical(
+                f"Could not modify order for {symbol}. Reason: {e}\nOrder Info: {infoMsg}"
+            )
+            logger.error(traceback.print_exc())
 
     async def placeOrder(self, order: Order):
         infoMsg = ""
@@ -858,6 +869,10 @@ class LiveBroker(broker.Broker):
             retention = "DAY"  # DAY / EOS / IOC
             remarks = f"PyAlgoMate order {id(order)}"
 
+            oldOrderId = order.getId()
+            if oldOrderId is not None:
+                self._unregisterOrder(order)
+
             infoMsg = f"buyOrSell={buyOrSell}, exchange={exchange}, tradingsymbol={symbol}, quantity={quantity}, price_type={priceType}, price={price}, trigger_price={stopPrice}, retention={retention}, remarks={remarks}"
             logger.info(f"Placing order with {infoMsg}")
             placedOrderResponse = await self.__apiAsync.place_order(
@@ -882,10 +897,6 @@ class LiveBroker(broker.Broker):
             if orderResponse.getStat() != "Ok":
                 logger.error(f"place order failed. Full API response: {orderResponse}")
                 raise Exception(orderResponse.getErrorMessage())
-
-            oldOrderId = order.getId()
-            if oldOrderId is not None:
-                self._unregisterOrder(order)
 
             order.setSubmitted(
                 orderResponse.getId(), orderResponse.getDateTime(), remarks
