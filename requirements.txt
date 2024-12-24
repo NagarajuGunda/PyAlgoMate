@@ -8,6 +8,8 @@ kaleido
 kiteconnect
 NorenRestApi @ https://raw.githubusercontent.com/Shoonya-Dev/ShoonyaApi-py/master/dist/NorenRestApi-0.0.30-py2.py3-none-any.whl
 NorenRestApiAsync @ https://raw.githubusercontent.com/NagarajuGunda/ShoonyaApi-py/master/dist/NorenRestApiAsync-0.0.31-py3-none-any.whl
+NorenApi_Flattrade @ https://raw.githubusercontent.com/arunraj94/flattradeAPI/main/dist/NorenApi_Flattrade-0.0.31-py3-none-any.whl
+NorenApiAsync_Flattrade @ https://raw.githubusercontent.com/arunraj94/flattradeAPI/main/dist/NorenApiAsync_Flattrade-0.0.31-py3-none-any.whl
 numpy
 pandas
 pendulum
