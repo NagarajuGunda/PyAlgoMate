@@ -82,14 +82,16 @@ class BarsGrouper(resamplebase.Grouper):
 
 
 class ResampledBars():
-    def __init__(self, barFeed, frequency, callback):
+
+    def __init__(self, barFeed, frequency, callback, noOfPrevBars=2):
         self.__barFeed = barFeed
         self.__frequency = frequency
         self.__callback = callback
         self.__values = []
         self.__grouper = None
         self.__range = None
-        self.__lastBars: bar.Bars = None
+        self.__lastBars = []
+        self.__noOfPrevBars = noOfPrevBars
 
     def getFrequency(self):
         return self.__frequency
@@ -100,16 +102,24 @@ class ResampledBars():
 
         return None
 
+    def getPreviousBars(self) -> bar.Bars:
+        return self.__previousBars
+
     def getLastBars(self) -> bar.Bars:
+        return self.__lastBars[-1] if self.__lastBars else None
+
+    def getBars(self) -> list[bar.Bars]:
         return self.__lastBars
 
     def addLastBars(self, bars: bar.Bars):
-        if self.__lastBars and self.__lastBars.getDateTime() == bars.getDateTime():
-            self.__lastBars = bar.Bars(
-                {**self.__lastBars._Bars__barDict, **bars._Bars__barDict}
+        if self.__lastBars and self.__lastBars[-1].getDateTime() == bars.getDateTime():
+            self.__lastBars[-1] = bar.Bars(
+                {**self.__lastBars[-1]._Bars__barDict, **bars._Bars__barDict}
             )
         else:
-            self.__lastBars = bars
+            self.__lastBars.append(bars)
+            if len(self.__lastBars) > self.__noOfPrevBars:
+                self.__lastBars.pop(0)
 
     def addBars(self, dateTime, value):
         if self.__range is None:
@@ -143,8 +153,11 @@ class ResampledBars():
             self.sendBars()
 
     def sendBars(self):
-        self.__lastBars = self.__values.pop(0)
-        self.__callback(self.__lastBars)
+        newBars = self.__values.pop(0)
+        self.__lastBars.append(newBars)
+        if len(self.__lastBars) > self.__noOfPrevBars:
+            self.__lastBars.pop(0)
+        self.__callback(newBars)
 
 
 if __name__ == "__main__":
