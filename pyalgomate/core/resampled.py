@@ -102,9 +102,6 @@ class ResampledBars():
 
         return None
 
-    def getPreviousBars(self) -> bar.Bars:
-        return self.__previousBars
-
     def getLastBars(self) -> bar.Bars:
         return self.__lastBars[-1] if self.__lastBars else None
 
